@@ -12,13 +12,15 @@ pub struct OwnerCommands;
 
 impl CommandsContainer<PgDatabase, SingleElimTournament> for OwnerCommands {
     fn get_commands_list(
-    ) -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament>, BotError>>
-    {
-        vec![]
+    ) -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament>, BotError>> {
+        vec![set_manager()]
     }
 }
 
-#[poise::command(slash_command, guild_only, owners_only)]
+/// Set the Manager role for the server. Only usable by the bot owner.
+///
+/// Managers are able to do pretty much anything except for this command.
+#[poise::command(slash_command, prefix_command, guild_only, owners_only)]
 async fn set_manager(
     ctx: Context<'_>,
     #[description = "The Manager role"] role: serenity::Role,
@@ -39,6 +41,16 @@ async fn set_manager(
         .database
         .set_manager_role(guild_id, manager_role_id)
         .await?;
+
+    ctx.send(
+        poise::CreateReply::default()
+            .content(format!(
+                "Successfully set the manager role to {role_name}.",
+                role_name = role.name
+            ))
+            .ephemeral(true),
+    )
+    .await?;
 
     Ok(())
 }

@@ -2,12 +2,11 @@
 
 use std::env;
 
-
 /// This is the build script that will be run by cargo when building the project.
 /// It will run the migration files (usually table creation) before the project is built.
 ///
 /// Note that Rust Analyzer will also run this whenever you save the project.
-/// 
+///
 /// This script will not affect production whatsoever and is only used in development.
 #[cfg(debug_assertions)]
 #[tokio::main]
@@ -20,7 +19,9 @@ async fn main() {
 
     let db_url = env::var("DATABASE_URL").expect("Missing `DATABASE_URL` env var.");
 
-    let db_pool = sqlx::PgPool::connect(&db_url).await.expect("Failed to connect to the database.");
+    let db_pool = sqlx::PgPool::connect(&db_url)
+        .await
+        .expect("Failed to connect to the database.");
 
     sqlx::migrate!("./migrations")
         .run(&db_pool)

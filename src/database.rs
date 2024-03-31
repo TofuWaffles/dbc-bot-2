@@ -3,9 +3,8 @@ use sqlx::PgPool;
 /// Any database that the bot could use to operate the tournament
 #[allow(async_fn_in_trait)]
 pub trait Database {
-
     /// Establishes a connection to the database and returns a handle to it
-    async fn new() -> Self;
+    async fn connect() -> Self;
 
     /// Creates all tables necessary for the tournament system
     ///
@@ -13,7 +12,11 @@ pub trait Database {
     /// In development, use the build.rs script to generate the tables at compile time.
     async fn create_tables(&self) -> Result<(), sqlx::Error>;
 
-    async fn set_manager_role(&self, guild_id: String, manager_role_id: String) -> Result<(), sqlx::Error>;
+    async fn set_manager_role(
+        &self,
+        guild_id: String,
+        manager_role_id: String,
+    ) -> Result<(), sqlx::Error>;
 
     async fn set_config(
         &self,
@@ -31,7 +34,7 @@ pub struct PgDatabase {
 }
 
 impl Database for PgDatabase {
-    async fn new() -> Self {
+    async fn connect() -> Self {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
 
         let pool = PgPool::connect(db_url.as_str())
@@ -45,7 +48,7 @@ impl Database for PgDatabase {
         sqlx::query_file!("migrations/20240330072934_create_config.sql")
             .execute(&self.pool)
             .await?;
-        
+
         sqlx::query_file!("migrations/20240330072940_create_tournaments.sql")
             .execute(&self.pool)
             .await?;
@@ -73,7 +76,11 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn set_manager_role(&self, guild_id: String, manager_role_id: String) -> Result<(), sqlx::Error> {
+    async fn set_manager_role(
+        &self,
+        guild_id: String,
+        manager_role_id: String,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"
             INSERT INTO manager_roles (guild_id, manager_role_id)
@@ -119,8 +126,6 @@ impl Database for PgDatabase {
         .execute(&self.pool)
         .await?;
 
-
         Ok(())
     }
-
 }

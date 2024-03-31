@@ -1,4 +1,3 @@
 use std::error::Error;
 
-enum DBCError {
-}
+enum DBCError {}

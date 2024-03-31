@@ -27,8 +27,7 @@ pub type BotError = Box<dyn std::error::Error + Send + Sync>;
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-pub type Context<'a> =
-    poise::Context<'a, BotData<PgDatabase, SingleElimTournament>, BotError>;
+pub type Context<'a> = poise::Context<'a, BotData<PgDatabase, SingleElimTournament>, BotError>;
 
 #[tokio::main]
 async fn main() {
@@ -47,14 +46,20 @@ async fn run() -> Result<(), BotError> {
 
     let intents = serenity::GatewayIntents::non_privileged();
 
-    let pg_database = PgDatabase::new().await;
+    let pg_database = PgDatabase::connect().await;
     let dbc_tournament = SingleElimTournament {};
 
-    let commands = get_all_commands();
+    let commands = vec![
+        ManagerCommands::get_commands_list(),
+        OwnerCommands::get_commands_list(),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: commands,
+            commands,
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
