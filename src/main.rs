@@ -1,23 +1,23 @@
-use std::marker::PhantomData;
+use poise::{serenity_prelude as serenity, Command};
 
-use poise::serenity_prelude as serenity;
-
+mod commands;
+mod database;
 mod error;
 mod tournament_model;
-mod database;
-mod commands;
 
 use database::{Database, PgDatabase};
 use tournament_model::{SingleElimTournament, TournamentModel};
 
-use commands::{manager_commands::ManagerCommands, CommandsContainer};
+use commands::{
+    manager_commands::ManagerCommands, owner_commands::OwnerCommands, CommandsContainer,
+};
 
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-pub struct BotData<DB: Database, TM: TournamentModel<DB>> {
+pub struct BotData<DB: Database, TM: TournamentModel> {
     tournament_model: TM,
-    phantom: PhantomData<DB>
+    database: DB,
 }
 
 /// A thread-safe Error type used by the bot.
@@ -27,7 +27,8 @@ pub type BotError = Box<dyn std::error::Error + Send + Sync>;
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-pub type Context<'a> = poise::Context<'a, BotData<PgDatabase, SingleElimTournament<PgDatabase>>, BotError>;
+pub type Context<'a> =
+    poise::Context<'a, BotData<PgDatabase, SingleElimTournament>, BotError>;
 
 #[tokio::main]
 async fn main() {
@@ -47,13 +48,13 @@ async fn run() -> Result<(), BotError> {
     let intents = serenity::GatewayIntents::non_privileged();
 
     let pg_database = PgDatabase::new().await;
-    let dbc_tournament = SingleElimTournament { database: pg_database };
+    let dbc_tournament = SingleElimTournament {};
 
-    let manager_commands = ManagerCommands::get_commands_list(); 
+    let commands = get_all_commands();
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: manager_commands,
+            commands: commands,
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {
@@ -61,7 +62,7 @@ async fn run() -> Result<(), BotError> {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 Ok(BotData {
                     tournament_model: dbc_tournament,
-                    phantom: PhantomData,
+                    database: pg_database,
                 })
             })
         })

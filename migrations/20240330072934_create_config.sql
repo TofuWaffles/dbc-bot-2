@@ -1,8 +1,7 @@
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS config (
     guild_id VARCHAR(255) PRIMARY KEY,
-    manager_role_id VARCHAR(255) NOT NULL,
-    host_role_id VARCHAR(255) NOT NULL,
+    marshal_role_id VARCHAR(255) NOT NULL,
     announcement_channel_id VARCHAR(255) NOT NULL,
     notification_channel_id VARCHAR(255) NOT NULL,
     log_channel_id VARCHAR(255) NOT NULL

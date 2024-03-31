@@ -1,4 +1,5 @@
 pub mod manager_commands;
+pub mod owner_commands;
 
 use crate::{database::Database, tournament_model::TournamentModel, BotData, BotError};
 
@@ -18,11 +19,12 @@ use crate::{database::Database, tournament_model::TournamentModel, BotData, BotE
 /// pub struct ManagerCommands;
 ///
 /// impl CommandsContainer<PgDatabase, SingleElimTournament<PgDatabase>> for ManagerCommands {
-///     fn get_commands_list() -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament<PgDatabase>>, BotError>> {
+///     fn get_commands_list(&self) 
+///         -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament<PgDatabase>>, BotError>> {
 ///         vec![very_important_manager_only_command()]
 ///     }
 /// }
-/// 
+///
 /// #[poise::command(slash_command, prefix_command)]
 /// async fn very_important_manager_only_command(
 ///     ctx: Context<'_>,
@@ -31,9 +33,10 @@ use crate::{database::Database, tournament_model::TournamentModel, BotData, BotE
 ///     Ok(())
 /// }
 /// ```
-pub trait CommandsContainer<DB, TM> 
-where DB: Database,
-      TM: TournamentModel<DB> 
+pub trait CommandsContainer<DB, TM>
+where
+    DB: Database,
+    TM: TournamentModel,
 {
     fn get_commands_list() -> Vec<poise::Command<BotData<DB, TM>, BotError>>;
 }

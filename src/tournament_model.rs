@@ -1,21 +1,16 @@
 use crate::{database::Database, BotError};
 
 #[allow(async_fn_in_trait)]
-pub trait TournamentModel<DB>
-    where DB: crate::database::Database
+pub trait TournamentModel
 {
-    async fn create_tournament(&self, db: &DB) -> Result<(), BotError>;
+    async fn create_tournament(&self) -> Result<(), BotError>;
 }
 
-pub struct SingleElimTournament<DB> {
-    pub database: DB,
-}
+pub struct SingleElimTournament {}
 
-impl<DB> TournamentModel<DB> for SingleElimTournament<DB>
-    where DB: Database
+impl TournamentModel for SingleElimTournament
 {
-    async fn create_tournament(&self, db: &DB) -> Result<(), BotError> {
-        db.create_tables().await?;
-        Ok(())
+    async fn create_tournament(&self) -> Result<(), BotError> {
+        todo!();
     }
 }
