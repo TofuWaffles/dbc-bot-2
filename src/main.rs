@@ -1,5 +1,9 @@
 use poise::{serenity_prelude as serenity, Command};
 
+/// Contains all the commands that the bot can run.
+///
+/// Additionally, it contains the `CommandsContainer` trait that groups all the commands together
+/// as well as checks used by various commands.
 mod commands;
 mod database;
 mod error;
@@ -50,8 +54,8 @@ async fn run() -> Result<(), BotError> {
     let dbc_tournament = SingleElimTournament {};
 
     let commands = vec![
-        ManagerCommands::get_commands_list(),
         OwnerCommands::get_commands_list(),
+        ManagerCommands::get_commands_list(),
     ]
     .into_iter()
     .flatten()

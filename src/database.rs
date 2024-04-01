@@ -12,12 +12,14 @@ pub trait Database {
     /// In development, use the build.rs script to generate the tables at compile time.
     async fn create_tables(&self) -> Result<(), sqlx::Error>;
 
+    /// Sets the manager role for a guild
     async fn set_manager_role(
         &self,
         guild_id: String,
         manager_role_id: String,
     ) -> Result<(), sqlx::Error>;
 
+    /// Sets the config for a guild
     async fn set_config(
         &self,
         guild_id: String,
