@@ -1,11 +1,11 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::{
-    commands::CommandsContainer,
     database::{Database, PgDatabase},
     tournament_model::SingleElimTournament,
     BotError, Context,
 };
+use super::CommandsContainer;
 
 /// CommandsContainer for the Manager commands
 pub struct ManagerCommands;
@@ -98,16 +98,3 @@ async fn set_config(
     Ok(())
 }
 
-/// Displays your or another user's account creation date
-///
-/// Used as a demo command for now
-#[poise::command(slash_command, prefix_command)]
-async fn age(
-    ctx: Context<'_>,
-    #[description = "Selected user"] user: Option<serenity::User>,
-) -> Result<(), BotError> {
-    let u = user.as_ref().unwrap_or_else(|| ctx.author());
-    let response = format!("{}'s account was created at {}", u.name, u.created_at());
-    ctx.say(response).await?;
-    Ok(())
-}

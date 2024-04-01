@@ -19,7 +19,7 @@ impl CommandsContainer<PgDatabase, SingleElimTournament> for OwnerCommands {
 
 /// Set the Manager role for the server. Only usable by the bot owner.
 ///
-/// Managers are able to do pretty much anything except for this command.
+/// Managers are typically server moderators and are able to run any command except this one.
 #[poise::command(slash_command, prefix_command, guild_only, owners_only)]
 async fn set_manager(
     ctx: Context<'_>,
