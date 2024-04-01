@@ -47,7 +47,7 @@ pub(self) mod checks {
 
     use crate::{BotError, Context};
 
-    async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
             .ok_or("This command can only be used in a server.")?
@@ -85,7 +85,7 @@ pub(self) mod checks {
         return Ok(false);
     }
 
-    async fn is_marshal_or_higher(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_marshal_or_higher(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
             .ok_or("This command can only be used in a server.")?
@@ -136,7 +136,7 @@ pub(self) mod checks {
         return Ok(false);
     }
 
-    async fn is_config_set(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_config_set(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
             .ok_or("This command can only be used in a server.")?

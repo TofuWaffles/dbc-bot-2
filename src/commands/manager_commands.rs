@@ -1,11 +1,10 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 
-use super::CommandsContainer;
 use crate::{
-    database::{Database, PgDatabase},
-    tournament_model::SingleElimTournament,
-    BotError, Context,
+    commands::checks::is_manager, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotError, Context
 };
+
+use super::CommandsContainer;
 
 /// CommandsContainer for the Manager commands
 pub struct ManagerCommands;
@@ -28,7 +27,7 @@ impl CommandsContainer<PgDatabase, SingleElimTournament> for ManagerCommands {
 /// Notification Channel: The channel where the bot will send notifications to users about their
 /// progress and matches.
 /// Log Channel: The channel where the bot will log all the actions it takes.
-#[poise::command(slash_command, prefix_command, guild_only)]
+#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 async fn set_config(
     ctx: Context<'_>,
     marshal_role: serenity::Role,
@@ -80,7 +79,7 @@ async fn set_config(
     ctx.data()
         .database
         .set_config(
-            ctx.guild_id().expect("Guild ID not found").to_string(),
+            ctx.guild_id().ok_or("This command must be used within a server")?.to_string(),
             marshal_role_id,
             announcement_channel_id,
             notification_channel_id,
