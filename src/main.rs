@@ -6,7 +6,6 @@ use poise::{serenity_prelude as serenity, Command};
 /// as well as checks used by various commands.
 mod commands;
 mod database;
-mod error;
 mod tournament_model;
 
 use database::{Database, PgDatabase};

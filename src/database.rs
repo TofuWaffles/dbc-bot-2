@@ -32,7 +32,7 @@ pub trait Database {
 
 /// The Postgres database used for the DBC tournament system
 pub struct PgDatabase {
-    pool: PgPool,
+    pub pool: PgPool,
 }
 
 impl Database for PgDatabase {

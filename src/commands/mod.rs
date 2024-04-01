@@ -41,3 +41,125 @@ where
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
     fn get_commands_list() -> Vec<poise::Command<BotData<DB, TM>, BotError>>;
 }
+
+pub(self) mod checks {
+    use poise::CreateReply;
+
+    use crate::{BotError, Context};
+
+    async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
+        let guild_id = ctx
+            .guild()
+            .ok_or("This command can only be used in a server.")?
+            .id
+            .to_string();
+
+        let db = &ctx.data().database;
+
+        let manager_role_id = sqlx::query!(
+            "SELECT manager_role_id FROM manager_roles WHERE guild_id = $1",
+            guild_id
+        )
+        .fetch_one(&db.pool)
+        .await?
+        .manager_role_id
+        .parse::<u64>()?;
+
+        let guild_id_u64: u64 = guild_id.parse()?;
+
+        if ctx
+            .author()
+            .has_role(ctx, guild_id_u64, manager_role_id)
+            .await?
+        {
+            return Ok(true);
+        }
+
+        ctx.send(
+            CreateReply::default()
+                .content("You do not have the required permissions to use this command.")
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(false);
+    }
+
+    async fn is_marshal_or_higher(ctx: Context<'_>) -> Result<bool, BotError> {
+        let guild_id = ctx
+            .guild()
+            .ok_or("This command can only be used in a server.")?
+            .id
+            .to_string();
+
+        let db = &ctx.data().database;
+
+        let manager_role_id = sqlx::query!(
+            "SELECT manager_role_id FROM manager_roles WHERE guild_id = $1",
+            guild_id
+        )
+        .fetch_one(&db.pool)
+        .await?
+        .manager_role_id
+        .parse::<u64>()?;
+
+        let marshal_role_id = sqlx::query!(
+            "SELECT marshal_role_id FROM config WHERE guild_id = $1",
+            guild_id
+        )
+        .fetch_one(&db.pool)
+        .await?
+        .marshal_role_id
+        .parse::<u64>()?;
+
+        let guild_id_u64: u64 = guild_id.parse()?;
+
+        if ctx
+            .author()
+            .has_role(ctx, guild_id_u64, manager_role_id)
+            .await?
+            || ctx
+                .author()
+                .has_role(ctx, guild_id_u64, marshal_role_id)
+                .await?
+        {
+            return Ok(true);
+        }
+
+        ctx.send(
+            CreateReply::default()
+                .content("You do not have the required permissions to use this command.")
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(false);
+    }
+
+    async fn is_config_set(ctx: Context<'_>) -> Result<bool, BotError> {
+        let guild_id = ctx
+            .guild()
+            .ok_or("This command can only be used in a server.")?
+            .id
+            .to_string();
+
+        let db = &ctx.data().database;
+
+        let config = sqlx::query!("SELECT * FROM config WHERE guild_id = $1", guild_id)
+            .fetch_optional(&db.pool)
+            .await?;
+
+        if config.is_some() {
+            return Ok(true);
+        }
+
+        ctx.send(
+            CreateReply::default()
+                .content("The bot configuration has not been set up for this server.")
+                .ephemeral(true),
+        )
+        .await?;
+
+        Ok(false)
+    }
+}

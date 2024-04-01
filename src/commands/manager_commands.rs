@@ -1,11 +1,11 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 
+use super::CommandsContainer;
 use crate::{
     database::{Database, PgDatabase},
     tournament_model::SingleElimTournament,
     BotError, Context,
 };
-use super::CommandsContainer;
 
 /// CommandsContainer for the Manager commands
 pub struct ManagerCommands;
@@ -97,4 +97,3 @@ async fn set_config(
 
     Ok(())
 }
-
