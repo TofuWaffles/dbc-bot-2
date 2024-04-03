@@ -6,6 +6,7 @@ use poise::{serenity_prelude as serenity, Command};
 /// as well as checks used by various commands.
 mod commands;
 mod database;
+mod models;
 mod tournament_model;
 
 use database::{Database, PgDatabase};
@@ -19,8 +20,8 @@ use commands::{
 ///
 /// Accessible by all bot commands through Context.
 pub struct BotData<DB: Database, TM: TournamentModel> {
-    tournament_model: TM,
     database: DB,
+    tournament_model: TM,
 }
 
 /// A thread-safe Error type used by the bot.

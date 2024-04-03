@@ -155,7 +155,7 @@ pub(self) mod checks {
 
         ctx.send(
             CreateReply::default()
-                .content("The bot configuration has not been set up for this server.")
+                .content("The bot configuration has not been set up for this server. Please ask a moderator to set it up.")
                 .ephemeral(true),
         )
         .await?;
