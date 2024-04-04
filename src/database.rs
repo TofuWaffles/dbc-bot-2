@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::models::{
-    Config, ManagerRole, Match, MatchSchedule, Player, Tournament, TournamentPlayer,
+    Config, ManagerRole, Match, MatchSchedule, User, Tournament, TournamentPlayer,
 };
 
 /// Any database that the bot could use to operate the tournament
@@ -9,7 +9,7 @@ use crate::models::{
 /// Note that changing the implementor of this trait will only allow you to change which database
 /// you'll be using (e.g. Postgres, SQLite, etc.).
 ///
-/// If you want to change the database schema, you'll need to change this trait as well as the models used by the implementor. 
+/// If you want to change the database schema, you'll need to change this trait as well as all its associated types
 #[allow(async_fn_in_trait)]
 pub trait Database {
     type Error;
@@ -22,7 +22,7 @@ pub trait Database {
     /// A tournament that may or may not be currently running
     type Tournament;
     /// A player (Discord user) that has registered with the bot
-    type Player;
+    type User;
     /// Tells you which players are in which tournaments
     type TournamentPlayer;
     /// A match between two players in a tournament
@@ -42,19 +42,23 @@ pub trait Database {
     /// Sets the manager role for a guild
     async fn set_manager_role(
         &self,
-        guild_id: String,
-        manager_role_id: String,
+        guild_id: &str,
+        manager_role_id: &str,
     ) -> Result<(), Self::Error>;
 
     /// Sets the config for a guild
     async fn set_config(
         &self,
-        guild_id: String,
-        marshal_role_id: String,
-        announcement_channel_id: String,
-        notification_channel_id: String,
-        log_channel_id: String,
+        guild_id: &str,
+        marshal_role_id: &str,
+        announcement_channel_id: &str,
+        notification_channel_id: &str,
+        log_channel_id: &str,
     ) -> Result<(), Self::Error>;
+
+    async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error>;
+
+    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -64,10 +68,11 @@ pub struct PgDatabase {
 
 impl Database for PgDatabase {
     type Error = sqlx::Error;
+
     type ManagerRoleConfig = ManagerRole;
     type GuildConfig = Config;
     type Tournament = Tournament;
-    type Player = Player;
+    type User = User;
     type TournamentPlayer = TournamentPlayer;
     type Match = Match;
     type MatchSchedule = MatchSchedule;
@@ -83,6 +88,8 @@ impl Database for PgDatabase {
     }
 
     async fn create_tables(&self) -> Result<(), Self::Error> {
+        // This isn't the most reliable way to create the tables
+        // I might change this to be inlined in the future
         sqlx::query_file!("migrations/20240330072934_create_config.sql")
             .execute(&self.pool)
             .await?;
@@ -91,7 +98,7 @@ impl Database for PgDatabase {
             .execute(&self.pool)
             .await?;
 
-        sqlx::query_file!("migrations/20240330072944_create_players.sql")
+        sqlx::query_file!("migrations/20240330072936_create_users.sql")
             .execute(&self.pool)
             .await?;
 
@@ -116,8 +123,8 @@ impl Database for PgDatabase {
 
     async fn set_manager_role(
         &self,
-        guild_id: String,
-        manager_role_id: String,
+        guild_id: &str,
+        manager_role_id: &str,
     ) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
@@ -138,11 +145,11 @@ impl Database for PgDatabase {
 
     async fn set_config(
         &self,
-        guild_id: String,
-        marshal_role_id: String,
-        announcement_channel_id: String,
-        notification_channel_id: String,
-        log_channel_id: String,
+        guild_id: &str,
+        marshal_role_id: &str,
+        announcement_channel_id: &str,
+        notification_channel_id: &str,
+        log_channel_id: &str,
     ) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
@@ -160,6 +167,38 @@ impl Database for PgDatabase {
             announcement_channel_id,
             notification_channel_id,
             log_channel_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT * FROM users WHERE discord_id = $1
+            "#,
+            discord_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO users (discord_id, player_tag)
+            VALUES ($1, $2)
+            ON CONFLICT (discord_id)
+            DO UPDATE SET
+                player_tag = $2
+            "#,
+            discord_id,
+            player_tag
         )
         .execute(&self.pool)
         .await?;

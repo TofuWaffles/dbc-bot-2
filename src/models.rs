@@ -25,7 +25,7 @@ pub struct Tournament {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Player {
+pub struct User {
     pub discord_id: String,
     pub player_tag: String,
 }

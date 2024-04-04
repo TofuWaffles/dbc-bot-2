@@ -20,13 +20,13 @@ impl CommandsContainer<PgDatabase, SingleElimTournament> for ManagerCommands {
 ///
 /// This command is used to set the configuration for a guild. The configuration includes the marshal role, announcement channel, notification channel, and log channel.
 ///
-/// Marshal Role: The role that is able to manage the tournament system. Akin to tournament
+/// - Marshal Role: The role that is able to manage the tournament system. Akin to tournament
 /// marshals.
-/// Announcement Channel: The channel where the bot will announce the start and end of tournaments.
+/// - Announcement Channel: The channel where the bot will announce the start and end of tournaments.
 /// and other important announcements.
-/// Notification Channel: The channel where the bot will send notifications to users about their
+/// - Notification Channel: The channel where the bot will send notifications to users about their
 /// progress and matches.
-/// Log Channel: The channel where the bot will log all the actions it takes.
+/// - Log Channel: The channel where the bot will log all the actions it takes.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 async fn set_config(
     ctx: Context<'_>,
@@ -79,11 +79,11 @@ async fn set_config(
     ctx.data()
         .database
         .set_config(
-            ctx.guild_id().ok_or("This command must be used within a server")?.to_string(),
-            marshal_role_id,
-            announcement_channel_id,
-            notification_channel_id,
-            log_channel_id,
+            &ctx.guild_id().ok_or("This command must be used within a server")?.to_string(),
+            &marshal_role_id,
+            &announcement_channel_id,
+            &notification_channel_id,
+            &log_channel_id,
         )
         .await?;
 

@@ -39,7 +39,7 @@ async fn set_manager(
 
     ctx.data()
         .database
-        .set_manager_role(guild_id, manager_role_id)
+        .set_manager_role(&guild_id, &manager_role_id)
         .await?;
 
     ctx.send(

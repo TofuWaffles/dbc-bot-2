@@ -1,20 +1,26 @@
 use poise::{serenity_prelude as serenity, Command};
 
-/// Contains all the commands that the bot can run.
-///
-/// Additionally, it contains the `CommandsContainer` trait that groups all the commands together
-/// as well as checks used by various commands.
-mod commands;
-mod database;
-mod models;
-mod tournament_model;
-
 use database::{Database, PgDatabase};
 use tournament_model::{SingleElimTournament, TournamentModel};
 
 use commands::{
     manager_commands::ManagerCommands, owner_commands::OwnerCommands, CommandsContainer,
 };
+
+/// Contains all the commands that the bot can run.
+///
+/// Additionally, it contains the `CommandsContainer` trait that groups all the commands together
+/// as well as checks used by various commands.
+mod commands;
+/// Contains traits and types for database implementation.
+mod database;
+/// Contains the tournament model, which is used to manage tournaments.
+mod tournament_model;
+/// Contains models used by both the tournament model and the database.
+mod models;
+/// Contains the types used to interact with the game API.
+mod api;
+
 
 /// Stores data used by the bot.
 ///
@@ -46,7 +52,7 @@ async fn run() -> Result<(), BotError> {
     #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
-    let token = std::env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
 
     let intents = serenity::GatewayIntents::non_privileged();
 
@@ -82,19 +88,5 @@ async fn run() -> Result<(), BotError> {
         .await;
     client.unwrap().start().await.unwrap();
 
-    Ok(())
-}
-
-/// Displays your or another user's account creation date
-///
-/// Used as a reference
-#[poise::command(slash_command, prefix_command)]
-async fn age(
-    ctx: Context<'_>,
-    #[description = "Selected user"] user: Option<serenity::User>,
-) -> Result<(), BotError> {
-    let u = user.as_ref().unwrap_or_else(|| ctx.author());
-    let response = format!("{}'s account was created at {}", u.name, u.created_at());
-    ctx.say(response).await?;
     Ok(())
 }

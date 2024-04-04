@@ -1,5 +1,6 @@
-pub mod manager_commands;
 pub mod owner_commands;
+pub mod manager_commands;
+pub mod user_commands;
 
 use crate::{database::Database, tournament_model::TournamentModel, BotData, BotError};
 
