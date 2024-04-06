@@ -31,7 +31,9 @@ pub trait Database {
     type MatchSchedule;
 
     /// Establishes a connection to the database and returns a handle to it
-    async fn connect() -> Result<Self, Self::Error>;
+    async fn connect() -> Result<Self, Self::Error>
+        where
+        Self: Sized;
 
     /// Creates all tables necessary for the tournament system
     ///
