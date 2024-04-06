@@ -1,18 +1,16 @@
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    database::{Database, PgDatabase},
-    tournament_model::SingleElimTournament,
-    BotError, Context,
+    api::BrawlStarsApi, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotData, BotError, Context
 };
 
 use super::CommandsContainer;
 
 pub struct OwnerCommands;
 
-impl CommandsContainer<PgDatabase, SingleElimTournament> for OwnerCommands {
+impl CommandsContainer<PgDatabase, SingleElimTournament, BrawlStarsApi> for OwnerCommands {
     fn get_commands_list(
-    ) -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament>, BotError>> {
+    ) -> Vec<poise::Command<BotData, BotError>> {
         vec![set_manager()]
     }
 }

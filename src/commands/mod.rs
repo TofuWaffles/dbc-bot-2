@@ -2,7 +2,7 @@ pub mod owner_commands;
 pub mod manager_commands;
 pub mod user_commands;
 
-use crate::{database::Database, tournament_model::TournamentModel, BotData, BotError};
+use crate::{api::{BrawlStarsApi, GameApi}, database::{Database, PgDatabase}, tournament_model::{SingleElimTournament, TournamentModel}, BotError, Data};
 
 /// A way to group commands together while side-stepping the need to use global variables.
 ///
@@ -34,13 +34,14 @@ use crate::{database::Database, tournament_model::TournamentModel, BotData, BotE
 ///     Ok(())
 /// }
 /// ```
-pub trait CommandsContainer<DB, TM>
+pub trait CommandsContainer<DB, TM, P>
 where
     DB: Database,
     TM: TournamentModel,
+    P: GameApi
 {
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
-    fn get_commands_list() -> Vec<poise::Command<BotData<DB, TM>, BotError>>;
+    fn get_commands_list() -> Vec<poise::Command<Data<DB, TM, P>, BotError>>;
 }
 
 pub(self) mod checks {

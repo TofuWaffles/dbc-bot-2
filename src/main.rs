@@ -1,3 +1,4 @@
+use api::{BrawlStarsApi, GameApi};
 use poise::{serenity_prelude as serenity, Command};
 
 use database::{Database, PgDatabase};
@@ -7,6 +8,8 @@ use commands::{
     manager_commands::ManagerCommands, owner_commands::OwnerCommands, CommandsContainer,
 };
 
+/// Contains the types used to interact with the game API.
+mod api;
 /// Contains all the commands that the bot can run.
 ///
 /// Additionally, it contains the `CommandsContainer` trait that groups all the commands together
@@ -14,21 +17,22 @@ use commands::{
 mod commands;
 /// Contains traits and types for database implementation.
 mod database;
-/// Contains the tournament model, which is used to manage tournaments.
-mod tournament_model;
 /// Contains models used by both the tournament model and the database.
 mod models;
-/// Contains the types used to interact with the game API.
-mod api;
-
+/// Contains the tournament model, which is used to manage tournaments.
+mod tournament_model;
 
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-pub struct BotData<DB: Database, TM: TournamentModel> {
+pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
     database: DB,
     tournament_model: TM,
+    game_api: P,
 }
+
+/// Convenience type for the bot's data with generics filled in.
+type BotData = Data<PgDatabase, SingleElimTournament, BrawlStarsApi>;
 
 /// A thread-safe Error type used by the bot.
 pub type BotError = Box<dyn std::error::Error + Send + Sync>;
@@ -37,7 +41,7 @@ pub type BotError = Box<dyn std::error::Error + Send + Sync>;
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-pub type Context<'a> = poise::Context<'a, BotData<PgDatabase, SingleElimTournament>, BotError>;
+pub type Context<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
 async fn main() {
@@ -52,12 +56,14 @@ async fn run() -> Result<(), BotError> {
     #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
-    let token = std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
-
-    let intents = serenity::GatewayIntents::non_privileged();
+    let discord_token =
+        std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
+    let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
+        .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
 
     let pg_database = PgDatabase::connect().await;
     let dbc_tournament = SingleElimTournament {};
+    let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
     let commands = vec![
         OwnerCommands::get_commands_list(),
@@ -67,6 +73,8 @@ async fn run() -> Result<(), BotError> {
     .flatten()
     .collect();
 
+    let intents = serenity::GatewayIntents::non_privileged();
+
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
@@ -75,15 +83,16 @@ async fn run() -> Result<(), BotError> {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(BotData {
+                Ok(Data {
                     tournament_model: dbc_tournament,
                     database: pg_database,
+                    game_api: brawl_stars_api,
                 })
             })
         })
         .build();
 
-    let client = serenity::ClientBuilder::new(token, intents)
+    let client = serenity::ClientBuilder::new(discord_token, intents)
         .framework(framework)
         .await;
     client.unwrap().start().await.unwrap();

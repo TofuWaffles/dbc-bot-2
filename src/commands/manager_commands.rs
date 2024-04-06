@@ -1,7 +1,7 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use crate::{
-    commands::checks::is_manager, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotError, Context
+    api::BrawlStarsApi, commands::checks::is_manager, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotData, BotError, Context
 };
 
 use super::CommandsContainer;
@@ -9,9 +9,9 @@ use super::CommandsContainer;
 /// CommandsContainer for the Manager commands
 pub struct ManagerCommands;
 
-impl CommandsContainer<PgDatabase, SingleElimTournament> for ManagerCommands {
+impl CommandsContainer<PgDatabase, SingleElimTournament, BrawlStarsApi> for ManagerCommands {
     fn get_commands_list(
-    ) -> Vec<poise::Command<crate::BotData<PgDatabase, SingleElimTournament>, BotError>> {
+    ) -> Vec<poise::Command<BotData, BotError>> {
         vec![set_config()]
     }
 }
