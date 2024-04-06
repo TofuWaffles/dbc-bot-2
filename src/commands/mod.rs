@@ -2,8 +2,6 @@ pub mod owner_commands;
 pub mod manager_commands;
 pub mod user_commands;
 
-use crate::{api::{BrawlStarsApi, GameApi}, database::{Database, PgDatabase}, tournament_model::{SingleElimTournament, TournamentModel}, BotError, Data};
-
 /// A way to group commands together while side-stepping the need to use global variables.
 ///
 /// Implementors of this trait can return a list of their commands from within their own module.

@@ -1,7 +1,7 @@
 use poise::serenity_prelude as serenity;
 
 use crate::{
-    api::BrawlStarsApi, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotData, BotError, Context
+    database::Database, BotData, BotError, Context
 };
 
 use super::CommandsContainer;

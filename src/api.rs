@@ -2,6 +2,7 @@ use crate::BotError;
 use poise::serenity_prelude as serenity;
 use reqwest::{Client, StatusCode};
 
+#[allow(async_fn_in_trait)]
 pub trait GameApi {
     type Error;
     type JsonValue;

@@ -1,7 +1,7 @@
 use api::{BrawlStarsApi, GameApi};
-use poise::{serenity_prelude as serenity, Command};
 
 use database::{Database, PgDatabase};
+use poise::serenity_prelude as serenity;
 use tournament_model::{SingleElimTournament, TournamentModel};
 
 use commands::{
