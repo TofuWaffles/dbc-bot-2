@@ -25,7 +25,7 @@ mod tournament_model;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
+pub(crate) struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
     database: DB,
     tournament_model: TM,
     game_api: P,
@@ -35,13 +35,13 @@ pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
 type BotData = Data<PgDatabase, SingleElimTournament, BrawlStarsApi>;
 
 /// A thread-safe Error type used by the bot.
-pub type BotError = Box<dyn std::error::Error + Send + Sync>;
+pub(crate) type BotError = Box<dyn std::error::Error + Send + Sync>;
 
 /// A context that gives the bot information about the action that invoked it.
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-pub type Context<'a> = poise::Context<'a, BotData, BotError>;
+pub(crate) type Context<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
 async fn main() {
