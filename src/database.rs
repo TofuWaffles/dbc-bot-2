@@ -37,7 +37,7 @@ pub trait Database {
 
     /// Creates all tables necessary for the tournament system
     ///
-    /// This used in production to generate the tables at runtime.
+    /// This is used in production to generate the tables at runtime.
     /// In development, use the build.rs script to generate the tables at compile time.
     async fn create_tables(&self) -> Result<(), Self::Error>;
 
@@ -58,8 +58,10 @@ pub trait Database {
         log_channel_id: &str,
     ) -> Result<(), Self::Error>;
 
+    /// Adds a user to the database.
     async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error>;
 
+    /// Retrieves a user from the database.
     async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error>;
 }
 

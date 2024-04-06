@@ -8,16 +8,16 @@ use commands::{
     manager_commands::ManagerCommands, owner_commands::OwnerCommands, CommandsContainer,
 };
 
-/// Contains the types used to interact with the game API.
+/// Utilities for interacting with the game API.
 mod api;
-/// Contains all the commands that the bot can run.
+/// All the commands that the bot can run.
 ///
 /// Additionally, it contains the `CommandsContainer` trait that groups all the commands together
 /// as well as checks used by various commands.
 mod commands;
-/// Contains traits and types for database implementation.
+/// Traits and types used for interacting with the database.
 mod database;
-/// Contains models used by both the tournament model and the database.
+/// Models used by both the tournament model and the database.
 mod models;
 /// Contains the tournament model, which is used to manage tournaments.
 mod tournament_model;
