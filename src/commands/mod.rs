@@ -34,14 +34,12 @@ use crate::{api::{BrawlStarsApi, GameApi}, database::{Database, PgDatabase}, tou
 ///     Ok(())
 /// }
 /// ```
-pub trait CommandsContainer<DB, TM, P>
-where
-    DB: Database,
-    TM: TournamentModel,
-    P: GameApi
+pub trait CommandsContainer
 {
+    type Data;
+    type Error;
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
-    fn get_commands_list() -> Vec<poise::Command<Data<DB, TM, P>, BotError>>;
+    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>>;
 }
 
 pub(self) mod checks {

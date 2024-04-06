@@ -8,9 +8,12 @@ use super::CommandsContainer;
 
 pub struct OwnerCommands;
 
-impl CommandsContainer<PgDatabase, SingleElimTournament, BrawlStarsApi> for OwnerCommands {
+impl CommandsContainer for OwnerCommands {
+    type Data = BotData;
+    type Error = BotError;
+
     fn get_commands_list(
-    ) -> Vec<poise::Command<BotData, BotError>> {
+    ) -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![set_manager()]
     }
 }

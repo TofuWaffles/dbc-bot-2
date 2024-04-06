@@ -1,7 +1,7 @@
 use poise::CreateReply;
 
 use crate::{
-    api::BrawlStarsApi, commands::checks::is_manager, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotError, Context, Data
+    api::BrawlStarsApi, commands::checks::is_manager, database::{Database, PgDatabase}, tournament_model::SingleElimTournament, BotData, BotError, Context, Data
 };
 
 use super::CommandsContainer;
@@ -9,9 +9,12 @@ use super::CommandsContainer;
 /// CommandsContainer for the Manager commands
 pub struct UserCommands;
 
-impl CommandsContainer<PgDatabase, SingleElimTournament, BrawlStarsApi> for UserCommands {
+impl CommandsContainer for UserCommands {
+    type Data = BotData;
+    type Error = BotError;
+
     fn get_commands_list(
-    ) -> Vec<poise::Command<crate::Data<PgDatabase, SingleElimTournament, BrawlStarsApi>, BotError>> {
+    ) -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![]
     }
 }
