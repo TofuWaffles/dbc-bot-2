@@ -31,7 +31,7 @@ pub trait Database {
     type MatchSchedule;
 
     /// Establishes a connection to the database and returns a handle to it
-    async fn connect() -> Self;
+    async fn connect() -> Result<Self, Self::Error>;
 
     /// Creates all tables necessary for the tournament system
     ///
@@ -77,14 +77,13 @@ impl Database for PgDatabase {
     type Match = Match;
     type MatchSchedule = MatchSchedule;
 
-    async fn connect() -> Self {
+    async fn connect() -> Result<Self, Self::Error> {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
 
         let pool = PgPool::connect(db_url.as_str())
-            .await
-            .expect("Failed to connect to the database.");
+            .await?;
 
-        PgDatabase { pool }
+        Ok(PgDatabase { pool })
     }
 
     async fn create_tables(&self) -> Result<(), Self::Error> {

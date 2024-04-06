@@ -61,7 +61,7 @@ async fn run() -> Result<(), BotError> {
     let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
         .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
 
-    let pg_database = PgDatabase::connect().await;
+    let pg_database = PgDatabase::connect().await.unwrap();
     let dbc_tournament = SingleElimTournament {};
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
