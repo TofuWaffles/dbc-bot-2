@@ -18,8 +18,11 @@ pub mod user_commands;
 /// pub struct ManagerCommands; // This struct doesn't need to hold anything
 ///
 /// impl CommandsContainer<PgDatabase, SingleElimTournament> for ManagerCommands {
+///     type Data = BotData;
+///     type Error = BotError;
+///
 ///     fn get_commands_list(&self)
-///         -> Vec<poise::Command<BotData<PgDatabase, SingleElimTournament>, BotError>> {
+///         -> Vec<poise::Command<Self::Data, Self::Error>> {
 ///         vec![very_important_manager_only_command()]
 ///     }
 /// }
@@ -40,11 +43,13 @@ pub trait CommandsContainer
     fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>>;
 }
 
+/// Common checks (e.g. role checks) used by various commands.
 pub(self) mod checks {
     use poise::CreateReply;
 
     use crate::{BotError, Context};
 
+    /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
@@ -83,6 +88,7 @@ pub(self) mod checks {
         return Ok(false);
     }
 
+    /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
@@ -134,6 +140,7 @@ pub(self) mod checks {
         return Ok(false);
     }
 
+    /// Checks if the configuration has been set up for the guild.
     pub async fn is_config_set(ctx: Context<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
