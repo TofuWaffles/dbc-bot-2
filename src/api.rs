@@ -35,51 +35,53 @@ pub enum ApiResult<M> {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
-    tag: String,
-    name: String,
-    club: Club,
-    icon: HashMap<String, u32>,
-    trophies: u32,
-    exp_level: u32,
-    exp_points: u32,
-    highest_trophies: u32,
-    solo_victories: u32,
-    duo_victories: u32,
+    pub tag: String,
+    pub name: String,
+    pub club: Club,
+    pub icon: HashMap<String, u32>,
+    pub trophies: u32,
+    #[serde(rename = "3vs3Victories")]
+    pub three_vs_three_victories: u32,
+    pub solo_victories: u32,
+    pub duo_victories: u32,
+    pub exp_level: u32,
+    pub exp_points: u32,
+    pub highest_trophies: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Club {
-    tag: String,
-    name: String,
+pub struct Club {
+    pub tag: String,
+    pub name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleLog {
-    items: Vec<BattleLogItem>,
+    pub items: Vec<BattleLogItem>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct BattleLogItem {
-    battle: Battle,
+pub struct BattleLogItem {
+    pub battle: Battle,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Battle {
-    mode: String,
-    result: String,
-    duration: u32,
-    teams: Vec<Vec<TeamPlayer>>,
+pub struct Battle {
+    pub mode: String,
+    pub result: String,
+    pub duration: u32,
+    pub teams: Vec<Vec<TeamPlayer>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct TeamPlayer {
-    tag: String,
-    name: String,
+pub struct TeamPlayer {
+    pub tag: String,
+    pub name: String,
 }
 
 /// The Brawl Stars API.
