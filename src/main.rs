@@ -5,7 +5,8 @@ use poise::serenity_prelude as serenity;
 use tournament_model::{SingleElimTournament, TournamentModel};
 
 use commands::{
-    manager_commands::ManagerCommands, owner_commands::OwnerCommands, user_commands::UserCommands, CommandsContainer
+    manager_commands::ManagerCommands, owner_commands::OwnerCommands, user_commands::UserCommands,
+    CommandsContainer,
 };
 
 /// Utilities for interacting with the game API.
@@ -46,7 +47,8 @@ pub type Context<'a> = poise::Context<'a, BotData, BotError>;
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
-        panic!("Error trying to run the bot: {}", e); }
+        panic!("Error trying to run the bot: {}", e);
+    }
 }
 
 /// The main function that runs the bot.
@@ -67,7 +69,7 @@ async fn run() -> Result<(), BotError> {
     let commands = vec![
         OwnerCommands::get_commands_list(),
         ManagerCommands::get_commands_list(),
-        UserCommands::get_commands_list()
+        UserCommands::get_commands_list(),
     ]
     .into_iter()
     .flatten()

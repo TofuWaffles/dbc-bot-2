@@ -1,8 +1,6 @@
 use poise::serenity_prelude as serenity;
 
-use crate::{
-    database::Database, BotData, BotError, Context
-};
+use crate::{database::Database, BotData, BotError, Context};
 
 use super::CommandsContainer;
 
@@ -12,8 +10,7 @@ impl CommandsContainer for OwnerCommands {
     type Data = BotData;
     type Error = BotError;
 
-    fn get_commands_list(
-    ) -> Vec<poise::Command<Self::Data, Self::Error>> {
+    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![set_manager()]
     }
 }

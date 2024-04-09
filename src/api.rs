@@ -115,9 +115,7 @@ impl GameApi for BrawlStarsApi {
         match response.status() {
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(ApiResult::Maintenance)
-            }
+            StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(format!(
                 "Failed to get player {} from API with status code {}",
                 player_tag,
@@ -143,9 +141,7 @@ impl GameApi for BrawlStarsApi {
         match response.status() {
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await.unwrap())),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(ApiResult::Maintenance)
-            }
+            StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(format!(
                 "Failed to get battle log of player {} from API with status code {}",
                 player_tag,
@@ -167,12 +163,8 @@ impl GameApi for BrawlStarsApi {
             .await?;
 
         match response.status() {
-            StatusCode::OK => {
-                Ok(false)
-            }
-            StatusCode::SERVICE_UNAVAILABLE => {
-                Ok(true)
-            }
+            StatusCode::OK => Ok(false),
+            StatusCode::SERVICE_UNAVAILABLE => Ok(true),
             _ => Err(format!(
                 "Failed to check maintenance with status code {}",
                 response.status()

@@ -1,5 +1,5 @@
-pub mod owner_commands;
 pub mod manager_commands;
+pub mod owner_commands;
 pub mod user_commands;
 
 /// A way to group commands together while side-stepping the need to use global variables.
@@ -35,8 +35,7 @@ pub mod user_commands;
 ///     Ok(())
 /// }
 /// ```
-pub trait CommandsContainer
-{
+pub trait CommandsContainer {
     type Data;
     type Error;
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
@@ -47,7 +46,7 @@ pub trait CommandsContainer
 pub(self) mod checks {
     use poise::CreateReply;
 
-    use crate::{BotError, Context};
+    use crate::{database::Database, BotError, Context};
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
@@ -57,16 +56,19 @@ pub(self) mod checks {
             .id
             .to_string();
 
-        let db = &ctx.data().database;
+        let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
 
-        let manager_role_id = sqlx::query!(
-            "SELECT manager_role_id FROM manager_roles WHERE guild_id = $1",
-            guild_id
-        )
-        .fetch_one(&db.pool)
-        .await?
-        .manager_role_id
-        .parse::<u64>()?;
+        let manager_role_id = match manager_role_option {
+            Some(manager_role) => manager_role.manager_role_id.parse::<u64>()?,
+            None => {
+                ctx.send(
+                    CreateReply::default()
+                        .content("The manager role has not been set up for this server. Please a bot owner to set it up.")
+                        .ephemeral(true),
+                ).await?;
+                return Ok(false);
+            }
+        };
 
         let guild_id_u64: u64 = guild_id.parse()?;
 
@@ -96,27 +98,24 @@ pub(self) mod checks {
             .id
             .to_string();
 
-        let db = &ctx.data().database;
+        let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
 
-        let manager_role_id = sqlx::query!(
-            "SELECT manager_role_id FROM manager_roles WHERE guild_id = $1",
-            guild_id
-        )
-        .fetch_one(&db.pool)
-        .await?
-        .manager_role_id
-        .parse::<u64>()?;
+        let marshal_role_option = ctx.data().database.get_config(&guild_id).await?;
 
-        let marshal_role_id = sqlx::query!(
-            "SELECT marshal_role_id FROM config WHERE guild_id = $1",
-            guild_id
-        )
-        .fetch_one(&db.pool)
-        .await?
-        .marshal_role_id
-        .parse::<u64>()?;
+        if manager_role_option.is_none() || marshal_role_option.is_none() {
+            ctx.send(
+                CreateReply::default()
+                    .content("Either the manager role or the bot configuration has not been set up for this server. Please ask a bot owner to set it up.")
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(false);
+        }
 
         let guild_id_u64: u64 = guild_id.parse()?;
+
+        let manager_role_id = manager_role_option.unwrap().manager_role_id.parse::<u64>()?;
+        let marshal_role_id = marshal_role_option.unwrap().marshal_role_id.parse::<u64>()?;
 
         if ctx
             .author()

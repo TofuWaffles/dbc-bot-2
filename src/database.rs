@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::models::{
-    Config, ManagerRole, Match, MatchSchedule, User, Tournament, TournamentPlayer,
+    Config, ManagerRole, Match, MatchSchedule, Tournament, TournamentPlayer, User,
 };
 
 /// Any database that the bot could use to operate the tournament
@@ -32,7 +32,7 @@ pub trait Database {
 
     /// Establishes a connection to the database and returns a handle to it
     async fn connect() -> Result<Self, Self::Error>
-        where
+    where
         Self: Sized;
 
     /// Creates all tables necessary for the tournament system
@@ -57,6 +57,13 @@ pub trait Database {
         notification_channel_id: &str,
         log_channel_id: &str,
     ) -> Result<(), Self::Error>;
+
+    async fn get_manager_role(
+        &self,
+        guild_id: &str,
+    ) -> Result<Option<Self::ManagerRoleConfig>, Self::Error>;
+
+    async fn get_config(&self, guild_id: &str) -> Result<Option<Self::GuildConfig>, Self::Error>;
 
     /// Adds a user to the database.
     async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error>;
@@ -84,8 +91,7 @@ impl Database for PgDatabase {
     async fn connect() -> Result<Self, Self::Error> {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
 
-        let pool = PgPool::connect(db_url.as_str())
-            .await?;
+        let pool = PgPool::connect(db_url.as_str()).await?;
 
         Ok(PgDatabase { pool })
     }
@@ -177,18 +183,35 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error> {
-        let user = sqlx::query_as!(
-            User,
+    async fn get_manager_role(
+        &self,
+        guild_id: &str,
+    ) -> Result<Option<Self::ManagerRoleConfig>, Self::Error> {
+        let manager_role = sqlx::query_as!(
+            Self::ManagerRoleConfig,
             r#"
-            SELECT * FROM users WHERE discord_id = $1
+            SELECT * FROM manager_roles WHERE guild_id = $1
             "#,
-            discord_id
+            guild_id
         )
         .fetch_optional(&self.pool)
         .await?;
 
-        Ok(user)
+        Ok(manager_role)
+    }
+
+    async fn get_config(&self, guild_id: &str) -> Result<Option<Self::GuildConfig>, Self::Error> {
+        let config = sqlx::query_as!(
+            Self::GuildConfig,
+            r#"
+            SELECT * FROM config WHERE guild_id = $1
+            "#,
+            guild_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(config)
     }
 
     async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error> {
@@ -207,5 +230,19 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(())
+    }
+
+    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT * FROM users WHERE discord_id = $1
+            "#,
+            discord_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
     }
 }

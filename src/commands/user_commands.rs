@@ -135,7 +135,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                             CreateReply::default()
                                 .content("You have successfully registered your profile.")
                                 .ephemeral(true)
-                                .components(vec![])
+                                .components(vec![]),
                         )
                         .await?;
                     }
@@ -146,7 +146,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                             CreateReply::default()
                                 .content("Canceled profile registration")
                                 .ephemeral(true)
-                                .components(vec![])
+                                .components(vec![]),
                         )
                         .await?;
                     }

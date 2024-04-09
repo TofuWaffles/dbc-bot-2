@@ -1,8 +1,6 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 
-use crate::{
-    commands::checks::is_manager, database::Database, BotData, BotError, Context
-};
+use crate::{commands::checks::is_manager, database::Database, BotData, BotError, Context};
 
 use super::CommandsContainer;
 
@@ -13,8 +11,7 @@ impl CommandsContainer for ManagerCommands {
     type Data = BotData;
     type Error = BotError;
 
-    fn get_commands_list(
-    ) -> Vec<poise::Command<Self::Data, Self::Error>> {
+    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![set_config()]
     }
 }
@@ -82,7 +79,9 @@ async fn set_config(
     ctx.data()
         .database
         .set_config(
-            &ctx.guild_id().ok_or("This command must be used within a server")?.to_string(),
+            &ctx.guild_id()
+                .ok_or("This command must be used within a server")?
+                .to_string(),
             &marshal_role_id,
             &announcement_channel_id,
             &notification_channel_id,
