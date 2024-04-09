@@ -1,7 +1,9 @@
 use poise::CreateReply;
 
 use crate::{
-    database::Database, BotData, BotError, Context
+    api::{ApiResult, GameApi},
+    database::Database,
+    BotData, BotError, Context,
 };
 
 use super::CommandsContainer;
@@ -13,9 +15,8 @@ impl CommandsContainer for UserCommands {
     type Data = BotData;
     type Error = BotError;
 
-    fn get_commands_list(
-    ) -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![]
+    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
+        vec![menu(), register()]
     }
 }
 
@@ -46,26 +47,48 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
     let user_id = ctx.author().id.to_string();
 
     let user = ctx.data().database.get_user(&user_id).await?;
-    match user {
-        Some(_) => {
+    if user.is_some() {
+        ctx.send(
+            CreateReply::default()
+                .content("You have already registered your profile.")
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    let api_result = ctx.data().game_api.get_player(&player_tag).await?;
+    match api_result {
+        ApiResult::Ok(player) => {
             ctx.send(
                 CreateReply::default()
-                    .content("You have already registered your profile.")
+                    .content(format!(
+                        "You have successfully registered your profile. {:?}",
+                        player
+                    ))
+                    .ephemeral(true),
+            )
+            .await?;
+            // ctx.data().database.create_user(&user_id, &player_tag).await?;
+        }
+        ApiResult::NotFound => {
+            ctx.send(
+                CreateReply::default()
+                    .content("A profile with that tag was not found. Please ensure that you have entered the correct tag.")
                     .ephemeral(true),
             )
             .await?;
         }
-        None => {
-            // Check with the BS api here
-            ctx.data().database.create_user(&user_id, &player_tag).await?;
+        ApiResult::Maintenance => {
             ctx.send(
                 CreateReply::default()
-                    .content("You have successfully registered your profile.")
+                    .content("The Brawl Stars API is currently undergoing maintenance. Please try again later.")
                     .ephemeral(true),
             )
             .await?;
         }
-    };
+    }
 
     Ok(())
 }
