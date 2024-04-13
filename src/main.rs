@@ -1,7 +1,13 @@
+use std::{collections::HashMap, future::poll_fn, sync::{Arc}};
+use futures::poll;
+
 use api::{BrawlStarsApi, GameApi};
 
 use database::{Database, PgDatabase};
-use poise::serenity_prelude as serenity;
+use poise::serenity_prelude::{self as serenity, futures::StreamExt};
+use reminder::MatchReminders;
+use tokio::sync::Mutex;
+use tokio_util::time::DelayQueue;
 use tournament_model::{SingleElimTournament, TournamentModel};
 
 use commands::{
@@ -20,6 +26,7 @@ mod commands;
 mod database;
 /// Models used by both the tournament model and the database.
 mod models;
+mod reminder;
 /// Contains the tournament model, which is used to manage tournaments.
 mod tournament_model;
 
@@ -30,6 +37,7 @@ pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
     database: DB,
     tournament_model: TM,
     game_api: P,
+    match_reminders: Arc<Mutex<MatchReminders>>,
 }
 
 /// Convenience type for the bot's data with generics filled in.
@@ -75,6 +83,12 @@ async fn run() -> Result<(), BotError> {
     .flatten()
     .collect();
 
+    let match_reminders = Arc::new(Mutex::new(MatchReminders::new(
+        DelayQueue::new(),
+        HashMap::new(),
+    )));
+    let bot_data_match_reminders = match_reminders.clone();
+
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
@@ -89,15 +103,58 @@ async fn run() -> Result<(), BotError> {
                     tournament_model: dbc_tournament,
                     database: pg_database,
                     game_api: brawl_stars_api,
+                    match_reminders: bot_data_match_reminders,
                 })
             })
         })
         .build();
 
-    let client = serenity::ClientBuilder::new(discord_token, intents)
+    let mut client = serenity::ClientBuilder::new(discord_token, intents)
         .framework(framework)
-        .await;
-    client.unwrap().start().await.unwrap();
+        .await?;
+
+    let http = client.http.clone();
+
+    let _ = tokio::spawn(async move {
+        loop {
+            let mut locked_match_reminders = match_reminders.lock().await;
+            // Manual polling is needed because an await would otherwise hold up the Mutex until the next
+            // reminder expires, which means no new reminders could be added in the meantime
+            let expired_reminder_opt = match poll!(locked_match_reminders.reminder_times.next()) {
+                std::task::Poll::Ready(expired_reminder_opt) => expired_reminder_opt,
+                std::task::Poll::Pending => continue,
+            };
+            // The DelayQueue will return None if the queue is empty, in that case we just continue
+            match expired_reminder_opt {
+                Some(expired_reminder) => {
+                    let match_id = expired_reminder.into_inner();
+                    let channel_id = &locked_match_reminders
+                        .matches
+                        .remove(&match_id)
+                        .unwrap()   // This unwrap is safe because the match_id is guaranteed to be in the HashMap
+                        .notification_channel_id;
+                    let channel = match http
+                        .clone()
+                        .get_channel(channel_id.parse::<u64>().unwrap().into())
+                        .await {
+                            Ok(channel) => channel,
+                            Err(e) => todo!(),
+                        };
+                    let guild_channel = match channel.guild() {
+                        Some(guild_channel) => guild_channel,
+                        None => continue,
+                    };
+                    guild_channel
+                        .say(http.clone(), format!("Match reminder {}", locked_match_reminders.matches.get(&match_id).unwrap().discord_id_1))
+                        .await
+                        .unwrap();
+                }
+                None => continue,
+            };
+        }
+    });
+
+    client.start().await?;
 
     Ok(())
 }

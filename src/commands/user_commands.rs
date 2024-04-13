@@ -7,10 +7,12 @@ use poise::{
     },
     CreateReply,
 };
+use uuid::Uuid;
 
 use crate::{
     api::{ApiResult, GameApi},
     database::Database,
+    reminder::MatchReminder,
     BotData, BotError, Context,
 };
 
@@ -48,6 +50,25 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
             .await?;
         }
     };
+
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command, guild_only)]
+async fn reminder(ctx: Context<'_>, duration: i32) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let config = ctx.data().database.get_config(&guild_id).await?.unwrap();
+
+    let match_reminder = MatchReminder::new(
+        Uuid::new_v4(),
+        duration.to_string(),
+        "789".to_string(),
+        guild_id,
+        config.notification_channel_id,
+        chrono::offset::Utc::now(),
+    );
+
+    ctx.data().match_reminders.lock().await.insert_reminder(match_reminder)?;
 
     Ok(())
 }
