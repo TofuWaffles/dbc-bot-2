@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use poise::{
     serenity_prelude::{
-        futures::StreamExt, Button, ButtonKind, ButtonStyle, ComponentType, CreateActionRow,
+        futures::StreamExt, ButtonStyle, CreateActionRow,
         CreateButton, CreateEmbed,
     },
     CreateReply,

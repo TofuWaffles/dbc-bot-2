@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use crate::BotError;
-use poise::serenity_prelude::{self as serenity, futures::future::Map};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 

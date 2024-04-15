@@ -1,13 +1,10 @@
-use std::{
-    collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, thread::JoinHandle,
-};
+use std::collections::HashMap;
 
-use chrono::{DateTime, Duration, Utc};
-use poise::serenity_prelude::Http;
-use tokio_util::time::{delay_queue::Expired, DelayQueue};
+use chrono::{DateTime, Utc};
+use tokio_util::time::DelayQueue;
 use uuid::Uuid;
 
-use crate::{models::Match, BotError};
+use crate::BotError;
 
 pub struct MatchReminders {
     pub reminder_times: DelayQueue<Uuid>,

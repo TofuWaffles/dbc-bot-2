@@ -1,4 +1,4 @@
-use std::{collections::HashMap, future::poll_fn, sync::{Arc}};
+use std::{collections::HashMap, sync::Arc};
 use futures::poll;
 
 use api::{BrawlStarsApi, GameApi};
@@ -116,7 +116,8 @@ async fn run() -> Result<(), BotError> {
     let http = client.http.clone();
 
     // Todo: revisit this later once the reminder feature has been laid out
-    // Note that all errors in this block should be handled properly so that the loop can continue
+    // Note that all errors in this block should be handled and reported properly (i.e. no unwraps)
+    // so that the loop can continue, otherwise the task will die and no reminders will be sent
     let _ = tokio::spawn(async move {
         loop {
             let mut locked_match_reminders = match_reminders.lock().await;
@@ -130,11 +131,12 @@ async fn run() -> Result<(), BotError> {
             match expired_reminder_opt {
                 Some(expired_reminder) => {
                     let match_id = expired_reminder.into_inner();
-                    let channel_id = &locked_match_reminders
+                    let channel_id = match &locked_match_reminders
                         .matches
-                        .remove(&match_id)
-                        .unwrap()   // This unwrap is safe because the match_id is guaranteed to be in the HashMap
-                        .notification_channel_id;
+                        .remove(&match_id) {
+                            Some(reminder) => reminder.notification_channel_id.clone(),
+                            None => todo!(),
+                        };
                     let channel = match http
                         .clone()
                         .get_channel(channel_id.parse::<u64>().unwrap_or_default().into())
