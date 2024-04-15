@@ -27,7 +27,7 @@ pub mod user_commands;
 ///     }
 /// }
 ///
-/// #[poise::command(slash_command, prefix_command)]
+/// #[poise::command(slash_command, prefix_command, check = "is_manager")]
 /// async fn very_important_manager_only_command(
 ///     ctx: Context<'_>,
 /// ) -> Result<(), BotError> {
