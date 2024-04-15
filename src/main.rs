@@ -115,6 +115,8 @@ async fn run() -> Result<(), BotError> {
 
     let http = client.http.clone();
 
+    // Todo: revisit this later once the reminder feature has been laid out
+    // Note that all errors in this block should be handled properly so that the loop can continue
     let _ = tokio::spawn(async move {
         loop {
             let mut locked_match_reminders = match_reminders.lock().await;
@@ -135,14 +137,14 @@ async fn run() -> Result<(), BotError> {
                         .notification_channel_id;
                     let channel = match http
                         .clone()
-                        .get_channel(channel_id.parse::<u64>().unwrap().into())
+                        .get_channel(channel_id.parse::<u64>().unwrap_or_default().into())
                         .await {
                             Ok(channel) => channel,
                             Err(e) => todo!(),
                         };
                     let guild_channel = match channel.guild() {
                         Some(guild_channel) => guild_channel,
-                        None => continue,
+                        None => todo!(),
                     };
                     guild_channel
                         .say(http.clone(), format!("Match reminder {}", locked_match_reminders.matches.get(&match_id).unwrap().discord_id_1))

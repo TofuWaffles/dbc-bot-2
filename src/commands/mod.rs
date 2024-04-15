@@ -114,8 +114,14 @@ pub(self) mod checks {
 
         let guild_id_u64: u64 = guild_id.parse()?;
 
-        let manager_role_id = manager_role_option.unwrap().manager_role_id.parse::<u64>()?;
-        let marshal_role_id = marshal_role_option.unwrap().marshal_role_id.parse::<u64>()?;
+        let manager_role_id = manager_role_option
+            .unwrap()
+            .manager_role_id
+            .parse::<u64>()?;
+        let marshal_role_id = marshal_role_option
+            .unwrap()
+            .marshal_role_id
+            .parse::<u64>()?;
 
         if ctx
             .author()
@@ -147,12 +153,7 @@ pub(self) mod checks {
             .id
             .to_string();
 
-        let db = &ctx.data().database;
-
-        let config = sqlx::query!("SELECT * FROM config WHERE guild_id = $1", guild_id)
-            .fetch_optional(&db.pool)
-            .await?;
-
+        let config = ctx.data().database.get_config(&guild_id).await?;
         if config.is_some() {
             return Ok(true);
         }
