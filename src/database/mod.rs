@@ -1,7 +1,9 @@
+mod models;
+
 use sqlx::PgPool;
 
-use crate::models::{
-    Config, ManagerRole, Match, MatchSchedule, Tournament, TournamentPlayer, User,
+use self::models::{
+    GuildConfig, ManagerRoleConfig, Match, MatchSchedule, Tournament, TournamentPlayer, User,
 };
 
 /// Any database that the bot could use to operate the tournament
@@ -13,22 +15,6 @@ use crate::models::{
 #[allow(async_fn_in_trait)]
 pub trait Database {
     type Error;
-    // Represents records in each database table
-
-    /// Tells you the manager for a given guild
-    type ManagerRoleConfig;
-    /// The various configurations for a given guild
-    type GuildConfig;
-    /// A tournament that may or may not be currently running
-    type Tournament;
-    /// A player (Discord user) that has registered with the bot
-    type User;
-    /// Tells you which players are in which tournaments
-    type TournamentPlayer;
-    /// A match between two players in a tournament
-    type Match;
-    /// A proposed time for a match to take place and its status
-    type MatchSchedule;
 
     /// Establishes a connection to the database and returns a handle to it
     async fn connect() -> Result<Self, Self::Error>
@@ -61,15 +47,15 @@ pub trait Database {
     async fn get_manager_role(
         &self,
         guild_id: &str,
-    ) -> Result<Option<Self::ManagerRoleConfig>, Self::Error>;
+    ) -> Result<Option<ManagerRoleConfig>, Self::Error>;
 
-    async fn get_config(&self, guild_id: &str) -> Result<Option<Self::GuildConfig>, Self::Error>;
+    async fn get_config(&self, guild_id: &str) -> Result<Option<GuildConfig>, Self::Error>;
 
     /// Adds a user to the database.
     async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error>;
 
     /// Retrieves a user from the database.
-    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error>;
+    async fn get_user(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -79,14 +65,6 @@ pub struct PgDatabase {
 
 impl Database for PgDatabase {
     type Error = sqlx::Error;
-
-    type ManagerRoleConfig = ManagerRole;
-    type GuildConfig = Config;
-    type Tournament = Tournament;
-    type User = User;
-    type TournamentPlayer = TournamentPlayer;
-    type Match = Match;
-    type MatchSchedule = MatchSchedule;
 
     async fn connect() -> Result<Self, Self::Error> {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
@@ -186,9 +164,9 @@ impl Database for PgDatabase {
     async fn get_manager_role(
         &self,
         guild_id: &str,
-    ) -> Result<Option<Self::ManagerRoleConfig>, Self::Error> {
+    ) -> Result<Option<ManagerRoleConfig>, Self::Error> {
         let manager_role = sqlx::query_as!(
-            Self::ManagerRoleConfig,
+            ManagerRoleConfig,
             r#"
             SELECT * FROM manager_roles WHERE guild_id = $1
             "#,
@@ -200,9 +178,9 @@ impl Database for PgDatabase {
         Ok(manager_role)
     }
 
-    async fn get_config(&self, guild_id: &str) -> Result<Option<Self::GuildConfig>, Self::Error> {
+    async fn get_config(&self, guild_id: &str) -> Result<Option<GuildConfig>, Self::Error> {
         let config = sqlx::query_as!(
-            Self::GuildConfig,
+            GuildConfig,
             r#"
             SELECT * FROM config WHERE guild_id = $1
             "#,
@@ -232,7 +210,7 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn get_user(&self, discord_id: &str) -> Result<Option<Self::User>, Self::Error> {
+    async fn get_user(&self, discord_id: &str) -> Result<Option<User>, Self::Error> {
         let user = sqlx::query_as!(
             User,
             r#"

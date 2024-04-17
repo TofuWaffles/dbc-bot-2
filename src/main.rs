@@ -24,8 +24,6 @@ mod api;
 mod commands;
 /// Traits and types used for interacting with the database.
 mod database;
-/// Models used by both the tournament model and the database.
-mod models;
 mod reminder;
 /// Contains the tournament model, which is used to manage tournaments.
 mod tournament_model;

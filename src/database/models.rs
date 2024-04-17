@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct ManagerRole {
+pub struct ManagerRoleConfig {
     pub guild_id: String,
     pub manager_role_id: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct Config {
+pub struct GuildConfig {
     pub guild_id: String,
     pub marshal_role_id: String,
     pub announcement_channel_id: String,
