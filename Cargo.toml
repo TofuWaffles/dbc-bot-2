@@ -10,6 +10,7 @@ chrono = "0.4.37"
 dotenv = "0.15.0"
 futures = "0.3.30"
 poise = { version = "0.6.1", features = [] }
+prettytable = "0.10.0"
 reqwest = { version = "0.12.2", features = ["json"] }
 serde = { version = "1.0.197", features = ["derive"] }
 sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "chrono", "macros", "uuid"]}

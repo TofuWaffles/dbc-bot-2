@@ -138,7 +138,7 @@ impl GameApi for BrawlStarsApi {
             .await?;
 
         match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok(response.json().await.unwrap())),
+            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(format!(

@@ -1,4 +1,5 @@
 pub mod manager_commands;
+pub mod marshal_commands;
 pub mod owner_commands;
 pub mod user_commands;
 

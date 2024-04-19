@@ -12,7 +12,7 @@ impl CommandsContainer for ManagerCommands {
     type Error = BotError;
 
     fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![set_config()]
+        vec![set_config(), create_tournament()]
     }
 }
 
@@ -92,6 +92,29 @@ async fn set_config(
     ctx.send(
         CreateReply::default()
             .content("Successfully set the configuration. You can run the same command again to update the configuration.")
+            .ephemeral(true),
+    )
+    .await?;
+
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+
+    let new_tournament_id = ctx
+        .data()
+        .database
+        .create_tournament(&guild_id, &name)
+        .await?;
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Successfully created tournament with id {}",
+                new_tournament_id
+            ))
             .ephemeral(true),
     )
     .await?;

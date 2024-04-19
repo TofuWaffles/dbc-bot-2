@@ -2,8 +2,7 @@ use std::time::Duration;
 
 use poise::{
     serenity_prelude::{
-        futures::StreamExt, ButtonStyle, CreateActionRow,
-        CreateButton, CreateEmbed,
+        futures::StreamExt, ButtonStyle, CreateActionRow, CreateButton, CreateEmbed,
     },
     CreateReply,
 };
@@ -18,7 +17,7 @@ use crate::{
 
 use super::CommandsContainer;
 
-/// CommandsContainer for the Manager commands
+/// CommandsContainer for the User commands
 pub struct UserCommands;
 
 impl CommandsContainer for UserCommands {
@@ -68,7 +67,11 @@ async fn reminder(ctx: Context<'_>, duration: i32) -> Result<(), BotError> {
         chrono::offset::Utc::now(),
     );
 
-    ctx.data().match_reminders.lock().await.insert_reminder(match_reminder)?;
+    ctx.data()
+        .match_reminders
+        .lock()
+        .await
+        .insert_reminder(match_reminder)?;
 
     Ok(())
 }

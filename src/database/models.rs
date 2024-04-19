@@ -17,11 +17,13 @@ pub struct GuildConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct Tournament {
-    pub tourmanet_id: i32,
+    pub tournament_id: i32,
     pub name: String,
     pub guild_id: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub start_time: Option<chrono::DateTime<chrono::Utc>>,
     pub active: bool,
+    pub started: bool,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -1,5 +1,5 @@
-use std::{collections::HashMap, sync::Arc};
 use futures::poll;
+use std::{collections::HashMap, sync::Arc};
 
 use api::{BrawlStarsApi, GameApi};
 
@@ -11,8 +11,8 @@ use tokio_util::time::DelayQueue;
 use tournament_model::{SingleElimTournament, TournamentModel};
 
 use commands::{
-    manager_commands::ManagerCommands, owner_commands::OwnerCommands, user_commands::UserCommands,
-    CommandsContainer,
+    manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
+    owner_commands::OwnerCommands, user_commands::UserCommands, CommandsContainer,
 };
 
 /// Utilities for interacting with the game API.
@@ -75,6 +75,7 @@ async fn run() -> Result<(), BotError> {
     let commands = vec![
         OwnerCommands::get_commands_list(),
         ManagerCommands::get_commands_list(),
+        MarshalCommands::get_commands_list(),
         UserCommands::get_commands_list(),
     ]
     .into_iter()
@@ -129,25 +130,34 @@ async fn run() -> Result<(), BotError> {
             match expired_reminder_opt {
                 Some(expired_reminder) => {
                     let match_id = expired_reminder.into_inner();
-                    let channel_id = match &locked_match_reminders
-                        .matches
-                        .remove(&match_id) {
-                            Some(reminder) => reminder.notification_channel_id.clone(),
-                            None => todo!(),
-                        };
+                    let channel_id = match &locked_match_reminders.matches.remove(&match_id) {
+                        Some(reminder) => reminder.notification_channel_id.clone(),
+                        None => todo!(),
+                    };
                     let channel = match http
                         .clone()
                         .get_channel(channel_id.parse::<u64>().unwrap_or_default().into())
-                        .await {
-                            Ok(channel) => channel,
-                            Err(e) => todo!(),
-                        };
+                        .await
+                    {
+                        Ok(channel) => channel,
+                        Err(e) => todo!(),
+                    };
                     let guild_channel = match channel.guild() {
                         Some(guild_channel) => guild_channel,
                         None => todo!(),
                     };
                     guild_channel
-                        .say(http.clone(), format!("Match reminder {}", locked_match_reminders.matches.get(&match_id).unwrap().discord_id_1))
+                        .say(
+                            http.clone(),
+                            format!(
+                                "Match reminder {}",
+                                locked_match_reminders
+                                    .matches
+                                    .get(&match_id)
+                                    .unwrap()
+                                    .discord_id_1
+                            ),
+                        )
                         .await
                         .unwrap();
                 }

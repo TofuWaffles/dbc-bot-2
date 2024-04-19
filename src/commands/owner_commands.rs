@@ -6,6 +6,7 @@ use super::CommandsContainer;
 
 pub struct OwnerCommands;
 
+/// CommandsContainer for the User commands
 impl CommandsContainer for OwnerCommands {
     type Data = BotData;
     type Error = BotError;
