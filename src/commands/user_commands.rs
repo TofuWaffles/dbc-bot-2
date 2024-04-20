@@ -4,8 +4,9 @@ use poise::{
     serenity_prelude::{
         futures::StreamExt, ButtonStyle, CreateActionRow, CreateButton, CreateEmbed,
     },
-    CreateReply,
+    CreateReply, ReplyHandle,
 };
+use prettytable::{row, Table};
 use uuid::Uuid;
 
 use crate::{
@@ -29,6 +30,8 @@ impl CommandsContainer for UserCommands {
     }
 }
 
+/// Amount of time in milliseconds before message interactions (usually buttons) expire for user
+/// commands
 const USER_CMD_TIMEOUT: u64 = 5000;
 
 #[poise::command(slash_command, prefix_command, guild_only)]
@@ -36,11 +39,21 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
     let user_id = ctx.author().id.to_string();
 
     let user = ctx.data().database.get_user(&user_id).await?;
+
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Loading menu...")
+                .ephemeral(true),
+        )
+        .await?;
+
     match user {
         Some(_) => {
-            todo!()
+            user_display_menu(ctx, msg).await?;
         }
         None => {
+            // Might make the registration baked into this command later
             ctx.send(
                 CreateReply::default()
                     .content("You have not registered your profile yet. Please register first with the /register command.")
@@ -49,6 +62,74 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
             .await?;
         }
     };
+
+    Ok(())
+}
+
+async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .embed(
+                CreateEmbed::new()
+                    .title("Main Menu")
+                    .description("Welcome to the menu! What would you like to do?"),
+            )
+            .components(vec![CreateActionRow::Buttons(vec![
+                CreateButton::new("menu_tournaments")
+                    .label("Tournaments")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new("something_else")
+                    .label("Something Else")
+                    .style(ButtonStyle::Danger),
+            ])]),
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let tournaments = ctx
+        .data()
+        .database
+        .get_active_tournaments(&guild_id)
+        .await?;
+
+    let mut table = Table::new();
+    table.set_titles(row!["Tournament ID", "Name", "Started"]);
+
+    let mut buttons = Vec::new();
+
+    for (i, tournament) in tournaments.iter().enumerate() {
+        table.add_row(row![i, &tournament.name, &tournament.started]);
+
+        buttons.push(
+            CreateButton::new(format!("tournament_{}", i.to_string()))
+                .label(i.to_string())
+                .style(ButtonStyle::Primary),
+        );
+    }
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .embed(
+                CreateEmbed::new()
+                    .title("Tournaments")
+                    .description("Here are the tournaments you are currently in:"),
+            )
+            .components(vec![CreateActionRow::Buttons(vec![
+                CreateButton::new("menu_tournaments")
+                    .label("Back")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new("something_else")
+                    .label("Something Else")
+                    .style(ButtonStyle::Danger),
+            ])]),
+    )
+    .await?;
 
     Ok(())
 }
@@ -124,7 +205,6 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                                 .timestamp(ctx.created_at())
                                 .color(0x0000FF),
                         )
-                        .ephemeral(true)
                         .components(vec![CreateActionRow::Buttons(vec![
                             CreateButton::new("confirm_register")
                                 .label("Confirm")
@@ -132,7 +212,8 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                             CreateButton::new("cancel_register")
                                 .label("Cancel")
                                 .style(ButtonStyle::Danger),
-                        ])]),
+                        ])])
+                        .ephemeral(true),
                 )
                 .await?;
 
