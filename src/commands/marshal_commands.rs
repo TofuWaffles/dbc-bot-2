@@ -99,7 +99,7 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
             tournament.tournament_id,
             tournament.name,
             tournament.created_at.to_rfc2822(),
-            tournament.started,
+            tournament.status,
         ]);
     });
 

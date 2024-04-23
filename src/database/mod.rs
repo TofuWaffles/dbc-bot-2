@@ -1,8 +1,12 @@
-mod models;
-
 use sqlx::PgPool;
 
 use self::models::{GuildConfig, ManagerRoleConfig, Tournament, User};
+
+/// Models for the database
+///
+/// These models are specific to the current database design and schema.
+/// Most if not all are directly mapped to a table in the database.
+pub mod models;
 
 /// Any database that the bot could use to operate the tournament
 ///
@@ -18,12 +22,6 @@ pub trait Database {
     async fn connect() -> Result<Self, Self::Error>
     where
         Self: Sized;
-
-    /// Creates all tables necessary for the tournament system
-    ///
-    /// This is used in production to generate the tables at runtime.
-    /// In development, use the build.rs script to generate the tables at compile time.
-    async fn create_tables(&self) -> Result<(), Self::Error>;
 
     /// Sets the manager role for a guild
     async fn set_manager_role(
@@ -58,7 +56,7 @@ pub trait Database {
     /// Creates a tournament in the database, returning the tournament id.
     async fn create_tournament(&self, guild_id: &str, name: &str) -> Result<i32, Self::Error>;
 
-    /// Retrieves a tournament from the database.
+    /// Retrieves a tournament from the database given a guild id and tournament id.
     async fn get_tournament(
         &self,
         guild_id: &str,
@@ -70,6 +68,23 @@ pub trait Database {
 
     /// Retrieves all active tournaments from the database.
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Enters a user into a tournament.
+    async fn enter_tournament(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error>;
+
+    /// Retrieves all active tournaments that the player has currently entered.
+    ///
+    /// Note: in the current design, a player can only be in one active tournament at a time.
+    /// This rule should be enforced at the bot command level.
+    /// This method will still return multiple active tournaments if the player is in multiple active tournaments.
+    async fn get_player_active_tournament(
+        &self,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -86,40 +101,6 @@ impl Database for PgDatabase {
         let pool = PgPool::connect(db_url.as_str()).await?;
 
         Ok(PgDatabase { pool })
-    }
-
-    async fn create_tables(&self) -> Result<(), Self::Error> {
-        // This isn't the most reliable way to create the tables
-        // I might change this to be inlined in the future
-        sqlx::query_file!("migrations/20240330072934_create_config.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330072940_create_tournaments.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330072936_create_users.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330073147_create_tournament_players.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330073151_create_matches.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330073157_create_match_schedules.sql")
-            .execute(&self.pool)
-            .await?;
-
-        sqlx::query_file!("migrations/20240330092559_create_manager_roles.sql")
-            .execute(&self.pool)
-            .await?;
-
-        Ok(())
     }
 
     async fn set_manager_role(
@@ -246,8 +227,8 @@ impl Database for PgDatabase {
 
         let tournament_id = sqlx::query!(
             r#"
-            INSERT INTO tournaments (guild_id, name, created_at, active, started)
-            VALUES ($1, $2, $3, true, false)
+            INSERT INTO tournaments (guild_id, name, created_at)
+            VALUES ($1, $2, $3)
             RETURNING tournament_id
             "#,
             guild_id,
@@ -269,8 +250,10 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT * FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
+            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
+            LIMIT 1
             "#,
             guild_id,
             tournament_id,
@@ -285,7 +268,8 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT * FROM tournaments WHERE guild_id = $1
+            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
             guild_id
@@ -300,7 +284,8 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT * FROM tournaments WHERE guild_id = $1 AND active = true
+            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            FROM tournaments WHERE guild_id = $1 AND (status = 'pending' OR status = 'started')
             "#,
             guild_id
         )
@@ -308,5 +293,46 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(tournaments)
+    }
+
+    async fn enter_tournament(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO tournament_players (tournament_id, discord_id)
+            VALUES ($1, $2)
+            ON CONFLICT (tournament_id, discord_id)
+            DO NOTHING
+            "#,
+            tournament_id,
+            discord_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_player_active_tournament(
+        &self,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error> {
+        let tournament_players = sqlx::query_as!(
+            Tournament,
+            r#"
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
+            FROM tournament_players
+            JOIN tournaments ON tournament_players.tournament_id = tournaments.tournament_id
+            WHERE tournament_players.discord_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started')
+            "#,
+            discord_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(tournament_players)
     }
 }

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -15,6 +17,26 @@ pub struct GuildConfig {
     pub log_channel_id: String,
 }
 
+#[derive(Debug, sqlx::Type, Serialize, Deserialize)]
+#[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
+pub enum TournamentStatus {
+    Pending,
+    Started,
+    Paused,
+    Inactive,
+}
+
+impl Display for TournamentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TournamentStatus::Pending => write!(f, "Open for registration"),
+            TournamentStatus::Started => write!(f, "In progress"),
+            TournamentStatus::Paused => write!(f, "Paused"),
+            TournamentStatus::Inactive => write!(f, "Inactive/Completed"),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Tournament {
     pub tournament_id: i32,
@@ -22,8 +44,7 @@ pub struct Tournament {
     pub guild_id: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub start_time: Option<chrono::DateTime<chrono::Utc>>,
-    pub active: bool,
-    pub started: bool,
+    pub status: TournamentStatus,
 }
 
 #[derive(Serialize, Deserialize)]

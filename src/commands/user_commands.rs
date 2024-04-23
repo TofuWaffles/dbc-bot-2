@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiResult, GameApi},
-    database::Database,
+    database::{Database, models::Tournament},
     reminder::MatchReminder,
     BotData, BotError, Context,
 };
@@ -50,7 +50,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 
     match user {
         Some(_) => {
-            user_display_menu(ctx, msg).await?;
+            user_display_tournaments(ctx, msg).await?;
         }
         None => {
             // Might make the registration baked into this command later
@@ -67,9 +67,16 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 }
 
 async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+    let mut player_active_tournaments = ctx
+        .data()
+        .database
+        .get_active_tournaments(&ctx.author().id.to_string())
+        .await?;
+
     msg.edit(
         ctx,
         CreateReply::default()
+            .content("")
             .embed(
                 CreateEmbed::new()
                     .title("Main Menu")
@@ -86,7 +93,43 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     )
     .await?;
 
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
+
+    while let Some(interaction) = &interaction_collector.next().await {
+        match interaction.data.custom_id.as_str() {
+            "menu_tournaments" => {
+                if player_active_tournaments.is_empty() {
+                    user_display_tournaments(ctx, msg).await?;
+                    break;
+                } else if player_active_tournaments.len() > 1 {
+                    // Error here, letting maintainers know that a user has more than one active
+                    // tournament
+                    todo!()
+                } else {
+                    user_display_entered_tournament(ctx, msg, player_active_tournaments.remove(0))
+                        .await?;
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
     Ok(())
+}
+
+async fn user_display_entered_tournament(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    tournament: Tournament,
+) -> Result<(), BotError> {
+    todo!()
 }
 
 async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
@@ -98,16 +141,26 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
         .await?;
 
     let mut table = Table::new();
-    table.set_titles(row!["Tournament ID", "Name", "Started"]);
+    table.set_titles(row!["No.", "Name", "Status"]);
 
-    let mut buttons = Vec::new();
+    let mut interaction_ids = Vec::new();
+
+    let mut tournament_buttons = Vec::new();
 
     for (i, tournament) in tournaments.iter().enumerate() {
-        table.add_row(row![i, &tournament.name, &tournament.started]);
+        // Add 1 to the loop iteration so that the user-facing tournament numbers start at 1
+        // instead of 0
+        table.add_row(row![
+            i + 1,
+            &tournament.name,
+            &tournament.status.to_string()
+        ]);
 
-        buttons.push(
-            CreateButton::new(format!("tournament_{}", i.to_string()))
-                .label(i.to_string())
+        interaction_ids.push(format!("join_tournament_{}", tournament.tournament_id));
+
+        tournament_buttons.push(
+            CreateButton::new(interaction_ids.last().unwrap())
+                .label((i + 1).to_string())
                 .style(ButtonStyle::Primary),
         );
     }
@@ -115,44 +168,37 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
     msg.edit(
         ctx,
         CreateReply::default()
-            .embed(
-                CreateEmbed::new()
-                    .title("Tournaments")
-                    .description("Here are the tournaments you are currently in:"),
-            )
-            .components(vec![CreateActionRow::Buttons(vec![
-                CreateButton::new("menu_tournaments")
-                    .label("Back")
-                    .style(ButtonStyle::Primary),
-                CreateButton::new("something_else")
-                    .label("Something Else")
-                    .style(ButtonStyle::Danger),
-            ])]),
+            .content(format!(
+                "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.\n```\n{}\n```",
+                table.to_string()
+            ))
+            .components(vec![CreateActionRow::Buttons(tournament_buttons)]),
     )
     .await?;
 
-    Ok(())
-}
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
 
-#[poise::command(slash_command, prefix_command, guild_only)]
-async fn reminder(ctx: Context<'_>, duration: i32) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
-    let config = ctx.data().database.get_config(&guild_id).await?.unwrap();
-
-    let match_reminder = MatchReminder::new(
-        Uuid::new_v4(),
-        duration.to_string(),
-        "789".to_string(),
-        guild_id,
-        config.notification_channel_id,
-        chrono::offset::Utc::now(),
-    );
-
-    ctx.data()
-        .match_reminders
-        .lock()
-        .await
-        .insert_reminder(match_reminder)?;
+    while let Some(interaction) = &interaction_collector.next().await {
+        match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
+            Some(tournament_number) => {
+                ctx.data().database.enter_tournament(&tournaments[tournament_number].tournament_id, &ctx.author().id.to_string()).await?;
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Congratulations! You have successfully entered the tournament.\n\nSee you on the battle field!")
+                        .ephemeral(true)
+                        .components(vec![]),
+                )
+            }.await?,
+            None => continue,
+        };
+    }
 
     Ok(())
 }
@@ -276,6 +322,29 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
             .await?;
         }
     }
+
+    Ok(())
+}
+
+#[poise::command(slash_command, prefix_command, guild_only)]
+async fn reminder(ctx: Context<'_>, duration: i32) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let config = ctx.data().database.get_config(&guild_id).await?.unwrap();
+
+    let match_reminder = MatchReminder::new(
+        Uuid::new_v4(),
+        duration.to_string(),
+        "789".to_string(),
+        guild_id,
+        config.notification_channel_id,
+        chrono::offset::Utc::now(),
+    );
+
+    ctx.data()
+        .match_reminders
+        .lock()
+        .await
+        .insert_reminder(match_reminder)?;
 
     Ok(())
 }
