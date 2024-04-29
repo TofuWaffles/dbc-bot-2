@@ -18,6 +18,8 @@ impl CommandsContainer for MarshalCommands {
     }
 }
 
+
+/// Get information about a tournament.
 #[poise::command(
     slash_command,
     prefix_command,
@@ -68,6 +70,7 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
     Ok(())
 }
 
+/// List all currently active tournaments.
 #[poise::command(
     slash_command,
     prefix_command,

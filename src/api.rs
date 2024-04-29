@@ -25,6 +25,7 @@ pub trait GameApi {
     async fn check_maintenance(&self) -> Result<bool, Self::Error>;
 }
 
+/// Wrapper for the result of an API call.
 pub enum ApiResult<M> {
     Ok(M),
     NotFound,

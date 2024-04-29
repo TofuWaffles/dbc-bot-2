@@ -109,6 +109,7 @@ async fn set_config(
     Ok(())
 }
 
+/// Create a new tournament.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 #[instrument]
 async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotError> {

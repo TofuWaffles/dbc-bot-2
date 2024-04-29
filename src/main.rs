@@ -1,10 +1,9 @@
 use futures::poll;
 use std::{collections::HashMap, fs::File, sync::Arc};
 use tracing::{
-    debug, debug_span, error, info, info_span, instrument, level_filters::LevelFilter, trace_span,
-    Instrument,
+    error, info, info_span, level_filters::LevelFilter, Instrument,
 };
-use tracing_subscriber::{filter, fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
+use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use api::{BrawlStarsApi, GameApi};
 
@@ -214,6 +213,7 @@ async fn run() -> Result<(), BotError> {
     Ok(())
 }
 
+/// Sets up the tracing subscriber for the bot.
 fn setup_tracing() -> Result<(), BotError> {
     if cfg!(debug_assertions) {
         let filter = EnvFilter::from_default_env()

@@ -35,6 +35,7 @@ impl CommandsContainer for UserCommands {
 /// commands
 const USER_CMD_TIMEOUT: u64 = 5000;
 
+/// All-in-one command for all your tournament needs.
 #[poise::command(slash_command, prefix_command, guild_only)]
 #[instrument]
 async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
@@ -226,6 +227,7 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
     Ok(())
 }
 
+/// Register your in-game profile with the bot.
 #[poise::command(slash_command, prefix_command, guild_only)]
 async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> {
     let user_id = ctx.author().id.to_string();
