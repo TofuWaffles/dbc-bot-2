@@ -14,6 +14,7 @@ pub trait TournamentModel {
     async fn create_tournament(&self) -> Result<(), BotError>;
 }
 
+#[derive(Debug)]
 pub struct SingleElimTournament {}
 
 impl TournamentModel for SingleElimTournament {

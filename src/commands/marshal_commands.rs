@@ -1,5 +1,6 @@
 use poise::{serenity_prelude::CreateEmbed, CreateReply};
 use prettytable::{row, Table};
+use tracing::{instrument, warn};
 
 use crate::{database::Database, BotData, BotError, Context};
 
@@ -24,6 +25,7 @@ impl CommandsContainer for MarshalCommands {
     check = "is_marshal_or_higher",
     rename = "tournament"
 )]
+#[instrument]
 async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
@@ -59,6 +61,7 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
                     .ephemeral(true),
             )
             .await?;
+            warn!("Tournament with id {} not found", tournament_id);
         }
     };
 
@@ -72,6 +75,7 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
     check = "is_marshal_or_higher",
     rename = "tournaments"
 )]
+#[instrument]
 async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 

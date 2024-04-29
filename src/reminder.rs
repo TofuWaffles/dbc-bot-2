@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::BotError;
 
+#[derive(Debug)]
 pub struct MatchReminders {
     pub reminder_times: DelayQueue<Uuid>,
     pub matches: HashMap<Uuid, MatchReminder>,

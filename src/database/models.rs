@@ -37,7 +37,7 @@ impl Display for TournamentStatus {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,

@@ -88,6 +88,7 @@ pub trait Database {
 }
 
 /// The Postgres database used for the DBC tournament system
+#[derive(Debug)]
 pub struct PgDatabase {
     pub pool: PgPool,
 }

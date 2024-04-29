@@ -7,11 +7,12 @@ use poise::{
     CreateReply, ReplyHandle,
 };
 use prettytable::{row, Table};
+use tracing::{error, info, instrument};
 use uuid::Uuid;
 
 use crate::{
     api::{ApiResult, GameApi},
-    database::{Database, models::Tournament},
+    database::{models::Tournament, Database},
     reminder::MatchReminder,
     BotData, BotError, Context,
 };
@@ -35,7 +36,12 @@ impl CommandsContainer for UserCommands {
 const USER_CMD_TIMEOUT: u64 = 5000;
 
 #[poise::command(slash_command, prefix_command, guild_only)]
+#[instrument]
 async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
+    info!("User {} has entered the menu", ctx.author().name);
+
+    ctx.defer_ephemeral().await?;
+
     let user_id = ctx.author().id.to_string();
 
     let user = ctx.data().database.get_user(&user_id).await?;
@@ -50,7 +56,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 
     match user {
         Some(_) => {
-            user_display_tournaments(ctx, msg).await?;
+            user_display_menu(ctx, msg).await?;
         }
         None => {
             // Might make the registration baked into this command later
@@ -66,7 +72,9 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
     Ok(())
 }
 
+#[instrument(skip(msg))]
 async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+    info!("User {} has entered the menu home", ctx.author().name);
     let mut player_active_tournaments = ctx
         .data()
         .database
@@ -105,12 +113,21 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 if player_active_tournaments.is_empty() {
+                    msg.edit(
+                        ctx,
+                        CreateReply::default().content("Loading tournaments..."),
+                    )
+                    .await?;
                     user_display_tournaments(ctx, msg).await?;
                     break;
                 } else if player_active_tournaments.len() > 1 {
-                    // Error here, letting maintainers know that a user has more than one active
+                    // Error here, letting developers know that a user has more than one active
                     // tournament
-                    todo!()
+                    error!(
+                        "User {} has entered more than one active tournament",
+                        ctx.author().id
+                    );
+                    return Ok(());
                 } else {
                     user_display_entered_tournament(ctx, msg, player_active_tournaments.remove(0))
                         .await?;
@@ -124,6 +141,7 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     Ok(())
 }
 
+#[instrument(skip(msg))]
 async fn user_display_entered_tournament(
     ctx: Context<'_>,
     msg: ReplyHandle<'_>,
@@ -132,7 +150,12 @@ async fn user_display_entered_tournament(
     todo!()
 }
 
+#[instrument(skip(msg))]
 async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+    info!(
+        "User {} has entered the tournaments menu",
+        ctx.author().name
+    );
     let guild_id = ctx.guild_id().unwrap().to_string();
     let tournaments = ctx
         .data()

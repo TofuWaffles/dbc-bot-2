@@ -1,5 +1,10 @@
 use futures::poll;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fs::File, sync::Arc};
+use tracing::{
+    debug, debug_span, error, info, info_span, instrument, level_filters::LevelFilter, trace_span,
+    Instrument,
+};
+use tracing_subscriber::{filter, fmt::format::FmtSpan, layer::SubscriberExt, EnvFilter, Layer};
 
 use api::{BrawlStarsApi, GameApi};
 
@@ -31,6 +36,7 @@ mod tournament_model;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
+#[derive(Debug)]
 pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
     database: DB,
     tournament_model: TM,
@@ -52,6 +58,10 @@ pub type Context<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
 async fn main() {
+    if let Err(e) = setup_tracing() {
+        panic!("Error trying to setup tracing: {}", e);
+    }
+
     if let Err(e) = run().await {
         panic!("Error trying to run the bot: {}", e);
     }
@@ -59,16 +69,21 @@ async fn main() {
 
 /// The main function that runs the bot.
 async fn run() -> Result<(), BotError> {
+    let setup_span = info_span!("bot_setup");
+    let _guard = setup_span.enter();
     // Load the .env file only in the development environment (bypassed with the --release flag)
     #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let discord_token =
         std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
+    info!("Successfully loaded Discord Token");
     let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
         .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
+    info!("Successfully loaded Brawl Stars Token");
 
     let pg_database = PgDatabase::connect().await.unwrap();
+    info!("Successfully connected to the database");
     let dbc_tournament = SingleElimTournament {};
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
@@ -114,6 +129,7 @@ async fn run() -> Result<(), BotError> {
 
     let http = client.http.clone();
 
+    let reminder_span = info_span!("reminder_loop");
     // Todo: revisit this later once the reminder feature has been laid out
     // Note that all errors in this block should be handled and reported properly (i.e. no unwraps)
     // so that the loop can continue, otherwise the task will die and no reminders will be sent
@@ -132,7 +148,13 @@ async fn run() -> Result<(), BotError> {
                     let match_id = expired_reminder.into_inner();
                     let channel_id = match &locked_match_reminders.matches.remove(&match_id) {
                         Some(reminder) => reminder.notification_channel_id.clone(),
-                        None => todo!(),
+                        None => {
+                            error!(
+                                    "Cannot send reminder for match {}. Not found within the match reminders map.",
+                                    match_id
+                                );
+                            continue;
+                        }
                     };
                     let channel = match http
                         .clone()
@@ -140,13 +162,25 @@ async fn run() -> Result<(), BotError> {
                         .await
                     {
                         Ok(channel) => channel,
-                        Err(e) => todo!(),
+                        Err(e) => {
+                            error!(
+                                "Cannot send reminder for match {}. Error getting channel id: {}",
+                                match_id, e
+                            );
+                            continue;
+                        }
                     };
                     let guild_channel = match channel.guild() {
                         Some(guild_channel) => guild_channel,
-                        None => todo!(),
+                        None => {
+                            error!(
+                                    "Cannot send reminder for match {}. Unable to convert Channel to a GuildChannel",
+                                    match_id
+                                );
+                            continue;
+                        }
                     };
-                    guild_channel
+                    match guild_channel
                         .say(
                             http.clone(),
                             format!(
@@ -159,14 +193,51 @@ async fn run() -> Result<(), BotError> {
                             ),
                         )
                         .await
-                        .unwrap();
+                    {
+                        Ok(_) => continue,
+                        Err(e) => {
+                            error!(
+                                "Cannot send reminder for match {}. Error sending message: {}",
+                                match_id, e
+                            );
+                            continue;
+                        }
+                    };
                 }
                 None => continue,
             };
         }
-    });
+    }).instrument(reminder_span);
 
     client.start().await?;
+
+    Ok(())
+}
+
+fn setup_tracing() -> Result<(), BotError> {
+    if cfg!(debug_assertions) {
+        let filter = EnvFilter::from_default_env()
+            .add_directive("none".parse()?)
+            .add_directive("dbc_bot_2=info".parse()?);
+
+        tracing_subscriber::fmt::fmt()
+            .with_env_filter(filter)
+            .with_span_events(FmtSpan::NONE)
+            .pretty()
+            .init();
+
+        return Ok(());
+    }
+
+    let log_file = File::create("debug.log")?;
+
+    // Set up tracing with a filter that only logs errors in production
+    tracing_subscriber::fmt::fmt()
+        .with_span_events(FmtSpan::NONE)
+        .with_max_level(LevelFilter::ERROR)
+        .with_writer(log_file)
+        .pretty()
+        .init();
 
     Ok(())
 }

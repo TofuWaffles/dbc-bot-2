@@ -1,4 +1,5 @@
 use poise::serenity_prelude as serenity;
+use tracing::{info, instrument};
 
 use crate::{database::Database, BotData, BotError, Context};
 
@@ -20,6 +21,7 @@ impl CommandsContainer for OwnerCommands {
 ///
 /// Managers are typically server moderators and are able to run any command except this one.
 #[poise::command(slash_command, prefix_command, guild_only, owners_only)]
+#[instrument]
 async fn set_manager(
     ctx: Context<'_>,
     #[description = "The Manager role"] role: serenity::Role,
@@ -50,6 +52,11 @@ async fn set_manager(
             .ephemeral(true),
     )
     .await?;
+
+    info!(
+        "Set the manager role for guild {} to {}",
+        guild_id, manager_role_id
+    );
 
     Ok(())
 }

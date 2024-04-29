@@ -1,4 +1,5 @@
 use poise::{serenity_prelude as serenity, CreateReply};
+use tracing::{error, info, instrument};
 
 use crate::{commands::checks::is_manager, database::Database, BotData, BotError, Context};
 
@@ -28,6 +29,7 @@ impl CommandsContainer for ManagerCommands {
 /// progress and matches.
 /// - Log Channel: The channel where the bot will log all the actions it takes.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[instrument]
 async fn set_config(
     ctx: Context<'_>,
     marshal_role: serenity::Role,
@@ -44,6 +46,7 @@ async fn set_config(
                     .ephemeral(true),
             )
             .await?;
+            error!("Invalid announcement channel entered by {}", ctx.author());
             return Ok(());
         }
     };
@@ -57,6 +60,7 @@ async fn set_config(
                     .ephemeral(true),
             )
             .await?;
+            error!("Invalid notification channel entered by {}", ctx.author());
             return Ok(());
         }
     };
@@ -70,6 +74,7 @@ async fn set_config(
                     .ephemeral(true),
             )
             .await?;
+            error!("Invalid log channel entered by {}", ctx.author());
             return Ok(());
         }
     };
@@ -96,10 +101,16 @@ async fn set_config(
     )
     .await?;
 
+    info!(
+        "Set the configuration for guild {}",
+        ctx.guild_id().unwrap().to_string()
+    );
+
     Ok(())
 }
 
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[instrument]
 async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
@@ -118,6 +129,11 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
             .ephemeral(true),
     )
     .await?;
+
+    info!(
+        "Created tournament {} for guild {}",
+        new_tournament_id, guild_id
+    );
 
     Ok(())
 }

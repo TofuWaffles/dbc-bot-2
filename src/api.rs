@@ -84,6 +84,7 @@ pub struct TeamPlayer {
 }
 
 /// The Brawl Stars API.
+#[derive(Debug)]
 pub struct BrawlStarsApi {
     /// The API token used to authenticate with the Brawl Stars API. You can get your own from the [Brawl Stars API website](https://developer.brawlstars.com/).
     token: String,
