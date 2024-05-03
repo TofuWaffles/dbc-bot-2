@@ -1,14 +1,17 @@
 use futures::poll;
-use std::{collections::HashMap, fs::File, sync::Arc};
-use tracing::{
-    error, info, info_span, level_filters::LevelFilter, Instrument,
-};
+use std::{collections::HashMap, fs::File, sync::Arc, time::SystemTime};
+use tracing::{error, info, info_span, level_filters::LevelFilter, warn, Instrument};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use api::{BrawlStarsApi, GameApi};
 
 use database::{Database, PgDatabase};
-use poise::serenity_prelude::{self as serenity, futures::StreamExt};
+use poise::{
+    serenity_prelude::{
+        self as serenity, futures::StreamExt, ChannelId, CreateEmbed, CreateMessage,
+    },
+    CreateReply,
+};
 use reminder::MatchReminders;
 use tokio::sync::Mutex;
 use tokio_util::time::DelayQueue;
@@ -107,6 +110,87 @@ async fn run() -> Result<(), BotError> {
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
+            on_error: |error| {
+                Box::pin(async move {
+                    error!("Error in command: {:?}", error);
+                    let ctx = match error.ctx() {
+                        Some(ctx) => ctx,
+                        None => {
+                            error!("No context in this error");
+                            return;
+                        },
+                    };
+                    match ctx.send(CreateReply::default().content("Something went wrong. Please let the bot maintainers know if the issue persists.").ephemeral(true)).await {
+                        Ok(_) => (),
+                        Err(e) => error!("Error sending generic error message to user: {}", e)
+                    }
+                    let guild_id = match ctx.guild_id() {
+                        Some(guild_id) => guild_id.to_string(),
+                        None => {
+                            warn!("No guild id in this error context. Cannot send error message to log channel.");
+                            return;
+                        },
+                    };
+                    let log_channel_id = match ctx.data().database.get_config(&guild_id).await {
+                        Ok(config) => match config {
+                            Some(config) => config.log_channel_id,
+                            None => {
+                                warn!("No config found for guild {}. Cannot send error message to log channel.", guild_id);
+                                return;
+                            },
+                        },
+                        Err(e) => {
+                            error!("Error getting log channel id for guild {}. Cannot send error message to log channel: {}", guild_id, e);
+                            return;
+                        },
+                    };
+                    let guild_channels = match ctx.guild_id().unwrap().channels(ctx).await {
+                        Ok(guild_channels) => guild_channels,
+                        Err(e) => {
+                            error!("Error getting guild channels for guild {}. Cannot send error message to log channel: {}", guild_id, e);
+                            return;
+                        },
+                    };
+
+                    let log_channel = match guild_channels.get(&ChannelId::new(log_channel_id.parse::<u64>().unwrap())) {
+                        Some(log_channel) => log_channel,
+                        None => todo!(),
+                    };
+
+                    let player_tournaments = match ctx.data().database.get_player_active_tournament(&ctx.author().id.to_string()).await {
+                        Ok(tournament) => tournament,
+                        Err(e) => {
+                            error!("Error getting player active tournament for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);
+                            return;
+                        },
+                    };
+
+                    let user = match ctx.data().database.get_user(&ctx.author().id.to_string()).await {
+                        Ok(user) => user,
+                        Err(e) => {
+                            error!("Error getting user for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);
+                            return;
+                        },
+                    };
+
+                    match log_channel.send_message(
+                        ctx,
+                        CreateMessage::default()
+                            .content("⚠️ An error occured in a command!")
+                            .embed(CreateEmbed::new()
+                                   .title(format!("{}", error))
+                                   .description("Please check the logs for more information.")
+                                   .fields(vec!(
+                                           ("User", &ctx.author().name, false),
+                                           ("Seen at", &format!("<t:{}:F>", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()), false),
+                                           ("Player ID", &format!("{:?}", user), false),
+                                           ("Tourmament", &format!("{:?}", player_tournaments), false),
+                                           )))).await {
+                        Ok(_) => (),
+                        Err(e) => error!("Error sending error message to log channel: {:?}", e),
+                    };
+                })
+            },
             ..Default::default()
         })
         .setup(|ctx, _ready, framework| {

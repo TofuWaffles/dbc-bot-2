@@ -18,7 +18,6 @@ impl CommandsContainer for MarshalCommands {
     }
 }
 
-
 /// Get information about a tournament.
 #[poise::command(
     slash_command,

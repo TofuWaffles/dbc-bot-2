@@ -47,7 +47,7 @@ pub struct Tournament {
     pub status: TournamentStatus,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct User {
     pub discord_id: String,
     pub player_tag: String,
