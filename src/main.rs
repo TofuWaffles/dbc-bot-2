@@ -15,7 +15,7 @@ use poise::{
 use reminder::MatchReminders;
 use tokio::sync::Mutex;
 use tokio_util::time::DelayQueue;
-use tournament_model::{SingleElimTournament, TournamentModel};
+use tournament_model::{SingleElimTournament, Tournament};
 
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
@@ -39,7 +39,7 @@ mod tournament_model;
 ///
 /// Accessible by all bot commands through Context.
 #[derive(Debug)]
-pub struct Data<DB: Database, TM: TournamentModel, P: GameApi> {
+pub struct Data<DB: Database, TM: Tournament, P: GameApi> {
     database: DB,
     tournament_model: TM,
     game_api: P,

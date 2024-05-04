@@ -42,8 +42,8 @@ pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,
     pub guild_id: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub start_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: i64,
+    pub start_time: Option<i64>,
     pub status: TournamentStatus,
 }
 

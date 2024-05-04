@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDateTime, Utc};
 use poise::{serenity_prelude::CreateEmbed, CreateReply};
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
@@ -39,7 +40,9 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
     match tournament {
         Some(tournament) => {
             let start_time_str = match tournament.start_time {
-                Some(start_time) => start_time.to_rfc2822(),
+                Some(start_time) => DateTime::from_timestamp(start_time, 0)
+                    .unwrap_or_default()
+                    .to_rfc2822(),
                 None => "Not started".to_string(),
             };
             ctx.send(
@@ -48,7 +51,13 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
                         CreateEmbed::new()
                             .title(tournament.name)
                             .field("ID", tournament.tournament_id.to_string(), true)
-                            .field("Created At", tournament.created_at.to_rfc2822(), true)
+                            .field(
+                                "Created At",
+                                DateTime::from_timestamp(tournament.created_at, 0)
+                                    .unwrap_or_default()
+                                    .to_rfc2822(),
+                                true,
+                            )
                             .field("Started At", start_time_str, true),
                     )
                     .ephemeral(true),
@@ -98,13 +107,15 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
     }
 
     let mut table = Table::new();
-    table.set_titles(row!["ID", "Name", "Created At", "Started"]);
+    table.set_titles(row!["ID", "Name", "Created At", "Status"]);
 
     tournaments.iter().for_each(|tournament| {
         table.add_row(row![
             tournament.tournament_id,
             tournament.name,
-            tournament.created_at.to_rfc2822(),
+            DateTime::from_timestamp(tournament.created_at, 0)
+                .unwrap_or_default()
+                .to_rfc2822(),
             tournament.status,
         ]);
     });

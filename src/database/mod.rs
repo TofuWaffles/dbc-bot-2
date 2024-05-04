@@ -224,7 +224,7 @@ impl Database for PgDatabase {
     }
 
     async fn create_tournament(&self, guild_id: &str, name: &str) -> Result<i32, Self::Error> {
-        let now = chrono::offset::Utc::now();
+        let timestamp_time = chrono::offset::Utc::now().timestamp();
 
         let tournament_id = sqlx::query!(
             r#"
@@ -234,7 +234,7 @@ impl Database for PgDatabase {
             "#,
             guild_id,
             name,
-            now
+            timestamp_time
         )
         .fetch_one(&self.pool)
         .await?
