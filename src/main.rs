@@ -39,11 +39,27 @@ mod tournament_model;
 ///
 /// Accessible by all bot commands through Context.
 #[derive(Debug)]
-pub struct Data<DB: Database, TM: Tournament, P: GameApi> {
+pub struct Data<DB, TM, P> {
     database: DB,
     tournament_model: TM,
     game_api: P,
     match_reminders: Arc<Mutex<MatchReminders>>,
+}
+
+impl<DB, TM, P> Data<DB, TM, P>
+where
+    DB: Database,
+    TM: Tournament,
+    P: GameApi,
+{
+    fn new(database: DB, tournament_model: TM, game_api: P, match_reminders: Arc<Mutex<MatchReminders>>) -> Self {
+        Self {
+            database,
+            tournament_model,
+            game_api,
+            match_reminders
+        }
+    }
 }
 
 /// Convenience type for the bot's data with generics filled in.
@@ -86,7 +102,7 @@ async fn run() -> Result<(), BotError> {
 
     let pg_database = PgDatabase::connect().await.unwrap();
     info!("Successfully connected to the database");
-    let dbc_tournament = SingleElimTournament {};
+    let dbc_tournament = SingleElimTournament::new();
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
     let commands = vec![
@@ -184,7 +200,7 @@ async fn run() -> Result<(), BotError> {
                                            ("User", &ctx.author().name, false),
                                            ("Seen at", &format!("<t:{}:F>", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()), false),
                                            ("Player ID", &format!("{:?}", user), false),
-                                           ("Tourmament", &format!("{:?}", player_tournaments), false),
+                                           ("Tournament", &format!("{:?}", player_tournaments), false),
                                            )))).await {
                         Ok(_) => (),
                         Err(e) => error!("Error sending error message to log channel: {:?}", e),
@@ -196,12 +212,7 @@ async fn run() -> Result<(), BotError> {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {
-                    tournament_model: dbc_tournament,
-                    database: pg_database,
-                    game_api: brawl_stars_api,
-                    match_reminders: bot_data_match_reminders,
-                })
+                Ok(Data::new(pg_database, dbc_tournament, brawl_stars_api, bot_data_match_reminders))
             })
         })
         .build();

@@ -1,4 +1,7 @@
 use sqlx::PgPool;
+use tracing::error;
+
+use crate::BotError;
 
 use self::models::{GuildConfig, ManagerRoleConfig, Tournament, User};
 
@@ -85,16 +88,19 @@ pub trait Database {
         &self,
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Gets all players in a tournament.
+    async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
 #[derive(Debug)]
 pub struct PgDatabase {
-    pub pool: PgPool,
+    pool: PgPool,
 }
 
 impl Database for PgDatabase {
-    type Error = sqlx::Error;
+    type Error = BotError;
 
     async fn connect() -> Result<Self, Self::Error> {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
@@ -321,7 +327,7 @@ impl Database for PgDatabase {
         &self,
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error> {
-        let tournament_players = sqlx::query_as!(
+        let tournaments = sqlx::query_as!(
             Tournament,
             r#"
             SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
@@ -334,6 +340,23 @@ impl Database for PgDatabase {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(tournament_players)
+        Ok(tournaments)
+    }
+
+    async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error> {
+        let players = sqlx::query_as!(
+            User,
+            r#"
+            SELECT users.discord_id, users.player_tag
+            FROM tournament_players
+            JOIN users ON tournament_players.discord_id = users.discord_id
+            WHERE tournament_players.tournament_id = $1
+            "#,
+            tournament_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(players)
     }
 }

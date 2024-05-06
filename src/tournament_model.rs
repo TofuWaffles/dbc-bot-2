@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::{Arc, Mutex}};
+
 use crate::BotError;
 
 /// Defines a model for managing tournaments.
@@ -11,14 +13,26 @@ use crate::BotError;
 /// work needs to be done to change the tournament style than just simply changing the implementations.
 #[allow(async_fn_in_trait)]
 pub trait Tournament {
-    async fn new(&self) -> Result<(), BotError>;
 }
 
 #[derive(Debug)]
-pub struct SingleElimTournament {}
+pub struct SingleElimTournament {
+    final_bracket: Arc<Mutex<Bracket>>,
+    active_brackets: Arc<Mutex<HashMap<String, Bracket>>>,
+}
 
-impl Tournament for SingleElimTournament {
-    async fn new(&self) -> Result<(), BotError> {
+impl SingleElimTournament {
+    pub fn new() -> Self {
         todo!();
     }
+}
+
+impl Tournament for SingleElimTournament {
+}
+
+#[derive(Debug)]
+pub struct Bracket {
+    player_1: String,
+    player_2: String,
+    winner: String,
 }
