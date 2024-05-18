@@ -1,7 +1,14 @@
 use poise::{serenity_prelude as serenity, CreateReply};
 use tracing::{error, info, instrument};
 
-use crate::{commands::checks::is_manager, database::Database, BotData, BotError, Context};
+use crate::{
+    commands::checks::is_manager,
+    database::{
+        models::{PlayerType, TournamentStatus},
+        Database,
+    },
+    BotData, BotError, Context,
+};
 
 use super::CommandsContainer;
 
@@ -145,11 +152,72 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
 async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
-    let tournament = ctx
+    let tournament = match ctx
         .data()
         .database
         .get_tournament(&guild_id, &tournament_id)
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content("Tournament not found")
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    match tournament.status {
+        TournamentStatus::Pending => (),
+        _ => {
+            ctx.send(
+                CreateReply::default()
+                    .content("This tournament either has already started or has already ended.")
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(());
+        }
+    }
+
+    let tournament_players = ctx
+        .data()
+        .database
+        .get_tournament_players(&tournament_id)
         .await?;
 
-    todo!()
+    let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
+
+    let matches_count = (2 as u32).pow(rounds_count - 1);
+
+    for i in 0..matches_count {
+        // Guaranteed to have a player
+        let player_1 = &tournament_players[i as usize];
+        // Not guaranteed to have a player, this would be a bye round if there is no player
+        let player_2 = &tournament_players.get(matches_count as usize + i as usize);
+
+        ctx.data()
+            .database
+            .create_match(
+                &tournament_id,
+                &1,
+                &(i as i32 + 1 as i32),
+                PlayerType::Player,
+                match player_2 {
+                    Some(_) => PlayerType::Player,
+                    None => PlayerType::Dummy,
+                },
+                Some(&player_1.discord_id),
+                match player_2 {
+                    Some(player) => Some(&player.discord_id),
+                    None => None,
+                },
+            )
+            .await?;
+    }
+
+    Ok(())
 }
