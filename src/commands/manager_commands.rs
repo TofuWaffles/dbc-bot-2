@@ -20,7 +20,7 @@ impl CommandsContainer for ManagerCommands {
     type Error = BotError;
 
     fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![set_config(), create_tournament()]
+        vec![set_config(), create_tournament(), start_tournament()]
     }
 }
 
@@ -188,6 +188,16 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
         .database
         .get_tournament_players(&tournament_id)
         .await?;
+
+    if tournament_players.len() < 2 {
+        ctx.send(
+            CreateReply::default()
+                .content("There are not enough players to start the tournament.")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
+    }
 
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
