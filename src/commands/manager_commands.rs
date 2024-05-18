@@ -138,3 +138,18 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
 
     Ok(())
 }
+
+/// Start a tournament
+#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[instrument]
+async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+
+    let tournament = ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, &tournament_id)
+        .await?;
+
+    todo!()
+}

@@ -61,13 +61,29 @@ pub struct TournamentPlayer {
 
 #[derive(Serialize, Deserialize)]
 pub struct Match {
-    match_id: uuid::Uuid,
-    tournament_id: i32,
-    round: i32,
-    sequence_in_round: i32,
-    discord_id_1: String,
-    discord_id_2: String,
-    winner: Option<i32>,
+    pub match_id: String,
+    pub tournament_id: i32,
+    pub round: i32,
+    pub sequence_in_round: i32,
+    pub player_1_type: PlayerType,
+    pub player_2_type: PlayerType,
+    pub discord_id_1: Option<String>,
+    pub discord_id_2: Option<String>,
+    pub winner: Option<i32>,
+}
+
+impl Match {
+    pub fn generate_id(tournament_id: i32, round: i32, sequence_in_round: i32) -> String {
+        format!("{}.{}.{}", tournament_id, round, sequence_in_round)
+    }
+}
+
+#[derive(Debug, sqlx::Type, Serialize, Deserialize)]
+#[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
+pub enum PlayerType {
+    Player,
+    Dummy,
+    Pending,
 }
 
 #[derive(Serialize, Deserialize)]

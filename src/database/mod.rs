@@ -3,7 +3,7 @@ use tracing::error;
 
 use crate::BotError;
 
-use self::models::{GuildConfig, ManagerRoleConfig, Tournament, User};
+use self::models::{GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, User};
 
 /// Models for the database
 ///
@@ -91,6 +91,30 @@ pub trait Database {
 
     /// Gets all players in a tournament.
     async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error>;
+
+    /// Creates a match associated with a tournament.
+    async fn create_match(
+        &self,
+        tournament_id: &i32,
+        round: &i32,
+        sequence_in_round: &i32,
+        player_1_type: PlayerType,
+        player_2_type: PlayerType,
+        discord_id_1: Option<&str>,
+        discord_id: Option<&str>,
+    ) -> Result<(), Self::Error>;
+
+    /// Retrieves a match by its id.
+    async fn get_match_by_id(&self, match_id: &str) -> Result<Option<Match>, Self::Error>;
+
+    /// Retrieves a match by the player's discord id.
+    ///
+    /// This will retrive the match with the highest round number that does not yet have a winner.
+    async fn get_match_by_player(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<Option<Match>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -358,5 +382,78 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(players)
+    }
+
+    async fn create_match(
+        &self,
+        tournament_id: &i32,
+        round: &i32,
+        sequence_in_round: &i32,
+        player_1_type: PlayerType,
+        player_2_type: PlayerType,
+        discord_id_1: Option<&str>,
+        discord_id_2: Option<&str>,
+    ) -> Result<(), Self::Error> {
+        let match_id = Match::generate_id(*tournament_id, *round, *sequence_in_round);
+
+        sqlx::query!(
+            r#"
+            INSERT INTO matches (match_id, tournament_id, round, sequence_in_round, player_1_type, player_2_type, discord_id_1, discord_id_2)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            "#,
+            match_id,
+            tournament_id,
+            round,
+            sequence_in_round,
+            player_1_type as PlayerType,
+            player_2_type as PlayerType,
+            discord_id_1,
+            discord_id_2
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn get_match_by_id(&self, match_id: &str) -> Result<Option<Match>, Self::Error> {
+        let bracket = sqlx::query_as!(
+            Match,
+            r#"
+            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+            FROM matches
+            WHERE match_id = $1
+            ORDER BY round DESC
+            LIMIT 1
+            "#,
+            match_id
+            )
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(bracket)
+    }
+
+    async fn get_match_by_player(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<Option<Match>, Self::Error> {
+        let bracket = sqlx::query_as!(
+            Match,
+            r#"
+            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+            FROM matches
+            WHERE tournament_id = $1 AND (discord_id_1 = $2 OR discord_id_2 = $2) AND winner IS NULL
+            ORDER BY round DESC
+            LIMIT 1
+            "#,
+            tournament_id,
+            discord_id,
+            )
+            .fetch_optional(&self.pool)
+            .await?;
+
+        Ok(bracket)
     }
 }
