@@ -51,7 +51,7 @@ where
         Self {
             database,
             game_api,
-            match_reminders
+            match_reminders,
         }
     }
 }

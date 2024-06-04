@@ -57,7 +57,12 @@ pub trait Database {
     async fn get_user(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
 
     /// Creates a tournament in the database, returning the tournament id.
-    async fn create_tournament(&self, guild_id: &str, name: &str) -> Result<i32, Self::Error>;
+    async fn create_tournament(
+        &self,
+        guild_id: &str,
+        name: &str,
+        tournament_id: Option<&i32>,
+    ) -> Result<i32, Self::Error>;
 
     /// Retrieves a tournament from the database given a guild id and tournament id.
     async fn get_tournament(
@@ -71,6 +76,9 @@ pub trait Database {
 
     /// Retrieves all active tournaments from the database.
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Deletes a tournament from the database.
+    async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error>;
 
     /// Enters a user into a tournament.
     async fn enter_tournament(
@@ -115,6 +123,15 @@ pub trait Database {
         tournament_id: &i32,
         discord_id: &str,
     ) -> Result<Option<Match>, Self::Error>;
+
+    /// Retrieves all matches associated with a tournament.
+    ///
+    /// Pass in a None for the round number to retrieve all matches for the tournament.
+    async fn get_matches_by_tournament(
+        &self,
+        tournament_id: &i32,
+        round: Option<&i32>,
+    ) -> Result<Vec<Match>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -127,6 +144,9 @@ impl Database for PgDatabase {
     type Error = BotError;
 
     async fn connect() -> Result<Self, Self::Error> {
+        #[cfg(debug_assertions)]
+        dotenv::dotenv().ok();
+
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
 
         let pool = PgPool::connect(db_url.as_str()).await?;
@@ -253,22 +273,48 @@ impl Database for PgDatabase {
         Ok(user)
     }
 
-    async fn create_tournament(&self, guild_id: &str, name: &str) -> Result<i32, Self::Error> {
+    async fn create_tournament(
+        &self,
+        guild_id: &str,
+        name: &str,
+        tournament_id: Option<&i32>,
+    ) -> Result<i32, Self::Error> {
         let timestamp_time = chrono::offset::Utc::now().timestamp();
 
-        let tournament_id = sqlx::query!(
-            r#"
+        let tournament_id = match tournament_id {
+            None => {
+                sqlx::query!(
+                    r#"
             INSERT INTO tournaments (guild_id, name, created_at)
             VALUES ($1, $2, $3)
             RETURNING tournament_id
             "#,
-            guild_id,
-            name,
-            timestamp_time
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .tournament_id;
+                    guild_id,
+                    name,
+                    timestamp_time
+                )
+                .fetch_one(&self.pool)
+                .await?
+                .tournament_id
+            }
+            Some(custom_id) => {
+                sqlx::query!(
+                    r#"
+            INSERT INTO tournaments (guild_id, name, created_at, tournament_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (tournament_id) DO NOTHING
+            "#,
+                    guild_id,
+                    name,
+                    timestamp_time,
+                    custom_id
+                )
+                .execute(&self.pool)
+                .await?;
+
+                *custom_id
+            }
+        };
 
         Ok(tournament_id)
     }
@@ -394,12 +440,13 @@ impl Database for PgDatabase {
         discord_id_1: Option<&str>,
         discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error> {
-        let match_id = Match::generate_id(*tournament_id, *round, *sequence_in_round);
+        let match_id = Match::generate_id(tournament_id, round, sequence_in_round);
 
         sqlx::query!(
             r#"
             INSERT INTO matches (match_id, tournament_id, round, sequence_in_round, player_1_type, player_2_type, discord_id_1, discord_id_2)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5::player_type, $6::player_type, $7, $8)
+            ON CONFLICT (match_id) DO NOTHING
             "#,
             match_id,
             tournament_id,
@@ -455,5 +502,55 @@ impl Database for PgDatabase {
             .await?;
 
         Ok(bracket)
+    }
+
+    async fn get_matches_by_tournament(
+        &self,
+        tournament_id: &i32,
+        round: Option<&i32>,
+    ) -> Result<Vec<Match>, Self::Error> {
+        let brackets = match round {
+            Some(round) => sqlx::query_as!(
+                Match,
+                r#"
+                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+                FROM matches
+                WHERE tournament_id = $1 AND round = $2
+                ORDER BY sequence_in_round
+                "#,
+                tournament_id,
+                round
+                )
+                .fetch_all(&self.pool)
+                .await?,
+            None => sqlx::query_as!(
+                Match,
+                r#"
+                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+                FROM matches
+                WHERE tournament_id = $1
+                ORDER BY round DESC, sequence_in_round
+                "#,
+                tournament_id
+                )
+                .fetch_all(&self.pool)
+                .await?,
+        };
+
+        Ok(brackets)
+    }
+
+    async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM tournaments
+            WHERE tournament_id = $1
+            "#,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

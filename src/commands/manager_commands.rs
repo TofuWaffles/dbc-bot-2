@@ -4,7 +4,7 @@ use tracing::{error, info, instrument};
 use crate::{
     commands::checks::is_manager,
     database::{
-        models::{PlayerType, TournamentStatus},
+        models::{Match, PlayerType, TournamentStatus, User},
         Database,
     },
     BotData, BotError, Context,
@@ -125,7 +125,7 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
     let new_tournament_id = ctx
         .data()
         .database
-        .create_tournament(&guild_id, &name)
+        .create_tournament(&guild_id, &name, None)
         .await?;
 
     ctx.send(
@@ -199,6 +199,18 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
         return Ok(());
     }
 
+    let _matches =
+        generate_matches(&ctx.data().database, tournament_players, &tournament_id).await?;
+
+    Ok(())
+}
+
+/// Contains the business logic for generating matches for a newly started tournament.
+pub(super) async fn generate_matches<DB: Database>(
+    database: &DB,
+    tournament_players: Vec<User>,
+    tournament_id: &i32,
+) -> Result<Vec<Match>, DB::Error> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
     let matches_count = (2 as u32).pow(rounds_count - 1);
@@ -209,8 +221,7 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
         // Not guaranteed to have a player, this would be a bye round if there is no player
         let player_2 = &tournament_players.get(matches_count as usize + i as usize);
 
-        ctx.data()
-            .database
+        database
             .create_match(
                 &tournament_id,
                 &1,
@@ -229,5 +240,7 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
             .await?;
     }
 
-    Ok(())
+    Ok(database
+        .get_matches_by_tournament(tournament_id, Some(&1))
+        .await?)
 }
