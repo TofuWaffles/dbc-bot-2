@@ -271,7 +271,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                                     ),
                                     ("Solo Victories", player.solo_victories.to_string(), true),
                                     ("Duo Victories", player.duo_victories.to_string(), true),
-                                    ("Club", player.club.name, true),
+                                    ("Club", player.club.unwrap_or_default().name, true),
                                 ])
                                 .timestamp(ctx.created_at())
                                 .color(0x0000FF),

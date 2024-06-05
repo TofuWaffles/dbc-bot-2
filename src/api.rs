@@ -37,7 +37,7 @@ pub enum ApiResult<M> {
 pub struct PlayerProfile {
     pub tag: String,
     pub name: String,
-    pub club: Club,
+    pub club: Option<Club>,
     pub icon: HashMap<String, u32>,
     pub trophies: u32,
     #[serde(rename = "3vs3Victories")]
@@ -49,7 +49,7 @@ pub struct PlayerProfile {
     pub highest_trophies: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Club {
     pub tag: String,
