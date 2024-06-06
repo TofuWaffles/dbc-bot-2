@@ -244,3 +244,157 @@ pub(super) async fn generate_matches<DB: Database>(
         .get_matches_by_tournament(tournament_id, Some(&1))
         .await?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::generate_matches;
+    use crate::database::{
+        models::{PlayerType, User},
+        Database, PgDatabase,
+    };
+
+    #[tokio::test]
+    async fn creates_two_matches() {
+        let db = PgDatabase::connect().await.unwrap();
+
+        let mut users = Vec::new();
+
+        users.push(User {
+            discord_id: 0.to_string(),
+            player_tag: 0.to_string(),
+        });
+        users.push(User {
+            discord_id: 1.to_string(),
+            player_tag: 1.to_string(),
+        });
+        users.push(User {
+            discord_id: 2.to_string(),
+            player_tag: 2.to_string(),
+        });
+        users.push(User {
+            discord_id: 3.to_string(),
+            player_tag: 3.to_string(),
+        });
+
+        db.create_tournament("0", "test", Some(&-1)).await.unwrap();
+
+        println!("{:?}", users);
+
+        for user in &users {
+            db.create_user(&user.discord_id, &user.player_tag)
+                .await
+                .unwrap();
+            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
+        }
+
+        let matches = generate_matches(&db, users, &-1).await.unwrap();
+
+        db.delete_tournament(&-1).await.unwrap();
+
+        println!("{:?}", matches);
+
+        assert_eq!(matches.len(), 2);
+        assert!(matches[0].player_1_type == PlayerType::Player);
+        assert!(matches[0].player_2_type == PlayerType::Player);
+        assert!(matches[1].player_1_type == PlayerType::Player);
+        assert!(matches[1].player_2_type == PlayerType::Player);
+    }
+
+    #[tokio::test]
+    async fn creates_two_matches_with_one_bye() {
+        let db = PgDatabase::connect().await.unwrap();
+
+        let mut users = Vec::new();
+
+        users.push(User {
+            discord_id: 0.to_string(),
+            player_tag: 0.to_string(),
+        });
+        users.push(User {
+            discord_id: 1.to_string(),
+            player_tag: 1.to_string(),
+        });
+        users.push(User {
+            discord_id: 2.to_string(),
+            player_tag: 2.to_string(),
+        });
+
+        db.create_tournament("0", "test", Some(&-2)).await.unwrap();
+
+        for user in &users {
+            db.create_user(&user.discord_id, &user.player_tag)
+                .await
+                .unwrap();
+            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
+        }
+
+        let matches = generate_matches(&db, users, &-2).await.unwrap();
+
+        db.delete_tournament(&-2).await.unwrap();
+
+        println!("{:?}", matches);
+
+        assert_eq!(matches.len(), 2);
+        assert!(matches[0].player_1_type == PlayerType::Player);
+        assert!(matches[0].player_2_type == PlayerType::Player);
+        assert!(matches[1].player_1_type == PlayerType::Player);
+        assert!(matches[1].player_2_type == PlayerType::Dummy);
+    }
+
+    #[tokio::test]
+    async fn creates_four_matches_with_two_byes() {
+        let db = PgDatabase::connect().await.unwrap();
+
+        let mut users = Vec::new();
+
+        users.push(User {
+            discord_id: 0.to_string(),
+            player_tag: 0.to_string(),
+        });
+        users.push(User {
+            discord_id: 1.to_string(),
+            player_tag: 1.to_string(),
+        });
+        users.push(User {
+            discord_id: 2.to_string(),
+            player_tag: 2.to_string(),
+        });
+        users.push(User {
+            discord_id: 3.to_string(),
+            player_tag: 3.to_string(),
+        });
+        users.push(User {
+            discord_id: 4.to_string(),
+            player_tag: 4.to_string(),
+        });
+        users.push(User {
+            discord_id: 5.to_string(),
+            player_tag: 5.to_string(),
+        });
+
+        db.create_tournament("0", "test", Some(&-3)).await.unwrap();
+
+        for user in &users {
+            db.create_user(&user.discord_id, &user.player_tag)
+                .await
+                .unwrap();
+            db.enter_tournament(&-3, &user.discord_id).await.unwrap();
+        }
+
+        let matches = generate_matches(&db, users, &-3).await.unwrap();
+
+        db.delete_tournament(&-3).await.unwrap();
+
+        println!("{:?}", matches);
+
+        assert_eq!(matches.len(), 4);
+        assert!(matches[0].player_1_type == PlayerType::Player);
+        assert!(matches[0].player_2_type == PlayerType::Player);
+        assert!(matches[1].player_1_type == PlayerType::Player);
+        assert!(matches[1].player_2_type == PlayerType::Player);
+        assert!(matches[2].player_1_type == PlayerType::Player);
+        assert!(matches[2].player_2_type == PlayerType::Dummy);
+        assert!(matches[3].player_1_type == PlayerType::Player);
+        assert!(matches[3].player_2_type == PlayerType::Dummy);
+    }
+}
