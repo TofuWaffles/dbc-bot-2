@@ -166,7 +166,7 @@ async fn run() -> Result<(), BotError> {
                         None => todo!(),
                     };
 
-                    let player_tournaments = match ctx.data().database.get_player_active_tournament(&ctx.author().id.to_string()).await {
+                    let player_tournaments = match ctx.data().database.get_player_active_tournaments(&guild_id, &ctx.author().id.to_string()).await {
                         Ok(tournament) => tournament,
                         Err(e) => {
                             error!("Error getting player active tournament for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);

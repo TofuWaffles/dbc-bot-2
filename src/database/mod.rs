@@ -77,6 +77,17 @@ pub trait Database {
     /// Retrieves all active tournaments from the database.
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
 
+    /// Retrieves all active tournaments that the player has currently entered.
+    ///
+    /// Note: in the current design, a player can only be in one active tournament at a time.
+    /// This rule should be enforced at the bot command level.
+    /// This method will still return multiple active tournaments if the player is in multiple active tournaments.
+    async fn get_player_active_tournaments(
+        &self,
+        guild_id: &str,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error>;
+
     /// Deletes a tournament from the database.
     async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error>;
 
@@ -86,16 +97,6 @@ pub trait Database {
         tournament_id: &i32,
         discord_id: &str,
     ) -> Result<(), Self::Error>;
-
-    /// Retrieves all active tournaments that the player has currently entered.
-    ///
-    /// Note: in the current design, a player can only be in one active tournament at a time.
-    /// This rule should be enforced at the bot command level.
-    /// This method will still return multiple active tournaments if the player is in multiple active tournaments.
-    async fn get_player_active_tournament(
-        &self,
-        discord_id: &str,
-    ) -> Result<Vec<Tournament>, Self::Error>;
 
     /// Gets all players in a tournament.
     async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error>;
@@ -393,26 +394,6 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn get_player_active_tournament(
-        &self,
-        discord_id: &str,
-    ) -> Result<Vec<Tournament>, Self::Error> {
-        let tournaments = sqlx::query_as!(
-            Tournament,
-            r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
-            FROM tournament_players
-            JOIN tournaments ON tournament_players.tournament_id = tournaments.tournament_id
-            WHERE tournament_players.discord_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started')
-            "#,
-            discord_id
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(tournaments)
-    }
-
     async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error> {
         let players = sqlx::query_as!(
             User,
@@ -552,5 +533,27 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(())
+    }
+
+    async fn get_player_active_tournaments(
+        &self,
+        guild_id: &str,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error> {
+        let tournaments = sqlx::query_as!(
+            Tournament,
+            r#"
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
+            FROM tournaments
+            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
+            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
+            "#,
+            guild_id,
+            discord_id,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(tournaments)
     }
 }

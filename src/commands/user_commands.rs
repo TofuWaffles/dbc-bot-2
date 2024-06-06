@@ -79,7 +79,10 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     let mut player_active_tournaments = ctx
         .data()
         .database
-        .get_active_tournaments(&ctx.author().id.to_string())
+        .get_player_active_tournaments(
+            &ctx.guild_id().unwrap().to_string(),
+            &ctx.author().id.to_string(),
+        )
         .await?;
 
     msg.edit(
@@ -92,9 +95,21 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                     .description("Welcome to the menu! What would you like to do?"),
             )
             .components(vec![CreateActionRow::Buttons(vec![
-                CreateButton::new("menu_tournaments")
-                    .label("Tournaments")
-                    .style(ButtonStyle::Primary),
+                if player_active_tournaments.len() < 1 {
+                    CreateButton::new("menu_tournaments")
+                        .label("Tournaments")
+                        .style(ButtonStyle::Primary)
+                } else if player_active_tournaments.len() == 1 {
+                    CreateButton::new("menu_match")
+                        .label("View Match")
+                        .style(ButtonStyle::Success)
+                } else {
+                    panic!(
+                        "User {} with ID {} has enetered more than one active tournament",
+                        ctx.author().name,
+                        ctx.author().id,
+                    )
+                },
                 CreateButton::new("something_else")
                     .label("Something Else")
                     .style(ButtonStyle::Danger),
@@ -113,27 +128,26 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
-                if player_active_tournaments.is_empty() {
-                    msg.edit(
-                        ctx,
-                        CreateReply::default().content("Loading tournaments..."),
-                    )
-                    .await?;
-                    user_display_tournaments(ctx, msg).await?;
-                    break;
-                } else if player_active_tournaments.len() > 1 {
-                    // Error here, letting developers know that a user has more than one active
-                    // tournament
-                    error!(
-                        "User {} has entered more than one active tournament",
-                        ctx.author().id
-                    );
-                    return Ok(());
-                } else {
-                    user_display_entered_tournament(ctx, msg, player_active_tournaments.remove(0))
-                        .await?;
-                    break;
-                }
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Loading tournaments...")
+                        .ephemeral(true),
+                )
+                .await?;
+                user_display_tournaments(ctx, msg).await?;
+                break;
+            }
+            "menu_match" => {
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Loading your match...")
+                        .ephemeral(true),
+                )
+                .await?;
+                user_display_match(ctx, msg, player_active_tournaments.remove(0)).await?;
+                break;
             }
             _ => {}
         }
@@ -143,12 +157,35 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
 }
 
 #[instrument(skip(msg))]
-async fn user_display_entered_tournament(
+async fn user_display_match(
     ctx: Context<'_>,
     msg: ReplyHandle<'_>,
     tournament: Tournament,
 ) -> Result<(), BotError> {
-    todo!()
+    info!(
+        "User {} is viewing their entered tournament",
+        ctx.author().name
+    );
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .embed(
+                CreateEmbed::new()
+                    .title("Here is your current tournament")
+                    .fields(vec![
+                        ("Name", tournament.name, true),
+                        ("Tournament ID", tournament.tournament_id.to_string(), true),
+                    ]),
+            )
+            .components(vec![])
+            .ephemeral(true),
+    )
+    .await?;
+
+    // Todo: Add actual match information here along with scheduling options
+
+    Ok(())
 }
 
 #[instrument(skip(msg))]
@@ -351,6 +388,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
     Ok(())
 }
 
+/// Used for match reminders; WIP
 #[poise::command(slash_command, prefix_command, guild_only)]
 async fn reminder(ctx: Context<'_>, duration: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();

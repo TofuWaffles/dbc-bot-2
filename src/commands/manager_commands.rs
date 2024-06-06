@@ -206,7 +206,7 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
 }
 
 /// Contains the business logic for generating matches for a newly started tournament.
-pub(super) async fn generate_matches<DB: Database>(
+pub(self) async fn generate_matches<DB: Database>(
     database: &DB,
     tournament_players: Vec<User>,
     tournament_id: &i32,
