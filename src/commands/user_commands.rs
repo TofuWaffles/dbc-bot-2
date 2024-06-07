@@ -12,7 +12,10 @@ use uuid::Uuid;
 
 use crate::{
     api::{ApiResult, GameApi},
-    database::{models::Tournament, Database},
+    database::{
+        models::{PlayerType, Tournament},
+        Database,
+    },
     reminder::MatchReminder,
     BotData, BotError, Context,
 };
@@ -76,6 +79,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
+
     let mut player_active_tournaments = ctx
         .data()
         .database
@@ -85,37 +89,70 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
         )
         .await?;
 
-    msg.edit(
-        ctx,
-        CreateReply::default()
-            .content("")
-            .embed(
-                CreateEmbed::new()
-                    .title("Main Menu")
-                    .description("Welcome to the menu! What would you like to do?"),
-            )
-            .components(vec![CreateActionRow::Buttons(vec![
-                if player_active_tournaments.len() < 1 {
-                    CreateButton::new("menu_tournaments")
-                        .label("Tournaments")
-                        .style(ButtonStyle::Primary)
-                } else if player_active_tournaments.len() == 1 {
-                    CreateButton::new("menu_match")
-                        .label("View Match")
-                        .style(ButtonStyle::Success)
-                } else {
-                    panic!(
-                        "User {} with ID {} has enetered more than one active tournament",
-                        ctx.author().name,
-                        ctx.author().id,
+    if player_active_tournaments.len() < 1 {
+        msg.edit(ctx,
+            CreateReply::default()
+                .content("")
+                .embed(
+                    CreateEmbed::new()
+                        .title("Main Menu")
+                        .description("Welcome to the menu! You have not joined a tournament yet. Click on the Tournaments button to join one now!")
                     )
-                },
-                CreateButton::new("something_else")
-                    .label("Something Else")
-                    .style(ButtonStyle::Danger),
-            ])]),
-    )
-    .await?;
+                .components(
+                    vec![CreateActionRow::Buttons(
+                        vec![
+                        CreateButton::new("menu_tournaments")
+                        .label("Tournaments")
+                        .style(ButtonStyle::Primary)])])
+                .ephemeral(true)
+                 ).await?;
+    } else if player_active_tournaments.len() == 1 {
+        msg.edit(
+            ctx,
+            CreateReply::default()
+                .content("")
+                .embed(
+                    CreateEmbed::new()
+                        .title("Main Menu")
+                        .description("You're already in a tournament. Good luck!")
+                        .fields(vec![
+                            (
+                                "Tournament Name",
+                                player_active_tournaments[0].name.to_owned(),
+                                false,
+                            ),
+                            (
+                                "Tournament ID",
+                                player_active_tournaments[0].tournament_id.to_string(),
+                                false,
+                            ),
+                            (
+                                "Status",
+                                format!("{}", player_active_tournaments[0].status),
+                                false,
+                            ),
+                            (
+                                "Created At",
+                                format!("<t:{}>", player_active_tournaments[0].created_at),
+                                false,
+                            ),
+                        ]),
+                )
+                .components(vec![CreateActionRow::Buttons(vec![CreateButton::new(
+                    "menu_match",
+                )
+                .label("View Match")
+                .style(ButtonStyle::Primary)])])
+                .ephemeral(true),
+        )
+        .await?;
+    } else {
+        panic!(
+            "User {} with ID {} has enetered more than one active tournament",
+            ctx.author().name,
+            ctx.author().id,
+        );
+    }
 
     let mut interaction_collector = msg
         .clone()
@@ -132,7 +169,8 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                     ctx,
                     CreateReply::default()
                         .content("Loading tournaments...")
-                        .ephemeral(true),
+                        .ephemeral(true)
+                        .components(vec![]),
                 )
                 .await?;
                 user_display_tournaments(ctx, msg).await?;
@@ -143,7 +181,8 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                     ctx,
                     CreateReply::default()
                         .content("Loading your match...")
-                        .ephemeral(true),
+                        .ephemeral(true)
+                        .components(vec![]),
                 )
                 .await?;
                 user_display_match(ctx, msg, player_active_tournaments.remove(0)).await?;
@@ -167,23 +206,85 @@ async fn user_display_match(
         ctx.author().name
     );
 
-    msg.edit(
-        ctx,
-        CreateReply::default()
-            .embed(
-                CreateEmbed::new()
-                    .title("Here is your current tournament")
-                    .fields(vec![
-                        ("Name", tournament.name, true),
-                        ("Tournament ID", tournament.tournament_id.to_string(), true),
-                    ]),
+    let bracket = ctx
+        .data()
+        .database
+        .get_match_by_player(&tournament.tournament_id, &ctx.author().id.to_string())
+        .await?;
+
+    match bracket {
+        Some(bracket) => {
+            msg.edit(
+                    ctx,
+                    CreateReply::default().content("").embed(
+                        CreateEmbed::new().title("Match Information.")
+                        .description(
+                            "Here is all the information for your current match. May the best brawler win!",
+                        )
+                        .fields(vec![
+                            ("Tournament", tournament.name, true),
+                            ("Match ID", bracket.match_id, true),
+                            ("Round", bracket.round.to_string(), true),
+                            ("Player 1",
+                             match bracket.player_1_type {
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.unwrap()),
+                                PlayerType::Dummy => "No opponent, please proceed by clicking 'Submit'".to_string(),
+                                PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
+                            },
+                             false),
+                            ("Player 2", 
+                             match bracket.player_2_type {
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.unwrap()),
+                                PlayerType::Dummy => "No opponent for the current match, please proceed by clicking 'Submit'".to_string(),
+                                PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
+                            },
+                             false),
+                        ]),
+                    ),
+                ).await?
+        },
+        None => {
+            msg.edit(
+                ctx,
+                CreateReply::default()
+                    .content("The tournament has not started yet.\n\nNo match currently available.")
+                    .ephemeral(true)
+                    .components(vec![CreateActionRow::Buttons(vec![
+                        CreateButton::new("match_menu_back")
+                            .label("Back")
+                            .style(ButtonStyle::Danger)
+                    ])]),
             )
-            .components(vec![])
-            .ephemeral(true),
-    )
-    .await?;
+            .await?
+        }
+    };
 
     // Todo: Add actual match information here along with scheduling options
+
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
+
+    while let Some(interaction) = &interaction_collector.next().await {
+        match interaction.data.custom_id.as_str() {
+            "match_menu_back" => {
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Going back...")
+                        .ephemeral(true)
+                        .components(vec![]),
+                )
+                .await?;
+                break;
+            }
+            _ => {}
+        }
+    }
 
     Ok(())
 }
