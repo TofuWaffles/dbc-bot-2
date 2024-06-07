@@ -2,7 +2,7 @@ use poise::{serenity_prelude as serenity, CreateReply};
 use tracing::{error, info, instrument};
 
 use crate::{
-    commands::checks::is_manager,
+    commands::checks::{is_config_set, is_manager},
     database::{
         models::{Match, PlayerType, TournamentStatus, User},
         Database,
@@ -147,7 +147,13 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
 }
 
 /// Start a tournament
-#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_manager",
+    check = "is_config_set"
+)]
 #[instrument]
 async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
