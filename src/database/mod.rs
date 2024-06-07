@@ -3,7 +3,9 @@ use tracing::error;
 
 use crate::BotError;
 
-use self::models::{GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, User};
+use self::models::{
+    GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, TournamentStatus, User,
+};
 
 /// Models for the database
 ///
@@ -63,6 +65,13 @@ pub trait Database {
         name: &str,
         tournament_id: Option<&i32>,
     ) -> Result<i32, Self::Error>;
+
+    /// Updates the status of a tournament.
+    async fn set_tournament_status(
+        &self,
+        tournament_id: &i32,
+        new_status: TournamentStatus,
+    ) -> Result<(), Self::Error>;
 
     /// Retrieves a tournament from the database given a guild id and tournament id.
     async fn get_tournament(
@@ -555,5 +564,25 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(tournaments)
+    }
+
+    async fn set_tournament_status(
+        &self,
+        tournament_id: &i32,
+        new_status: TournamentStatus,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET status = $2
+            WHERE tournament_id = $1
+            "#,
+            tournament_id,
+            new_status as TournamentStatus,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }

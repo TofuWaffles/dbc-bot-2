@@ -181,7 +181,10 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
         _ => {
             ctx.send(
                 CreateReply::default()
-                    .content("This tournament either has already started or has already ended.")
+                    .content(format!(
+                        "Tournament with ID {} either has already started or has already ended.",
+                        tournament_id
+                    ))
                     .ephemeral(true),
             )
             .await?;
@@ -198,15 +201,29 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
     if tournament_players.len() < 2 {
         ctx.send(
             CreateReply::default()
-                .content("There are not enough players to start the tournament.")
+                .content(format!(
+                    "There are not enough players to start the tournament with ID {}.",
+                    tournament_id
+                ))
                 .ephemeral(true),
         )
         .await?;
         return Ok(());
     }
 
-    let _matches =
+    let matches =
         generate_matches(&ctx.data().database, tournament_players, &tournament_id).await?;
+
+    ctx.data()
+        .database
+        .set_tournament_status(&tournament_id, TournamentStatus::Started)
+        .await?;
+
+    ctx.send(CreateReply::default()
+             .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches.len()))
+             .ephemeral(true)
+        )
+        .await?;
 
     Ok(())
 }
