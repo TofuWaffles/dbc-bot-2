@@ -3,6 +3,7 @@ use std::time::Duration;
 use poise::{
     serenity_prelude::{
         futures::StreamExt, ButtonStyle, CreateActionRow, CreateButton, CreateEmbed,
+        CreateInteractionResponse,
     },
     CreateReply, ReplyHandle,
 };
@@ -165,6 +166,9 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
@@ -177,6 +181,9 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                 break;
             }
             "menu_match" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
@@ -245,7 +252,7 @@ async fn user_display_match(
                         vec![
                             CreateActionRow::Buttons(
                                 vec![
-                                  CreateButton::new("menu_menu_schedule")
+                                  CreateButton::new("match_menu_schedule")
                                   .label("Schedule Match")
                                   .style(ButtonStyle::Primary),
                     ])]),
@@ -276,6 +283,9 @@ async fn user_display_match(
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_schedule" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
@@ -353,6 +363,7 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
             Some(tournament_number) => {
+                interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
                 ctx.data().database.enter_tournament(&tournaments[tournament_number].tournament_id, &ctx.author().id.to_string()).await?;
                 msg.edit(
                     ctx,
@@ -443,7 +454,9 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
             while let Some(interaction) = &interaction_collector.next().await {
                 match interaction.data.custom_id.as_str() {
                     "confirm_register" => {
-                        interaction.defer(ctx).await?;
+                        interaction
+                            .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                            .await?;
                         ctx.data()
                             .database
                             .create_user(&user_id, &player.tag)
@@ -458,7 +471,9 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                         .await?;
                     }
                     "cancel_register" => {
-                        interaction.defer(ctx).await?;
+                        interaction
+                            .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                            .await?;
                         msg.edit(
                             ctx,
                             CreateReply::default()
