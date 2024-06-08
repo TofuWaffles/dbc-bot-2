@@ -240,7 +240,15 @@ async fn user_display_match(
                             },
                              false),
                         ]),
-                    ),
+                    )
+                    .components(
+                        vec![
+                            CreateActionRow::Buttons(
+                                vec![
+                                  CreateButton::new("menu_menu_schedule")
+                                  .label("Schedule Match")
+                                  .style(ButtonStyle::Primary),
+                    ])]),
                 ).await?
         },
         None => {
@@ -249,11 +257,7 @@ async fn user_display_match(
                 CreateReply::default()
                     .content("The tournament has not started yet.\n\nNo match currently available.")
                     .ephemeral(true)
-                    .components(vec![CreateActionRow::Buttons(vec![
-                        CreateButton::new("match_menu_back")
-                            .label("Back")
-                            .style(ButtonStyle::Danger)
-                    ])]),
+                    .components(vec![]),
             )
             .await?
         }
