@@ -1,5 +1,5 @@
 use futures::poll;
-use std::{collections::HashMap, fs::File, sync::Arc, time::SystemTime};
+use std::{collections::HashMap, fs::File, str::FromStr, sync::Arc, time::SystemTime};
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn, Instrument};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
@@ -161,7 +161,7 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    let log_channel = match guild_channels.get(&ChannelId::new(log_channel_id.parse::<u64>().unwrap())) {
+                    let log_channel = match guild_channels.get(&ChannelId::from_str(&log_channel_id).unwrap_or_default()) {
                         Some(log_channel) => log_channel,
                         None => todo!(),
                     };
@@ -245,7 +245,7 @@ async fn run() -> Result<(), BotError> {
                     };
                     let channel = match http
                         .clone()
-                        .get_channel(channel_id.parse::<u64>().unwrap_or_default().into())
+                        .get_channel(ChannelId::from_str(&channel_id).unwrap_or_default())
                         .await
                     {
                         Ok(channel) => channel,

@@ -45,7 +45,9 @@ pub trait CommandsContainer {
 
 /// Common checks (e.g. role checks) used by various commands.
 pub(self) mod checks {
-    use poise::CreateReply;
+    use std::str::FromStr;
+
+    use poise::{serenity_prelude::{GuildId, RoleId}, CreateReply};
 
     use crate::{database::Database, BotError, Context};
 
@@ -60,7 +62,7 @@ pub(self) mod checks {
         let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
 
         let manager_role_id = match manager_role_option {
-            Some(manager_role) => manager_role.manager_role_id.parse::<u64>()?,
+            Some(manager_role) => RoleId::from_str(&manager_role.manager_role_id)?.get(),
             None => {
                 ctx.send(
                     CreateReply::default()
@@ -71,7 +73,7 @@ pub(self) mod checks {
             }
         };
 
-        let guild_id_u64: u64 = guild_id.parse()?;
+        let guild_id_u64: u64 = GuildId::from_str(&guild_id)?.get();
 
         if ctx
             .author()
@@ -113,16 +115,11 @@ pub(self) mod checks {
             return Ok(false);
         }
 
-        let guild_id_u64: u64 = guild_id.parse()?;
+        let guild_id_u64: u64 = GuildId::from_str(&guild_id)?.get();
 
-        let manager_role_id = manager_role_option
-            .unwrap()
-            .manager_role_id
-            .parse::<u64>()?;
-        let marshal_role_id = marshal_role_option
-            .unwrap()
-            .marshal_role_id
-            .parse::<u64>()?;
+        let manager_role_id = RoleId::from_str(&manager_role_option.unwrap().manager_role_id)?.get();
+
+        let marshal_role_id = RoleId::from_str(&marshal_role_option.unwrap().marshal_role_id)?.get();
 
         if ctx
             .author()

@@ -275,11 +275,11 @@ async fn user_display_match(
 
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
-            "match_menu_back" => {
+            "match_menu_schedule" => {
                 msg.edit(
                     ctx,
                     CreateReply::default()
-                        .content("Going back...")
+                        .content("You can propose a match schedule to your opponent here.\n\nThey can either accept your proposal or counter-offer with their own.")
                         .ephemeral(true)
                         .components(vec![]),
                 )
