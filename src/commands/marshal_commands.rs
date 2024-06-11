@@ -1,9 +1,9 @@
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::DateTime;
 use poise::{serenity_prelude::CreateEmbed, CreateReply};
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
 
-use crate::{commands::checks::is_config_set, database::Database, BotData, BotError, Context};
+use crate::{database::Database, BotData, BotError, Context};
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 

@@ -1,10 +1,9 @@
 use sqlx::PgPool;
-use tracing::error;
 
 use crate::BotError;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, MatchSchedule, PlayerType, Tournament, TournamentStatus,
+    GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, TournamentStatus,
     User,
 };
 

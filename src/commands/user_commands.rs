@@ -1,13 +1,12 @@
 use std::time::{Duration, SystemTime};
 
 use poise::{
-    execute_modal_on_component_interaction,
     serenity_prelude::{
         futures::StreamExt, ButtonStyle, ComponentInteractionDataKind, CreateActionRow,
         CreateButton, CreateEmbed, CreateInteractionResponse, CreateSelectMenu,
-        CreateSelectMenuKind, CreateSelectMenuOption, SelectMenu, SelectMenuOption,
+        CreateSelectMenuKind, CreateSelectMenuOption,
     },
-    CreateReply, Modal, ReplyHandle,
+    CreateReply, ReplyHandle,
 };
 use prettytable::{row, Table};
 use tracing::{error, info, instrument};
