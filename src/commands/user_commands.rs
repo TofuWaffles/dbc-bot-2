@@ -1,11 +1,13 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use poise::{
+    execute_modal_on_component_interaction,
     serenity_prelude::{
-        futures::StreamExt, ButtonStyle, CreateActionRow, CreateButton, CreateEmbed,
-        CreateInteractionResponse,
+        futures::StreamExt, ButtonStyle, ComponentInteractionDataKind, CreateActionRow,
+        CreateButton, CreateEmbed, CreateInteractionResponse, CreateSelectMenu,
+        CreateSelectMenuKind, CreateSelectMenuOption, SelectMenu, SelectMenuOption,
     },
-    CreateReply, ReplyHandle,
+    CreateReply, Modal, ReplyHandle,
 };
 use prettytable::{row, Table};
 use tracing::{error, info, instrument};
@@ -14,7 +16,7 @@ use uuid::Uuid;
 use crate::{
     api::{ApiResult, GameApi},
     database::{
-        models::{PlayerType, Tournament},
+        models::{Match, PlayerType, Tournament},
         Database,
     },
     reminder::MatchReminder,
@@ -37,7 +39,7 @@ impl CommandsContainer for UserCommands {
 
 /// Amount of time in milliseconds before message interactions (usually buttons) expire for user
 /// commands
-const USER_CMD_TIMEOUT: u64 = 5000;
+const USER_CMD_TIMEOUT: u64 = 60000;
 
 /// All-in-one command for all your tournament needs.
 #[poise::command(slash_command, prefix_command, guild_only)]
@@ -208,10 +210,7 @@ async fn user_display_match(
     msg: ReplyHandle<'_>,
     tournament: Tournament,
 ) -> Result<(), BotError> {
-    info!(
-        "User {} is viewing their entered tournament",
-        ctx.author().name
-    );
+    info!("User {} is viewing their current match", ctx.author().name);
 
     let bracket = ctx
         .data()
@@ -220,7 +219,7 @@ async fn user_display_match(
         .await?;
 
     match bracket {
-        Some(bracket) => {
+        Some(ref bracket) => {
             msg.edit(
                     ctx,
                     CreateReply::default().content("").embed(
@@ -230,18 +229,18 @@ async fn user_display_match(
                         )
                         .fields(vec![
                             ("Tournament", tournament.name, true),
-                            ("Match ID", bracket.match_id, true),
+                            ("Match ID", bracket.match_id.to_owned(), true),
                             ("Round", bracket.round.to_string(), true),
                             ("Player 1",
                              match bracket.player_1_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.unwrap()),
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.to_owned().unwrap()),
                                 PlayerType::Dummy => "No opponent, please proceed by clicking 'Submit'".to_string(),
                                 PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
                             },
                              false),
                             ("Player 2", 
                              match bracket.player_2_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.unwrap()),
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.to_owned().unwrap()),
                                 PlayerType::Dummy => "No opponent for the current match, please proceed by clicking 'Submit'".to_string(),
                                 PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
                             },
@@ -266,11 +265,11 @@ async fn user_display_match(
                     .ephemeral(true)
                     .components(vec![]),
             )
-            .await?
+            .await?;
+
+            return Ok(());
         }
     };
-
-    // Todo: Add actual match information here along with scheduling options
 
     let mut interaction_collector = msg
         .clone()
@@ -283,20 +282,230 @@ async fn user_display_match(
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_schedule" => {
+                info!(
+                    "User {} is attempting to schedule their match",
+                    ctx.author().name
+                );
                 interaction
                     .create_response(ctx, CreateInteractionResponse::Acknowledge)
                     .await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
-                        .content("You can propose a match schedule to your opponent here.\n\nThey can either accept your proposal or counter-offer with their own.")
+                        .content("Loading the match scheduling menu...")
                         .ephemeral(true)
                         .components(vec![]),
                 )
                 .await?;
+                user_display_match_scheduling(ctx, msg, bracket.unwrap()).await?;
                 break;
             }
             _ => {}
+        }
+    }
+
+    Ok(())
+}
+
+#[instrument(skip(msg))]
+async fn user_display_match_scheduling(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    bracket: Match,
+) -> Result<(), BotError> {
+    let mut hour_options = Vec::new();
+    let mut minutes_options = Vec::new();
+
+    for hour in 0..=24 {
+        hour_options.push(CreateSelectMenuOption::new(
+            hour.to_string(),
+            hour.to_string(),
+        ));
+    }
+
+    for minute in 0..=5 {
+        minutes_options.push(CreateSelectMenuOption::new(
+            (minute * 10).to_string(),
+            (minute * 10).to_string(),
+        ));
+    }
+
+    msg.edit(ctx,
+             CreateReply::default()
+             .content("You can propose a match schedule to your opponent here.\nEnter the time you would like to **start** the match from now in hours and minutes.\n\nFor example, if you would like to start your match an hour and 30 minutes from now, you should select 1 for hours and 30 for minutes, then click Submit.\n\nYour opponent can either accept your proposal or counter-offer with their own.\n")
+             .components(vec![
+                         CreateActionRow::SelectMenu(CreateSelectMenu::new("match_schedule_hour", CreateSelectMenuKind::String { options: hour_options }).placeholder("Hours")),
+                         CreateActionRow::SelectMenu(CreateSelectMenu::new("match_schedule_minute", CreateSelectMenuKind::String { options: minutes_options }).placeholder("Minutes")),
+                         CreateActionRow::Buttons(vec![CreateButton::new("match_schedule_submit").label("Submit").style(ButtonStyle::Primary)])
+             ])
+             .ephemeral(true)
+        )
+        .await?;
+
+    let mut selected_hour = 0;
+    let mut selected_minute = 0;
+
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
+
+    while let Some(interaction) = &interaction_collector.next().await {
+        println!("Got interaction {:?}", interaction);
+        match interaction.data.custom_id.as_str() {
+            "match_schedule_hour" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                selected_hour = match &interaction.data.kind {
+                    ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].parse::<i32>()?
+                    }
+                    _ => 0,
+                };
+                println!("Currently selected hour: {}", selected_hour);
+            }
+            "match_schedule_minute" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                selected_minute = match &interaction.data.kind {
+                    ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].parse::<i32>()?
+                    }
+                    _ => 0,
+                };
+                println!("Currently selected minute: {}", selected_minute);
+            }
+            "match_schedule_submit" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Loading match schedule confirmation menu...")
+                        .ephemeral(true)
+                        .components(vec![]),
+                )
+                .await?;
+                let hours = Duration::from_secs((selected_hour * 60 * 60) as u64);
+                let minutes = Duration::from_secs((selected_minute * 60) as u64);
+                user_display_schedule_confirmation(ctx, msg, bracket, hours, minutes).await?;
+                break;
+            }
+            _ => (),
+        }
+    }
+
+    Ok(())
+}
+
+#[instrument(skip(msg))]
+async fn user_display_schedule_confirmation(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    bracket: Match,
+    hours: Duration,
+    minutes: Duration,
+) -> Result<(), BotError> {
+    let now = SystemTime::now();
+    let now_unix = now
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let match_time_unix = (now + hours + minutes)
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
+    let user_id = ctx.author().id.to_string();
+    let discord_id_1 = bracket.discord_id_1.unwrap_or_default();
+    let discord_id_2 = bracket.discord_id_2.unwrap_or_default();
+
+    let notification_channel_id = ctx
+        .data()
+        .database
+        .get_config(&ctx.guild_id().unwrap().to_string())
+        .await?
+        .unwrap()
+        .notification_channel_id;
+
+    let proposer;
+
+    if user_id == discord_id_1 {
+        proposer = 1;
+    } else if user_id == discord_id_2 {
+        proposer = 2;
+    } else {
+        error!(
+            "User id {} is not present in the current match!\n\nID 1: {}\nID 2: {}",
+            user_id, discord_id_1, discord_id_2
+        );
+        return Err(format!(
+            "User id {} is not present in the current match!\n\nID 1: {}\nID 2: {}",
+            user_id, discord_id_1, discord_id_2
+        )
+        .into());
+    }
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content("Please check the details of your proposed schedule. Your opponent can either accept or counter with their own schedule proposal.")
+            .embed(
+                CreateEmbed::new()
+                    .title(format!("Match Schedule for Match {}", bracket.match_id))
+                    .description(format!("You are proposing to start your match at <t:{}>", match_time_unix))
+                    .fields(vec![
+                        ("Tournament ID", bracket.tournament_id.to_string(), true),
+                        ("Round", bracket.round.to_string(), true),
+                        ("Player 1", format!("<@{}>", discord_id_1), false),
+                        ("Player 2", format!("<@{}>", discord_id_2), false),
+                    ])
+            )
+            .components(vec![CreateActionRow::Buttons(vec![CreateButton::new("match_schedule_confirm").label("Confirm").style(ButtonStyle::Success)])])
+            .ephemeral(true)
+    )
+    .await?;
+
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
+
+    if let Some(interaction) = &interaction_collector.next().await {
+        match interaction.data.custom_id.as_str() {
+            "match_schedule_confirm" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                ctx.data()
+                    .database
+                    .create_or_update_match_schedule(
+                        &bracket.match_id,
+                        match_time_unix,
+                        now_unix,
+                        proposer,
+                    )
+                    .await?;
+                msg.edit(ctx,
+                         CreateReply::default()
+                            .content(format!("Congratulations! You've successfully scheduled your next match. Keep an eye out in <#{}> for any updates.", notification_channel_id))
+                            .ephemeral(true)
+                            .components(vec![])
+                    )
+                    .await?;
+
+                return Ok(());
+            }
+            _ => (),
         }
     }
 

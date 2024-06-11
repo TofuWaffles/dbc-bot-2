@@ -4,7 +4,8 @@ use tracing::error;
 use crate::BotError;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, TournamentStatus, User,
+    GuildConfig, ManagerRoleConfig, Match, MatchSchedule, PlayerType, Tournament, TournamentStatus,
+    User,
 };
 
 /// Models for the database
@@ -142,6 +143,15 @@ pub trait Database {
         tournament_id: &i32,
         round: Option<&i32>,
     ) -> Result<Vec<Match>, Self::Error>;
+
+    /// Create a new match schedule in the database.
+    async fn create_or_update_match_schedule(
+        &self,
+        match_id: &str,
+        proposed_time: u64,
+        time_of_proposal: u64,
+        proposer: i32,
+    ) -> Result<(), Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system
@@ -582,6 +592,34 @@ impl Database for PgDatabase {
         )
         .execute(&self.pool)
         .await?;
+
+        Ok(())
+    }
+
+    async fn create_or_update_match_schedule(
+        &self,
+        match_id: &str,
+        proposed_time: u64,
+        time_of_proposal: u64,
+        proposer: i32,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO match_schedules (match_id, proposed_time, time_of_proposal, proposer, accepted)
+            VALUES($1, $2, $3, $4, false)
+            ON CONFLICT (match_id) DO UPDATE
+                SET match_id = $1,
+                    proposed_time = $2,
+                    time_of_proposal = $3,
+                    proposer = $4;
+            "#,
+            match_id,
+            proposed_time as i64,
+            time_of_proposal as i64,
+            proposer as i16,
+            )
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }

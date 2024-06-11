@@ -47,7 +47,10 @@ pub trait CommandsContainer {
 pub(self) mod checks {
     use std::str::FromStr;
 
-    use poise::{serenity_prelude::{GuildId, RoleId}, CreateReply};
+    use poise::{
+        serenity_prelude::{GuildId, RoleId},
+        CreateReply,
+    };
 
     use crate::{database::Database, BotError, Context};
 
@@ -117,9 +120,11 @@ pub(self) mod checks {
 
         let guild_id_u64: u64 = GuildId::from_str(&guild_id)?.get();
 
-        let manager_role_id = RoleId::from_str(&manager_role_option.unwrap().manager_role_id)?.get();
+        let manager_role_id =
+            RoleId::from_str(&manager_role_option.unwrap().manager_role_id)?.get();
 
-        let marshal_role_id = RoleId::from_str(&marshal_role_option.unwrap().marshal_role_id)?.get();
+        let marshal_role_id =
+            RoleId::from_str(&marshal_role_option.unwrap().marshal_role_id)?.get();
 
         if ctx
             .author()
