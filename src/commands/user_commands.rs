@@ -1,10 +1,13 @@
-use std::time::{Duration, SystemTime};
+use std::{
+    pin::pin,
+    time::{Duration, SystemTime},
+};
 
-use futures::{future::BoxFuture, FutureExt};
+use futures::{future::BoxFuture, FutureExt, Stream};
 use poise::{
     serenity_prelude::{
-        futures::StreamExt, ButtonStyle, ComponentInteractionDataKind, CreateActionRow,
-        CreateButton, CreateEmbed, CreateInteractionResponse, CreateSelectMenu,
+        futures::StreamExt, ButtonStyle, ComponentInteraction, ComponentInteractionDataKind,
+        CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateSelectMenu,
         CreateSelectMenuKind, CreateSelectMenuOption,
     },
     CreateReply, ReplyHandle,
@@ -39,7 +42,7 @@ impl CommandsContainer for UserCommands {
 
 /// Amount of time in milliseconds before message interactions (usually buttons) expire for user
 /// commands
-const USER_CMD_TIMEOUT: u64 = 60000;
+const USER_CMD_TIMEOUT: u64 = 300000;
 
 /// All-in-one command for all your tournament needs.
 #[poise::command(slash_command, prefix_command, guild_only)]
@@ -61,9 +64,17 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
         )
         .await?;
 
+    let interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
+
     match user {
         Some(_) => {
-            user_display_menu(ctx, msg).await?;
+            user_display_menu(ctx, msg, interaction_collector).await?;
         }
         None => {
             // Might make the registration baked into this command later
@@ -80,8 +91,12 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 }
 
 /// The user menu entry point.
-#[instrument(skip(msg))]
-async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+#[instrument(skip(msg, interaction_collector))]
+async fn user_display_menu(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send,
+) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
 
     let mut player_active_tournaments = ctx
@@ -158,15 +173,7 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
         );
     }
 
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
-    while let Some(interaction) = &interaction_collector.next().await {
+    if let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 interaction
@@ -180,8 +187,7 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                         .components(vec![]),
                 )
                 .await?;
-                user_display_tournaments(ctx, msg).await?;
-                break;
+                user_display_tournaments(ctx, msg, interaction_collector).await?;
             }
             "menu_match" => {
                 interaction
@@ -195,8 +201,13 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
                         .components(vec![]),
                 )
                 .await?;
-                user_display_match(ctx, msg, player_active_tournaments.remove(0)).await?;
-                break;
+                user_display_match(
+                    ctx,
+                    msg,
+                    player_active_tournaments.remove(0),
+                    interaction_collector,
+                )
+                .await?;
             }
             _ => {}
         }
@@ -206,11 +217,12 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
 }
 
 /// The menu that shows the user's match.
-#[instrument(skip(msg))]
+#[instrument(skip(msg, interaction_collector))]
 async fn user_display_match(
     ctx: Context<'_>,
     msg: ReplyHandle<'_>,
     tournament: Tournament,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send,
 ) -> Result<(), BotError> {
     info!("User {} is viewing their current match", ctx.author().name);
 
@@ -283,15 +295,7 @@ async fn user_display_match(
         }
     };
 
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
-    while let Some(interaction) = &interaction_collector.next().await {
+    if let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_schedule" => {
                 info!(
@@ -311,12 +315,25 @@ async fn user_display_match(
                 .await?;
                 match match_schedule {
                     Some(match_schedule) => {
-                        user_display_proposed_schedule(ctx, msg, bracket.unwrap(), match_schedule)
-                            .await?
+                        user_display_proposed_schedule(
+                            ctx,
+                            msg,
+                            bracket.unwrap(),
+                            match_schedule,
+                            interaction_collector,
+                        )
+                        .await?
                     }
-                    None => user_display_match_scheduling(ctx, msg, bracket.unwrap()).await?,
+                    None => {
+                        user_display_match_scheduling(
+                            ctx,
+                            msg,
+                            bracket.unwrap(),
+                            interaction_collector,
+                        )
+                        .await?
+                    }
                 }
-                break;
             }
             _ => {}
         }
@@ -325,12 +342,13 @@ async fn user_display_match(
     Ok(())
 }
 
-#[instrument(skip(msg))]
+#[instrument(skip(msg, interaction_collector))]
 fn user_display_proposed_schedule<'a>(
     ctx: Context<'a>,
     msg: ReplyHandle<'a>,
     bracket: Match,
     match_schedule: MatchSchedule,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send + 'a,
 ) -> BoxFuture<'a, Result<(), BotError>> {
     async move {
     let user_id = ctx.author().id.to_string();
@@ -410,14 +428,6 @@ fn user_display_proposed_schedule<'a>(
                  ).await?;
     }
 
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
     if let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "match_schedule_accept" => {
@@ -432,16 +442,16 @@ fn user_display_proposed_schedule<'a>(
                          .ephemeral(true)
                          .components(vec![])
                          ).await?;
-                
+
                 let new_match_schedule = ctx.data().database.get_match_schedule(&match_schedule.match_id).await?.unwrap();
 
-                user_display_proposed_schedule(ctx, msg, bracket, new_match_schedule).await?;
+                user_display_proposed_schedule(ctx, msg, bracket, new_match_schedule, interaction_collector).await?;
             }
             "match_schedule_reschedule" => {
                 interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
                 msg.edit(ctx, CreateReply::default().content("Loading match scheduling menu...").components(vec![]).ephemeral(true)).await?;
 
-                user_display_match_scheduling(ctx, msg, bracket).await?;
+                user_display_match_scheduling(ctx, msg, bracket, interaction_collector).await?;
             }
             _ => {}
         }
@@ -452,11 +462,12 @@ fn user_display_proposed_schedule<'a>(
 }
 
 /// Menu that allows the user to schedule their match.
-#[instrument(skip(msg))]
+#[instrument(skip(msg, interaction_collector))]
 fn user_display_match_scheduling<'a>(
     ctx: Context<'a>,
     msg: ReplyHandle<'a>,
     bracket: Match,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send + 'a,
 ) -> BoxFuture<'a, Result<(), BotError>> {
     // Return a BoxFuture to allow recursion
     async move {
@@ -496,16 +507,7 @@ fn user_display_match_scheduling<'a>(
         let mut selected_hour = 0;
         let mut selected_minute = 0;
 
-        let mut interaction_collector = msg
-            .clone()
-            .into_message()
-            .await?
-            .await_component_interaction(&ctx.serenity_context().shard)
-            .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-            .stream();
-
         while let Some(interaction) = &interaction_collector.next().await {
-            println!("Got interaction {:?}", interaction);
             match interaction.data.custom_id.as_str() {
                 "match_schedule_hour" => {
                     interaction
@@ -517,7 +519,6 @@ fn user_display_match_scheduling<'a>(
                         }
                         _ => 0,
                     };
-                    println!("Currently selected hour: {}", selected_hour);
                 }
                 "match_schedule_minute" => {
                     interaction
@@ -529,7 +530,6 @@ fn user_display_match_scheduling<'a>(
                         }
                         _ => 0,
                     };
-                    println!("Currently selected minute: {}", selected_minute);
                 }
                 "match_schedule_submit" => {
                     interaction
@@ -545,7 +545,7 @@ fn user_display_match_scheduling<'a>(
                     .await?;
                     let hours = Duration::from_secs((selected_hour * 60 * 60) as u64);
                     let minutes = Duration::from_secs((selected_minute * 60) as u64);
-                    user_display_schedule_confirmation(ctx, msg, bracket, hours, minutes).await?;
+                    user_display_schedule_confirmation(ctx, msg, bracket, hours, minutes, interaction_collector).await?;
                     break;
                 }
                 _ => (),
@@ -557,13 +557,14 @@ fn user_display_match_scheduling<'a>(
 }
 
 /// Menu that allows the user to confirm their selected schedule.
-#[instrument(skip(msg))]
+#[instrument(skip(msg, interaction_collector))]
 async fn user_display_schedule_confirmation(
     ctx: Context<'_>,
     msg: ReplyHandle<'_>,
     bracket: Match,
     hours: Duration,
     minutes: Duration,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send,
 ) -> Result<(), BotError> {
     info!(
         "User {} has entered the match schedule confirmation menu",
@@ -633,14 +634,6 @@ async fn user_display_schedule_confirmation(
     )
     .await?;
 
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
     if let Some(interaction) = &interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "match_schedule_confirm" => {
@@ -677,7 +670,7 @@ async fn user_display_schedule_confirmation(
                         .components(vec![]),
                 )
                 .await?;
-                user_display_match_scheduling(ctx, msg, bracket).await?;
+                user_display_match_scheduling(ctx, msg, bracket, interaction_collector).await?;
             }
             _ => (),
         }
@@ -687,8 +680,12 @@ async fn user_display_schedule_confirmation(
 }
 
 /// Menu that shows all currently active tournaments to the user for them to join.
-#[instrument(skip(msg))]
-async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
+#[instrument(skip(msg, interaction_collector))]
+async fn user_display_tournaments(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin + Send,
+) -> Result<(), BotError> {
     info!(
         "User {} has entered the tournaments menu",
         ctx.author().name
@@ -747,28 +744,33 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
     )
     .await?;
 
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
     while let Some(interaction) = &interaction_collector.next().await {
-        match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
+        match interaction_ids
+            .iter()
+            .position(|id| id == interaction.data.custom_id.as_str())
+        {
             Some(tournament_number) => {
-                interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
-                ctx.data().database.enter_tournament(&tournaments[tournament_number].tournament_id, &ctx.author().id.to_string()).await?;
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                ctx.data()
+                    .database
+                    .enter_tournament(
+                        &tournaments[tournament_number].tournament_id,
+                        &ctx.author().id.to_string(),
+                    )
+                    .await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
                         .content("Congratulations! You have successfully entered the tournament.\n\nSee you on the battle field!")
                         .ephemeral(true)
                         .components(vec![]),
-                )
-            }.await?,
-            None => continue,
+                ).await?;
+
+                return Ok(());
+            }
+            None => (),
         };
     }
 
@@ -836,8 +838,6 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                 )
                 .await?;
 
-            // We might wanna look into how expensive these clones are, but it's not too important
-            // right now
             let mut interaction_collector = msg
                 .clone()
                 .into_message()
@@ -846,7 +846,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                 .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
                 .stream();
 
-            while let Some(interaction) = &interaction_collector.next().await {
+            if let Some(interaction) = &interaction_collector.next().await {
                 match interaction.data.custom_id.as_str() {
                     "confirm_register" => {
                         interaction
