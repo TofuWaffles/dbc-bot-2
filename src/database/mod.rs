@@ -14,22 +14,22 @@ use self::models::{
 /// Most if not all are directly mapped to a table in the database.
 pub mod models;
 
-/// Any database that the bot could use to operate the tournament
+/// Any database that the bot could use to operate the tournament.
 ///
 /// Note that changing the implementor of this trait will only allow you to change which database
 /// you'll be using (e.g. Postgres, SQLite, etc.).
 ///
-/// If you want to change the database schema, you'll need to change this trait as well as all its associated types
+/// If you want to change the database schema, you'll need to change this trait as well as all its associated types.
 #[allow(async_fn_in_trait)]
 pub trait Database {
     type Error;
 
-    /// Establishes a connection to the database and returns a handle to it
+    /// Establishes a connection to the database and returns a handle to it.
     async fn connect() -> Result<Self, Self::Error>
     where
         Self: Sized;
 
-    /// Sets the manager role for a guild
+    /// Sets the manager role for a guild.
     async fn set_manager_role(
         &self,
         guild_id: &str,
@@ -46,11 +46,13 @@ pub trait Database {
         log_channel_id: &str,
     ) -> Result<(), Self::Error>;
 
+    /// Retrieves the manager role from the database.
     async fn get_manager_role(
         &self,
         guild_id: &str,
     ) -> Result<Option<ManagerRoleConfig>, Self::Error>;
 
+    /// Retrieves the config of a given guild from the database.
     async fn get_config(&self, guild_id: &str) -> Result<Option<GuildConfig>, Self::Error>;
 
     /// Adds a user to the database.
@@ -167,7 +169,7 @@ pub trait Database {
     ) -> Result<(), Self::Error>;
 }
 
-/// The Postgres database used for the DBC tournament system
+/// The Postgres database used for the DBC tournament system.
 #[derive(Debug)]
 pub struct PgDatabase {
     pool: PgPool,

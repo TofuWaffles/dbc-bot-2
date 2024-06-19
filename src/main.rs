@@ -12,8 +12,8 @@ use poise::{
     },
     CreateReply,
 };
-use reminder::MatchReminders;
-use tokio::sync::Mutex;
+use reminder::MatchRemindersQueue;
+use tokio::sync::RwLock;
 use tokio_util::time::DelayQueue;
 
 use commands::{
@@ -39,7 +39,7 @@ mod reminder;
 pub struct Data<DB, P> {
     database: DB,
     game_api: P,
-    match_reminders: Arc<Mutex<MatchReminders>>,
+    match_reminders: Arc<RwLock<MatchRemindersQueue>>,
 }
 
 impl<DB, P> Data<DB, P>
@@ -47,7 +47,7 @@ where
     DB: Database,
     P: GameApi,
 {
-    fn new(database: DB, game_api: P, match_reminders: Arc<Mutex<MatchReminders>>) -> Self {
+    fn new(database: DB, game_api: P, match_reminders: Arc<RwLock<MatchRemindersQueue>>) -> Self {
         Self {
             database,
             game_api,
@@ -108,10 +108,7 @@ async fn run() -> Result<(), BotError> {
     .flatten()
     .collect();
 
-    let match_reminders = Arc::new(Mutex::new(MatchReminders::new(
-        DelayQueue::new(),
-        HashMap::new(),
-    )));
+    let match_reminders = Arc::new(RwLock::new(MatchRemindersQueue::new()));
     let bot_data_match_reminders = match_reminders.clone();
 
     let intents = serenity::GatewayIntents::non_privileged();
@@ -222,10 +219,10 @@ async fn run() -> Result<(), BotError> {
     // so that the loop can continue, otherwise the task will die and no reminders will be sent
     let _ = tokio::spawn(async move {
         loop {
-            let mut locked_match_reminders = match_reminders.lock().await;
-            // Manual polling is needed because an await would otherwise hold up the Mutex until the next
+            let mut locked_match_reminders = match_reminders.write().await;
+            // Manual polling is needed because an await would otherwise hold up the RwLock until the next
             // reminder expires, which means no new reminders could be added in the meantime
-            let expired_reminder_opt = match poll!(locked_match_reminders.reminder_times.next()) {
+            let expired_reminder_opt = match poll!(locked_match_reminders.timers.next()) {
                 std::task::Poll::Ready(expired_reminder_opt) => expired_reminder_opt,
                 std::task::Poll::Pending => continue,
             };
@@ -233,8 +230,8 @@ async fn run() -> Result<(), BotError> {
             match expired_reminder_opt {
                 Some(expired_reminder) => {
                     let match_id = expired_reminder.into_inner();
-                    let channel_id = match &locked_match_reminders.matches.remove(&match_id) {
-                        Some(reminder) => reminder.notification_channel_id.clone(),
+                    let match_schedule = match locked_match_reminders.entries.remove(&match_id) {
+                        Some(entry) => entry,
                         None => {
                             error!(
                                     "Cannot send reminder for match {}. Not found within the match reminders map.",
@@ -245,7 +242,7 @@ async fn run() -> Result<(), BotError> {
                     };
                     let channel = match http
                         .clone()
-                        .get_channel(ChannelId::from_str(&channel_id).unwrap_or_default())
+                        .get_channel(ChannelId::from_str(&match_schedule.notification_channel_id).unwrap_or_default())
                         .await
                     {
                         Ok(channel) => channel,
@@ -267,17 +264,18 @@ async fn run() -> Result<(), BotError> {
                             continue;
                         }
                     };
+                    let proposer_id = match match_schedule.proposer {
+                        1 => &match_schedule.discord_id_1,
+                        _ => &match_schedule.discord_id_2,
+                    };
+                    let reminder_message = match match_schedule.accepted {
+                        true => format!("<@{}>\n<@{}>\n\nYour match is scheduled to begin NOW! Best of luck to both of you.", match_schedule.discord_id_1, match_schedule.discord_id_2),
+                        false => format!("Hey <@{}>, your match schedule has expired but your opponent has yet to accept your proposed schedule. You should reschedule your match again\n\nIf your opponent remains unresponsive, you should contact a marshal to get it sorted.", proposer_id),
+                    };
                     match guild_channel
                         .say(
                             http.clone(),
-                            format!(
-                                "Match reminder {}",
-                                locked_match_reminders
-                                    .matches
-                                    .get(&match_id)
-                                    .unwrap()
-                                    .discord_id_1
-                            ),
+                            reminder_message
                         )
                         .await
                     {
