@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use crate::BotError;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, TournamentStatus,
+    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, Tournament, TournamentStatus,
     User,
 };
 
@@ -122,6 +122,20 @@ pub trait Database {
         player_2_type: PlayerType,
         discord_id_1: Option<&str>,
         discord_id_2: Option<&str>,
+    ) -> Result<(), Self::Error>;
+
+    /// Sets the ready status of a player of a specified match to true.
+    async fn set_ready(
+        &self,
+        match_id: &str,
+        player_number: &PlayerNumber,
+    ) -> Result<(), Self::Error>;
+
+    /// Sets the winner of a match
+    async fn set_winner(
+        &self,
+        match_id: &str,
+        player_number: PlayerNumber,
     ) -> Result<(), Self::Error>;
 
     /// Retrieves a match by its id.
@@ -331,6 +345,26 @@ impl Database for PgDatabase {
         Ok(tournament_id)
     }
 
+    async fn set_tournament_status(
+        &self,
+        tournament_id: &i32,
+        new_status: TournamentStatus,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET status = $2
+            WHERE tournament_id = $1
+            "#,
+            tournament_id,
+            new_status as TournamentStatus,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     async fn get_tournament(
         &self,
         guild_id: &str,
@@ -382,6 +416,42 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(tournaments)
+    }
+
+    async fn get_player_active_tournaments(
+        &self,
+        guild_id: &str,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error> {
+        let tournaments = sqlx::query_as!(
+            Tournament,
+            r#"
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
+            FROM tournaments
+            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
+            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
+            "#,
+            guild_id,
+            discord_id,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(tournaments)
+    }
+
+    async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM tournaments
+            WHERE tournament_id = $1
+            "#,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
     async fn enter_tournament(
@@ -448,6 +518,61 @@ impl Database for PgDatabase {
             player_2_type as PlayerType,
             discord_id_1,
             discord_id_2,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn set_ready(
+        &self,
+        match_id: &str,
+        player_number: &PlayerNumber,
+    ) -> Result<(), Self::Error> {
+        match player_number {
+            PlayerNumber::Player1 => {
+                sqlx::query!(
+                    r#"
+                    UPDATE matches
+                    SET player_1_ready = true
+                    WHERE match_id = $1
+                "#,
+                    match_id
+                )
+                .execute(&self.pool)
+                .await?
+            }
+            PlayerNumber::Player2 => {
+                sqlx::query!(
+                    r#"
+                UPDATE matches
+                SET player_2_ready = true
+                WHERE match_id = $1
+                "#,
+                    match_id
+                )
+                .execute(&self.pool)
+                .await?
+            }
+        };
+
+        Ok(())
+    }
+
+    async fn set_winner(
+        &self,
+        match_id: &str,
+        player_number: PlayerNumber,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET winner = $1::player_number
+            WHERE match_id = $2
+            "#,
+            player_number as PlayerNumber,
+            match_id
         )
         .execute(&self.pool)
         .await?;
@@ -530,61 +655,5 @@ impl Database for PgDatabase {
         };
 
         Ok(brackets)
-    }
-
-    async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            DELETE FROM tournaments
-            WHERE tournament_id = $1
-            "#,
-            tournament_id
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    async fn get_player_active_tournaments(
-        &self,
-        guild_id: &str,
-        discord_id: &str,
-    ) -> Result<Vec<Tournament>, Self::Error> {
-        let tournaments = sqlx::query_as!(
-            Tournament,
-            r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
-            FROM tournaments
-            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
-            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
-            "#,
-            guild_id,
-            discord_id,
-        )
-        .fetch_all(&self.pool)
-        .await?;
-
-        Ok(tournaments)
-    }
-
-    async fn set_tournament_status(
-        &self,
-        tournament_id: &i32,
-        new_status: TournamentStatus,
-    ) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            UPDATE tournaments
-            SET status = $2
-            WHERE tournament_id = $1
-            "#,
-            tournament_id,
-            new_status as TournamentStatus,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
     }
 }

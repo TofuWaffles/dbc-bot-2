@@ -87,6 +87,15 @@ impl Match {
     pub fn generate_id(tournament_id: &i32, round: &i32, sequence_in_round: &i32) -> String {
         format!("{}.{}.{}", tournament_id, round, sequence_in_round)
     }
+
+    pub fn get_player_number(&self, discord_id: &str) -> Option<PlayerNumber> {
+        if discord_id == &self.discord_id_1.clone().unwrap_or_default() {
+            return Some(PlayerNumber::Player1);
+        } else if discord_id == &self.discord_id_2.clone().unwrap_or_default() {
+            return Some(PlayerNumber::Player2);
+        }
+        None
+    }
 }
 
 /// The type of player within a match.
@@ -102,10 +111,19 @@ pub enum PlayerType {
 }
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
-#[sqlx(type_name = "player_type", rename_all = "snake_case")]
+#[sqlx(type_name = "player_number", rename_all = "snake_case")]
 pub enum PlayerNumber {
     Player1,
     Player2,
+}
+
+impl ToString for PlayerNumber {
+    fn to_string(&self) -> String {
+        match self {
+            PlayerNumber::Player1 => "player_1".to_string(),
+            PlayerNumber::Player2 => "player_2".to_string(),
+        }
+    }
 }
 
 /// A match schedule within the database.
