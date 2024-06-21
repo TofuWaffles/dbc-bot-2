@@ -15,7 +15,7 @@ use tracing::{error, info, instrument};
 use crate::{
     api::{ApiResult, GameApi},
     database::{
-        models::{Match, MatchSchedule, PlayerType, Tournament},
+        models::{Match, PlayerType, Tournament},
         Database,
     },
     reminder::MatchReminderEntry,
@@ -219,15 +219,8 @@ async fn user_display_match(
         .get_match_by_player(&tournament.tournament_id, &ctx.author().id.to_string())
         .await?;
 
-    let match_schedule;
-
     match bracket {
         Some(ref bracket) => {
-            match_schedule = ctx
-                .data()
-                .database
-                .get_match_schedule(&bracket.match_id)
-                .await?;
             msg.edit(
                     ctx,
                     CreateReply::default().content("").embed(
@@ -258,16 +251,13 @@ async fn user_display_match(
                     .components(
                         vec![
                             CreateActionRow::Buttons(
-                                if (bracket.player_1_type == PlayerType::Player) && (bracket.player_2_type == PlayerType::Player) {
                                 vec![
                                   CreateButton::new("match_menu_schedule")
                                   .label("Schedule Match")
-                                  .style(ButtonStyle::Primary)
-                                ,
-                    ]} else { vec![] }
-                    )]),
+                                  .style(ButtonStyle::Primary),
+                    ])]),
                 ).await?
-        }
+        },
         None => {
             msg.edit(
                 ctx,
@@ -308,13 +298,7 @@ async fn user_display_match(
                         .components(vec![]),
                 )
                 .await?;
-                match match_schedule {
-                    Some(match_schedule) => {
-                        user_display_proposed_schedule(ctx, msg, bracket.unwrap(), match_schedule)
-                            .await?
-                    }
-                    None => user_display_match_scheduling(ctx, msg, bracket.unwrap()).await?,
-                }
+                user_display_match_scheduling(ctx, msg, bracket.unwrap()).await?;
                 break;
             }
             _ => {}
@@ -322,132 +306,6 @@ async fn user_display_match(
     }
 
     Ok(())
-}
-
-#[instrument(skip(msg))]
-fn user_display_proposed_schedule<'a>(
-    ctx: Context<'a>,
-    msg: ReplyHandle<'a>,
-    bracket: Match,
-    match_schedule: MatchSchedule,
-) -> BoxFuture<'a, Result<(), BotError>> {
-    async move {
-    let user_id = ctx.author().id.to_string();
-
-    let player_1 = bracket.discord_id_1.clone().unwrap();
-    let player_2 = bracket.discord_id_2.clone().unwrap();
-    let player_number;
-
-    if user_id == player_1 {
-        player_number = 1;
-    } else if user_id == player_2 {
-        player_number = 2;
-    } else {
-        error!(
-            "Player {} not present in this match!\n\nPlayer 1: {:?}\n\nPlayer 2: {:?}",
-            user_id, player_1, player_2
-        );
-        return Err(format!(
-            "Player {} not present in this match!\n\nPlayer 1: {:?}\n\nPlayer 2: {:?}",
-            user_id, player_1, player_2
-        )
-        .into());
-    }
-
-    let embed_fields = vec![
-        ("Match ID", match_schedule.match_id.clone(), false),
-        ("Player 1", format!("<@{}>", player_1), false),
-        ("Player 2", format!("<@{}>", player_2), false),
-        (
-            "Sent at",
-            format!("<t:{}>", match_schedule.time_of_proposal.timestamp()),
-            false,
-        ),
-    ];
-
-    if match_schedule.accepted {
-        msg.edit(ctx, CreateReply::default()
-                 .content("")
-                 .embed(CreateEmbed::new()
-                        .title("Match schedule accepted")
-                        .description(format!("The schedule has been accepted by both players. Be sure to make it on time for your match!\n\nMatch Time: <t:{}>", match_schedule.proposed_time.timestamp()))
-                        .fields(embed_fields)
-                        )
-                 .ephemeral(true)
-                 )
-            .await?;
-
-        return Ok(());
-    }
-
-    if player_number == match_schedule.proposer {
-        // User proposed
-        msg.edit(ctx, CreateReply::default()
-                 .content("")
-                 .embed(CreateEmbed::new()
-                        .title("You have already scheduled a match with your opponent. They can either accept it or counter with their own schedule.")
-                        .description(format!("Match schedule by you for <t:{}>", match_schedule.proposed_time.timestamp()))
-                        .fields(embed_fields)
-                        )
-                 ).await?;
-    } else {
-        // Opponent proposed
-        msg.edit(ctx, CreateReply::default()
-                 .content("")
-                 .embed(CreateEmbed::new()
-                        .title("Your opponent has sent you a schedule. You can either accept the schedule or counter with your own.")
-                        .description(format!("Match schedule by you for <t:{}>", match_schedule.proposed_time.timestamp()))
-                        .fields(embed_fields)
-                        )
-                 .components(vec![
-                             CreateActionRow::Buttons(vec![
-                                                      CreateButton::new("match_schedule_accept").label("Accept").style(ButtonStyle::Success),
-                                                      CreateButton::new("match_schedule_reschedule").label("Reschedule").style(ButtonStyle::Primary),
-                             ])
-                 ])
-                 .ephemeral(true)
-                 ).await?;
-    }
-
-    let mut interaction_collector = msg
-        .clone()
-        .into_message()
-        .await?
-        .await_component_interaction(&ctx.serenity_context().shard)
-        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-        .stream();
-
-    if let Some(interaction) = &interaction_collector.next().await {
-        match interaction.data.custom_id.as_str() {
-            "match_schedule_accept" => {
-                interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
-                ctx.data()
-                    .database
-                    .set_match_schedule_accepted(&match_schedule.match_id, true)
-                    .await?;
-
-                msg.edit(ctx, CreateReply::default()
-                         .content("Refreshing...")
-                         .ephemeral(true)
-                         .components(vec![])
-                         ).await?;
-                
-                let new_match_schedule = ctx.data().database.get_match_schedule(&match_schedule.match_id).await?.unwrap();
-
-                user_display_proposed_schedule(ctx, msg, bracket, new_match_schedule).await?;
-            }
-            "match_schedule_reschedule" => {
-                interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
-                msg.edit(ctx, CreateReply::default().content("Loading match scheduling menu...").components(vec![]).ephemeral(true)).await?;
-
-                user_display_match_scheduling(ctx, msg, bracket).await?;
-            }
-            _ => {}
-        }
-    }
-
-    Ok(())
-    }.boxed()
 }
 
 /// Menu that allows the user to schedule their match.
@@ -698,17 +556,6 @@ async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Res
         .database
         .get_active_tournaments(&guild_id)
         .await?;
-
-    if tournaments.len() < 1 {
-        let config = ctx.data().database.get_config(&guild_id).await?.unwrap();
-        msg.edit(ctx, CreateReply::default()
-                 .content(format!("There are no tournaments currently available. Keep an eye out in <#{}> for new and upcoming tournaments!", config.announcement_channel_id))
-                 .components(vec![])
-                 .ephemeral(true)
-            )
-            .await?;
-        return Ok(());
-    }
 
     let mut table = Table::new();
     table.set_titles(row!["No.", "Name", "Status"]);

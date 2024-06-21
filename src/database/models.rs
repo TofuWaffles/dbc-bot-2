@@ -1,6 +1,5 @@
 use std::fmt::Display;
 
-use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 /// The manager role configuration for a guild within the database.
@@ -101,14 +100,11 @@ pub enum PlayerType {
 }
 
 /// A match schedule within the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MatchSchedule {
-    pub match_id: String,
-    pub proposed_time: DateTime<Utc>,
-    pub time_of_proposal: DateTime<Utc>,
-    /// Determines if player 1 or player 2 proposed the current schedule.
-    ///
-    /// Contains only 1 or 2.
-    pub proposer: i16,
-    pub accepted: bool,
+    match_id: uuid::Uuid,
+    proposed_time: i32,
+    time_of_proposal: chrono::DateTime<chrono::Utc>,
+    proposer: Option<i32>,
+    accepted: bool,
 }

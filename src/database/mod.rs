@@ -1,10 +1,9 @@
-use chrono::DateTime;
 use sqlx::PgPool;
 
 use crate::BotError;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, MatchSchedule, PlayerType, Tournament, TournamentStatus,
+    GuildConfig, ManagerRoleConfig, Match, PlayerType, Tournament, TournamentStatus,
     User,
 };
 
@@ -153,19 +152,6 @@ pub trait Database {
         proposed_time: u64,
         time_of_proposal: u64,
         proposer: i32,
-    ) -> Result<(), Self::Error>;
-
-    /// Retrieves a match schedule from the database.
-    async fn get_match_schedule(
-        &self,
-        match_id: &str,
-    ) -> Result<Option<MatchSchedule>, Self::Error>;
-
-    /// Set the accetped value of a match value.
-    async fn set_match_schedule_accepted(
-        &self,
-        match_id: &str,
-        accepted: bool,
     ) -> Result<(), Self::Error>;
 }
 
@@ -635,54 +621,6 @@ impl Database for PgDatabase {
             )
             .execute(&self.pool)
             .await?;
-
-        Ok(())
-    }
-
-    async fn get_match_schedule(
-        &self,
-        match_id: &str,
-    ) -> Result<Option<MatchSchedule>, Self::Error> {
-        let match_schedule_model = sqlx::query!(
-            r#"
-            SELECT match_id, proposed_time, time_of_proposal, proposer, accepted
-            FROM match_schedules
-            WHERE match_id = $1;
-            "#,
-            match_id
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        match match_schedule_model {
-            Some(match_schedule) => Ok(Some(MatchSchedule {
-                match_id: match_schedule.match_id,
-                proposed_time: DateTime::from_timestamp(match_schedule.proposed_time, 0).unwrap(),
-                time_of_proposal: DateTime::from_timestamp(match_schedule.time_of_proposal, 0)
-                    .unwrap(),
-                proposer: match_schedule.proposer,
-                accepted: match_schedule.accepted,
-            })),
-            None => Ok(None),
-        }
-    }
-
-    async fn set_match_schedule_accepted(
-        &self,
-        match_id: &str,
-        accepted: bool,
-    ) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            UPDATE match_schedules
-            SET accepted = $2
-            WHERE match_id = $1;
-            "#,
-            match_id,
-            accepted
-        )
-        .execute(&self.pool)
-        .await?;
 
         Ok(())
     }
