@@ -12,9 +12,7 @@ use poise::{
     },
     CreateReply,
 };
-use reminder::MatchRemindersQueue;
 use tokio::sync::RwLock;
-use tokio_util::time::DelayQueue;
 
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
@@ -30,7 +28,6 @@ mod api;
 mod commands;
 /// Traits and types used for interacting with the database.
 mod database;
-mod reminder;
 
 /// Stores data used by the bot.
 ///
@@ -39,7 +36,6 @@ mod reminder;
 pub struct Data<DB, P> {
     database: DB,
     game_api: P,
-    match_reminders: Arc<RwLock<MatchRemindersQueue>>,
 }
 
 impl<DB, P> Data<DB, P>
@@ -47,11 +43,10 @@ where
     DB: Database,
     P: GameApi,
 {
-    fn new(database: DB, game_api: P, match_reminders: Arc<RwLock<MatchRemindersQueue>>) -> Self {
+    fn new(database: DB, game_api: P) -> Self {
         Self {
             database,
             game_api,
-            match_reminders,
         }
     }
 }
@@ -107,10 +102,6 @@ async fn run() -> Result<(), BotError> {
     .into_iter()
     .flatten()
     .collect();
-
-    let match_reminders = Arc::new(RwLock::new(MatchRemindersQueue::new()));
-    let bot_data_match_reminders = match_reminders.clone();
-
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
@@ -202,7 +193,7 @@ async fn run() -> Result<(), BotError> {
         .setup(|ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data::new(pg_database, brawl_stars_api, bot_data_match_reminders))
+                Ok(Data::new(pg_database, brawl_stars_api))
             })
         })
         .build();
@@ -210,89 +201,6 @@ async fn run() -> Result<(), BotError> {
     let mut client = serenity::ClientBuilder::new(discord_token, intents)
         .framework(framework)
         .await?;
-
-    let http = client.http.clone();
-
-    let reminder_span = info_span!("reminder_loop");
-    // Todo: revisit this later once the reminder feature has been laid out
-    // Note that all errors in this block should be handled and reported properly (i.e. no unwraps)
-    // so that the loop can continue, otherwise the task will die and no reminders will be sent
-    let _ = tokio::spawn(async move {
-        loop {
-            let mut locked_match_reminders = match_reminders.write().await;
-            // Manual polling is needed because an await would otherwise hold up the RwLock until the next
-            // reminder expires, which means no new reminders could be added in the meantime
-            let expired_reminder_opt = match poll!(locked_match_reminders.timers.next()) {
-                std::task::Poll::Ready(expired_reminder_opt) => expired_reminder_opt,
-                std::task::Poll::Pending => continue,
-            };
-            // The DelayQueue will return None if the queue is empty, in that case we just continue
-            match expired_reminder_opt {
-                Some(expired_reminder) => {
-                    let match_id = expired_reminder.into_inner();
-                    let match_schedule = match locked_match_reminders.entries.remove(&match_id) {
-                        Some(entry) => entry,
-                        None => {
-                            error!(
-                                    "Cannot send reminder for match {}. Not found within the match reminders map.",
-                                    match_id
-                                );
-                            continue;
-                        }
-                    };
-                    let channel = match http
-                        .clone()
-                        .get_channel(ChannelId::from_str(&match_schedule.notification_channel_id).unwrap_or_default())
-                        .await
-                    {
-                        Ok(channel) => channel,
-                        Err(e) => {
-                            error!(
-                                "Cannot send reminder for match {}. Error getting channel id: {}",
-                                match_id, e
-                            );
-                            continue;
-                        }
-                    };
-                    let guild_channel = match channel.guild() {
-                        Some(guild_channel) => guild_channel,
-                        None => {
-                            error!(
-                                    "Cannot send reminder for match {}. Unable to convert Channel to a GuildChannel",
-                                    match_id
-                                );
-                            continue;
-                        }
-                    };
-                    let proposer_id = match match_schedule.proposer {
-                        1 => &match_schedule.discord_id_1,
-                        _ => &match_schedule.discord_id_2,
-                    };
-                    let reminder_message = match match_schedule.accepted {
-                        true => format!("<@{}>\n<@{}>\n\nYour match is scheduled to begin NOW! Best of luck to both of you.", match_schedule.discord_id_1, match_schedule.discord_id_2),
-                        false => format!("Hey <@{}>, your match schedule has expired but your opponent has yet to accept your proposed schedule. You should reschedule your match again\n\nIf your opponent remains unresponsive, you should contact a marshal to get it sorted.", proposer_id),
-                    };
-                    match guild_channel
-                        .say(
-                            http.clone(),
-                            reminder_message
-                        )
-                        .await
-                    {
-                        Ok(_) => continue,
-                        Err(e) => {
-                            error!(
-                                "Cannot send reminder for match {}. Error sending message: {}",
-                                match_id, e
-                            );
-                            continue;
-                        }
-                    };
-                }
-                None => continue,
-            };
-        }
-    }).instrument(reminder_span);
 
     client.start().await?;
 

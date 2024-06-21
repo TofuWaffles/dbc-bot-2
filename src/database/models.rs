@@ -102,7 +102,7 @@ pub enum PlayerType {
 /// A match schedule within the database.
 #[derive(Serialize, Deserialize)]
 pub struct MatchSchedule {
-    match_id: uuid::Uuid,
+    match_id: String,
     proposed_time: i32,
     time_of_proposal: chrono::DateTime<chrono::Utc>,
     proposer: Option<i32>,
