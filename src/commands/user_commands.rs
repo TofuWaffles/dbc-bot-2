@@ -1,6 +1,5 @@
 use std::time::{Duration, SystemTime};
 
-use futures::{future::BoxFuture, FutureExt};
 use poise::{
     serenity_prelude::{
         futures::StreamExt, ButtonStyle, ComponentInteractionDataKind, CreateActionRow,
@@ -310,35 +309,33 @@ async fn user_display_match(
 
 /// Menu that allows the user to schedule their match.
 #[instrument(skip(msg))]
-fn user_display_match_scheduling<'a>(
-    ctx: Context<'a>,
-    msg: ReplyHandle<'a>,
+async fn user_display_match_scheduling(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
     bracket: Match,
-) -> BoxFuture<'a, Result<(), BotError>> {
-    // Return a BoxFuture to allow recursion
-    async move {
-        info!(
-            "User {} has entered the match scheduling menu",
-            ctx.author().name
-        );
-        let mut hour_options = Vec::new();
-        let mut minutes_options = Vec::new();
+) -> Result<(), BotError> {
+    info!(
+        "User {} has entered the match scheduling menu",
+        ctx.author().name
+    );
+    let mut hour_options = Vec::new();
+    let mut minutes_options = Vec::new();
 
-        for hour in 0..=24 {
-            hour_options.push(CreateSelectMenuOption::new(
-                hour.to_string(),
-                hour.to_string(),
-            ));
-        }
+    for hour in 0..=24 {
+        hour_options.push(CreateSelectMenuOption::new(
+            hour.to_string(),
+            hour.to_string(),
+        ));
+    }
 
-        for minute in 0..=5 {
-            minutes_options.push(CreateSelectMenuOption::new(
-                (minute * 10).to_string(),
-                (minute * 10).to_string(),
-            ));
-        }
+    for minute in 0..=5 {
+        minutes_options.push(CreateSelectMenuOption::new(
+            (minute * 10).to_string(),
+            (minute * 10).to_string(),
+        ));
+    }
 
-        msg.edit(ctx,
+    msg.edit(ctx,
              CreateReply::default()
              .content("You can propose a match schedule to your opponent here.\nEnter the time you would like to **start** the match from now in hours and minutes.\n\nFor example, if you would like to start your match an hour and 30 minutes from now, you should select 1 for hours and 30 for minutes, then click Submit.\n\nYour opponent can either accept your proposal or counter-offer with their own.\n")
              .components(vec![
@@ -350,67 +347,66 @@ fn user_display_match_scheduling<'a>(
         )
         .await?;
 
-        let mut selected_hour = 0;
-        let mut selected_minute = 0;
+    let mut selected_hour = 0;
+    let mut selected_minute = 0;
 
-        let mut interaction_collector = msg
-            .clone()
-            .into_message()
-            .await?
-            .await_component_interaction(&ctx.serenity_context().shard)
-            .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-            .stream();
+    let mut interaction_collector = msg
+        .clone()
+        .into_message()
+        .await?
+        .await_component_interaction(&ctx.serenity_context().shard)
+        .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
+        .stream();
 
-        while let Some(interaction) = &interaction_collector.next().await {
-            println!("Got interaction {:?}", interaction);
-            match interaction.data.custom_id.as_str() {
-                "match_schedule_hour" => {
-                    interaction
-                        .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                        .await?;
-                    selected_hour = match &interaction.data.kind {
-                        ComponentInteractionDataKind::StringSelect { values } => {
-                            values[0].parse::<i32>()?
-                        }
-                        _ => 0,
-                    };
-                    println!("Currently selected hour: {}", selected_hour);
-                }
-                "match_schedule_minute" => {
-                    interaction
-                        .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                        .await?;
-                    selected_minute = match &interaction.data.kind {
-                        ComponentInteractionDataKind::StringSelect { values } => {
-                            values[0].parse::<i32>()?
-                        }
-                        _ => 0,
-                    };
-                    println!("Currently selected minute: {}", selected_minute);
-                }
-                "match_schedule_submit" => {
-                    interaction
-                        .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                        .await?;
-                    msg.edit(
-                        ctx,
-                        CreateReply::default()
-                            .content("Loading match schedule confirmation menu...")
-                            .ephemeral(true)
-                            .components(vec![]),
-                    )
+    while let Some(interaction) = &interaction_collector.next().await {
+        println!("Got interaction {:?}", interaction);
+        match interaction.data.custom_id.as_str() {
+            "match_schedule_hour" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
                     .await?;
-                    let hours = Duration::from_secs((selected_hour * 60 * 60) as u64);
-                    let minutes = Duration::from_secs((selected_minute * 60) as u64);
-                    user_display_schedule_confirmation(ctx, msg, bracket, hours, minutes).await?;
-                    break;
-                }
-                _ => (),
+                selected_hour = match &interaction.data.kind {
+                    ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].parse::<i32>()?
+                    }
+                    _ => 0,
+                };
+                println!("Currently selected hour: {}", selected_hour);
             }
+            "match_schedule_minute" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                selected_minute = match &interaction.data.kind {
+                    ComponentInteractionDataKind::StringSelect { values } => {
+                        values[0].parse::<i32>()?
+                    }
+                    _ => 0,
+                };
+                println!("Currently selected minute: {}", selected_minute);
+            }
+            "match_schedule_submit" => {
+                interaction
+                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                        .content("Loading match schedule confirmation menu...")
+                        .ephemeral(true)
+                        .components(vec![]),
+                )
+                .await?;
+                let hours = Duration::from_secs((selected_hour * 60 * 60) as u64);
+                let minutes = Duration::from_secs((selected_minute * 60) as u64);
+                user_display_schedule_confirmation(ctx, msg, bracket, hours, minutes).await?;
+                break;
+            }
+            _ => (),
         }
+    }
 
-        Ok(())
-    }.boxed()
+    Ok(())
 }
 
 /// Menu that allows the user to confirm their selected schedule.
@@ -437,8 +433,8 @@ async fn user_display_schedule_confirmation(
         .as_secs();
 
     let user_id = ctx.author().id.to_string();
-    let discord_id_1 = bracket.discord_id_1.clone().unwrap_or_default();
-    let discord_id_2 = bracket.discord_id_2.clone().unwrap_or_default();
+    let discord_id_1 = bracket.discord_id_1.unwrap_or_default();
+    let discord_id_2 = bracket.discord_id_2.unwrap_or_default();
 
     let notification_channel_id = ctx
         .data()
@@ -481,10 +477,7 @@ async fn user_display_schedule_confirmation(
                         ("Player 2", format!("<@{}>", discord_id_2), false),
                     ])
             )
-            .components(vec![CreateActionRow::Buttons(vec![
-                                                 CreateButton::new("match_schedule_confirm").label("Confirm").style(ButtonStyle::Success),
-                                                 CreateButton::new("match_schedule_cancel").label("Back").style(ButtonStyle::Danger),
-                        ])])
+            .components(vec![CreateActionRow::Buttons(vec![CreateButton::new("match_schedule_confirm").label("Confirm").style(ButtonStyle::Success)])])
             .ephemeral(true)
             // TODO: Implement a back option.
     )
@@ -520,21 +513,8 @@ async fn user_display_schedule_confirmation(
                             .components(vec![])
                     )
                     .await?;
+
                 return Ok(());
-            }
-            "match_schedule_cancel" => {
-                interaction
-                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                    .await?;
-                msg.edit(
-                    ctx,
-                    CreateReply::default()
-                        .content("Canceling...")
-                        .ephemeral(true)
-                        .components(vec![]),
-                )
-                .await?;
-                user_display_match_scheduling(ctx, msg, bracket).await?;
             }
             _ => (),
         }
