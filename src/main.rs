@@ -1,6 +1,6 @@
-use futures::poll;
-use std::{collections::HashMap, fs::File, str::FromStr, sync::Arc, time::SystemTime};
-use tracing::{error, info, info_span, level_filters::LevelFilter, warn, Instrument};
+use poise::serenity_prelude as serenity;
+use std::{fs::File, str::FromStr, time::SystemTime};
+use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use api::{BrawlStarsApi, GameApi};
@@ -8,11 +8,10 @@ use api::{BrawlStarsApi, GameApi};
 use database::{Database, PgDatabase};
 use poise::{
     serenity_prelude::{
-        self as serenity, futures::StreamExt, ChannelId, CreateEmbed, CreateMessage,
+        ChannelId, CreateEmbed, CreateMessage,
     },
     CreateReply,
 };
-use tokio::sync::RwLock;
 
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,

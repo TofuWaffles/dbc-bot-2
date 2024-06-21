@@ -121,7 +121,7 @@ pub trait Database {
         player_1_type: PlayerType,
         player_2_type: PlayerType,
         discord_id_1: Option<&str>,
-        discord_id: Option<&str>,
+        discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error>;
 
     /// Retrieves a match by its id.
@@ -144,15 +144,6 @@ pub trait Database {
         tournament_id: &i32,
         round: Option<&i32>,
     ) -> Result<Vec<Match>, Self::Error>;
-
-    /// Create a new match schedule in the database.
-    async fn create_or_update_match_schedule(
-        &self,
-        match_id: &str,
-        proposed_time: u64,
-        time_of_proposal: u64,
-        proposer: i32,
-    ) -> Result<(), Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system.
@@ -445,8 +436,8 @@ impl Database for PgDatabase {
 
         sqlx::query!(
             r#"
-            INSERT INTO matches (match_id, tournament_id, round, sequence_in_round, player_1_type, player_2_type, discord_id_1, discord_id_2)
-            VALUES ($1, $2, $3, $4, $5::player_type, $6::player_type, $7, $8)
+            INSERT INTO matches (match_id, tournament_id, round, sequence_in_round, player_1_type, player_2_type, discord_id_1, discord_id_2, player_1_ready, player_2_ready, winner)
+            VALUES ($1, $2, $3, $4, $5::player_type, $6::player_type, $7, $8, false, false, NULL)
             ON CONFLICT (match_id) DO NOTHING
             "#,
             match_id,
@@ -456,7 +447,7 @@ impl Database for PgDatabase {
             player_1_type as PlayerType,
             player_2_type as PlayerType,
             discord_id_1,
-            discord_id_2
+            discord_id_2,
         )
         .execute(&self.pool)
         .await?;
@@ -468,7 +459,7 @@ impl Database for PgDatabase {
         let bracket = sqlx::query_as!(
             Match,
             r#"
-            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, player_1_ready, player_2_ready, winner as "winner: _"
             FROM matches
             WHERE match_id = $1
             ORDER BY round DESC
@@ -490,7 +481,7 @@ impl Database for PgDatabase {
         let bracket = sqlx::query_as!(
             Match,
             r#"
-            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+            SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, player_1_ready, player_2_ready, winner as "winner: _"
             FROM matches
             WHERE tournament_id = $1 AND (discord_id_1 = $2 OR discord_id_2 = $2) AND winner IS NULL
             ORDER BY round DESC
@@ -514,7 +505,7 @@ impl Database for PgDatabase {
             Some(round) => sqlx::query_as!(
                 Match,
                 r#"
-                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, player_1_ready, player_2_ready, winner as "winner: _"
                 FROM matches
                 WHERE tournament_id = $1 AND round = $2
                 ORDER BY sequence_in_round
@@ -527,7 +518,7 @@ impl Database for PgDatabase {
             None => sqlx::query_as!(
                 Match,
                 r#"
-                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, winner
+                SELECT match_id, tournament_id, round, sequence_in_round, player_1_type as "player_1_type: _", player_2_type as "player_2_type: _", discord_id_1, discord_id_2, player_1_ready, player_2_ready, winner as "winner: _"
                 FROM matches
                 WHERE tournament_id = $1
                 ORDER BY round DESC, sequence_in_round
@@ -593,34 +584,6 @@ impl Database for PgDatabase {
         )
         .execute(&self.pool)
         .await?;
-
-        Ok(())
-    }
-
-    async fn create_or_update_match_schedule(
-        &self,
-        match_id: &str,
-        proposed_time: u64,
-        time_of_proposal: u64,
-        proposer: i32,
-    ) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            INSERT INTO match_schedules (match_id, proposed_time, time_of_proposal, proposer, accepted)
-            VALUES($1, $2, $3, $4, false)
-            ON CONFLICT (match_id) DO UPDATE
-                SET match_id = $1,
-                    proposed_time = $2,
-                    time_of_proposal = $3,
-                    proposer = $4;
-            "#,
-            match_id,
-            proposed_time as i64,
-            time_of_proposal as i64,
-            proposer as i16,
-            )
-            .execute(&self.pool)
-            .await?;
 
         Ok(())
     }

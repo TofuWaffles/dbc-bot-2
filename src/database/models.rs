@@ -78,7 +78,9 @@ pub struct Match {
     pub player_2_type: PlayerType,
     pub discord_id_1: Option<String>,
     pub discord_id_2: Option<String>,
-    pub winner: Option<i32>,
+    pub player_1_ready: bool,
+    pub player_2_ready: bool,
+    pub winner: Option<PlayerNumber>,
 }
 
 impl Match {
@@ -97,6 +99,13 @@ pub enum PlayerType {
     Player,
     Dummy,
     Pending,
+}
+
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[sqlx(type_name = "player_type", rename_all = "snake_case")]
+pub enum PlayerNumber {
+    Player1,
+    Player2,
 }
 
 /// A match schedule within the database.
