@@ -77,7 +77,6 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
     Ok(())
 }
 
-/// The user menu entry point.
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
@@ -203,7 +202,6 @@ async fn user_display_menu(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(),
     Ok(())
 }
 
-/// The menu that shows the user's match.
 #[instrument(skip(msg))]
 async fn user_display_match(
     ctx: Context<'_>,
@@ -307,17 +305,12 @@ async fn user_display_match(
     Ok(())
 }
 
-/// Menu that allows the user to schedule their match.
 #[instrument(skip(msg))]
 async fn user_display_match_scheduling(
     ctx: Context<'_>,
     msg: ReplyHandle<'_>,
     bracket: Match,
 ) -> Result<(), BotError> {
-    info!(
-        "User {} has entered the match scheduling menu",
-        ctx.author().name
-    );
     let mut hour_options = Vec::new();
     let mut minutes_options = Vec::new();
 
@@ -409,7 +402,6 @@ async fn user_display_match_scheduling(
     Ok(())
 }
 
-/// Menu that allows the user to confirm their selected schedule.
 #[instrument(skip(msg))]
 async fn user_display_schedule_confirmation(
     ctx: Context<'_>,
@@ -418,10 +410,6 @@ async fn user_display_schedule_confirmation(
     hours: Duration,
     minutes: Duration,
 ) -> Result<(), BotError> {
-    info!(
-        "User {} has entered the match schedule confirmation menu",
-        ctx.author().name
-    );
     let now = SystemTime::now();
     let now_unix = now
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -479,7 +467,6 @@ async fn user_display_schedule_confirmation(
             )
             .components(vec![CreateActionRow::Buttons(vec![CreateButton::new("match_schedule_confirm").label("Confirm").style(ButtonStyle::Success)])])
             .ephemeral(true)
-            // TODO: Implement a back option.
     )
     .await?;
 
@@ -523,7 +510,6 @@ async fn user_display_schedule_confirmation(
     Ok(())
 }
 
-/// Menu that shows all currently active tournaments to the user for them to join.
 #[instrument(skip(msg))]
 async fn user_display_tournaments(ctx: Context<'_>, msg: ReplyHandle<'_>) -> Result<(), BotError> {
     info!(
