@@ -260,21 +260,25 @@ async fn user_display_match(
                 let player_number = bracket
                     .get_player_number(&ctx.author().id.to_string())
                     .unwrap();
-                let buttons = match player_number {
+                let button_components = match player_number {
                     Player1 => {
                         if !bracket.player_1_ready {
-                            vec![CreateButton::new("match_menu_ready")
-                                .label("Ready")
-                                .style(ButtonStyle::Success)]
+                            vec![CreateActionRow::Buttons(vec![CreateButton::new(
+                                "match_menu_ready",
+                            )
+                            .label("Ready")
+                            .style(ButtonStyle::Success)])]
                         } else {
                             vec![]
                         }
                     }
                     Player2 => {
                         if !bracket.player_2_ready {
-                            vec![CreateButton::new("match_menu_ready")
-                                .label("Ready")
-                                .style(ButtonStyle::Success)]
+                            vec![CreateActionRow::Buttons(vec![CreateButton::new(
+                                "match_menu_ready",
+                            )
+                            .label("Ready")
+                            .style(ButtonStyle::Success)])]
                         } else {
                             vec![]
                         }
@@ -305,11 +309,7 @@ async fn user_display_match(
                              false),
                         ]),
                     )
-                    .components(
-                        vec![
-                            CreateActionRow::Buttons(
-                                buttons
-                         )]);
+                    .components(button_components);
             }
 
             msg.edit(ctx, reply).await?;
@@ -343,6 +343,13 @@ async fn user_display_match(
             "match_menu_ready" => {
                 interaction
                     .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                    .await?;
+                msg.edit(
+                    ctx,
+                    CreateReply::default()
+                    .content("Your have set yourself to ready. A notification has been sent to your opponent to let them know.\n\nBe sure to play your matches and hit the \"Submit\" button when you're done.")
+                    .components(vec![])
+                    .ephemeral(true))
                     .await?;
                 let player_number = bracket
                     .get_player_number(&ctx.author().id.to_string())

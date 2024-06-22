@@ -7,9 +7,7 @@ use api::{BrawlStarsApi, GameApi};
 
 use database::{Database, PgDatabase};
 use poise::{
-    serenity_prelude::{
-        ChannelId, CreateEmbed, CreateMessage,
-    },
+    serenity_prelude::{ChannelId, CreateEmbed, CreateMessage},
     CreateReply,
 };
 
@@ -43,10 +41,7 @@ where
     P: GameApi,
 {
     fn new(database: DB, game_api: P) -> Self {
-        Self {
-            database,
-            game_api,
-        }
+        Self { database, game_api }
     }
 }
 
