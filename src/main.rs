@@ -103,6 +103,15 @@ async fn run() -> Result<(), BotError> {
             commands,
             on_error: |error| {
                 Box::pin(async move {
+                    match error {
+                        poise::FrameworkError::NotAnOwner { .. } => return,
+                        poise::FrameworkError::GuildOnly { .. } => return,
+                        poise::FrameworkError::DmOnly { .. } => return,
+                        poise::FrameworkError::NsfwOnly { .. } => return,
+                        poise::FrameworkError::CommandCheckFailed { .. } => return,
+                        poise::FrameworkError::UnknownCommand { .. } => return,
+                        _ => (),
+                    }
                     error!("Error in command: {:?}", error);
                     let ctx = match error.ctx() {
                         Some(ctx) => ctx,

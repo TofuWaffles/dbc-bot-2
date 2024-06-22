@@ -6,13 +6,14 @@ use poise::{
         futures::StreamExt, ButtonStyle, ChannelId, ComponentInteraction, CreateActionRow,
         CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
     },
-    CreateReply, ReplyHandle,
+    CreateReply, Modal, ReplyHandle,
 };
 use prettytable::{row, Table};
 use tracing::{info, instrument};
 
 use crate::{
     api::{ApiResult, GameApi},
+    commands::checks::is_config_set,
     database::{
         models::{
             PlayerNumber::{Player1, Player2},
@@ -33,7 +34,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![menu(), register()]
+        vec![menu()]
     }
 }
 
@@ -42,7 +43,7 @@ impl CommandsContainer for UserCommands {
 const USER_CMD_TIMEOUT: u64 = 120000;
 
 /// All-in-one command for all your tournament needs.
-#[poise::command(slash_command, prefix_command, guild_only)]
+#[poise::command(slash_command, prefix_command, guild_only, check = "is_config_set")]
 #[instrument]
 async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu", ctx.author().name);
@@ -74,13 +75,15 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
             user_display_menu(ctx, msg, interaction_collector).await?;
         }
         None => {
-            // Might make the registration baked into this command later
-            ctx.send(
+            msg.edit(
+                ctx,
                 CreateReply::default()
-                    .content("You have not registered your profile yet. Please register first with the /register command.")
+                    .content("Loading registration page...")
+                    .components(vec![])
                     .ephemeral(true),
             )
             .await?;
+            user_display_registration(ctx, msg, interaction_collector).await?;
         }
     };
 
@@ -471,75 +474,106 @@ async fn user_display_tournaments(
 }
 
 /// Register your in-game profile with the bot.
-#[poise::command(slash_command, prefix_command, guild_only)]
-async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> {
-    let user_id = ctx.author().id.to_string();
-
-    if ctx.data().database.get_user(&user_id).await?.is_some() {
-        ctx.send(
-            CreateReply::default()
-                .content("You have already registered your profile.")
-                .ephemeral(true),
-        )
+#[instrument(skip(msg, interaction_collector))]
+async fn user_display_registration(
+    ctx: Context<'_>,
+    msg: ReplyHandle<'_>,
+    mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
+) -> Result<(), BotError> {
+    msg.edit(ctx,
+             CreateReply::default()
+             .content("You'll need to register your in-game account with us to enter one of our tournaments.\n\nClick the button below to get started.")
+             .components(vec![
+                         CreateActionRow::Buttons(vec![
+                                                  CreateButton::new("player_profile_registration")
+                                                       .label("Register")
+                                                       .style(ButtonStyle::Primary)])])
+             .ephemeral(true))
         .await?;
 
-        return Ok(());
+    #[derive(Debug, Modal)]
+    #[name = "Profile Registration"]
+    struct ProfileRegistrationModal {
+        #[name = "Player Tag"]
+        #[placeholder = "Your in-game player tag (without #)"]
+        #[min_length = 4]
+        #[max_length = 10]
+        player_tag: String,
     }
+
+    let mut player_tag: String = Default::default();
+
+    if let Some(interaction) = interaction_collector.next().await {
+        match interaction.data.custom_id.as_str() {
+            "player_profile_registration" => {
+                player_tag = poise::execute_modal_on_component_interaction::<
+                    ProfileRegistrationModal,
+                >(ctx, interaction, None, None)
+                .await?
+                .unwrap()
+                .player_tag
+                .to_uppercase();
+
+                if player_tag.chars().nth(0) == Some('#') {
+                    player_tag.remove(0);
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "Unknown interaction from player registration.\n\nUser: {}",
+                    ctx.author()
+                )
+                .into())
+            }
+        }
+    }
+
+    let user_id = ctx.author().id.to_string();
 
     let api_result = ctx.data().game_api.get_player(&player_tag).await?;
     match api_result {
         ApiResult::Ok(player) => {
-            let msg = ctx
-                .send(
-                    CreateReply::default()
-                        .embed(
-                            CreateEmbed::new()
-                                .title(format!("**{} ({})**", player.name, player.tag))
-                                .description("**Please confirm that this is your profile**")
-                                .thumbnail(format!(
-                                    "https://cdn-old.brawlify.com/profile/{}.png",
-                                    player.icon.get("id").unwrap_or(&1)
-                                ))
-                                .fields(vec![
-                                    ("Trophies", player.trophies.to_string(), true),
-                                    (
-                                        "Highest Trophies",
-                                        player.highest_trophies.to_string(),
-                                        true,
-                                    ),
-                                    (
-                                        "3v3 Victories",
-                                        player.three_vs_three_victories.to_string(),
-                                        true,
-                                    ),
-                                    ("Solo Victories", player.solo_victories.to_string(), true),
-                                    ("Duo Victories", player.duo_victories.to_string(), true),
-                                    ("Club", player.club.unwrap_or_default().name, true),
-                                ])
-                                .timestamp(ctx.created_at())
-                                .color(0x0000FF),
-                        )
-                        .components(vec![CreateActionRow::Buttons(vec![
-                            CreateButton::new("confirm_register")
-                                .label("Confirm")
-                                .style(ButtonStyle::Primary),
-                            CreateButton::new("cancel_register")
-                                .label("Cancel")
-                                .style(ButtonStyle::Danger),
-                        ])])
-                        .ephemeral(true),
-                )
-                .await?;
-
-            // We might wanna look into how expensive these clones are, but it's not too important
-            // right now
-            let mut interaction_collector = msg
-                .clone()
-                .into_message()
-                .await?
-                .await_component_interaction(&ctx.serenity_context().shard)
-                .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
-                .stream();
+            msg.edit(
+                ctx,
+                CreateReply::default()
+                    .embed(
+                        CreateEmbed::new()
+                            .title(format!("**{} ({})**", player.name, player.tag))
+                            .description("**Please confirm that this is your profile**")
+                            .thumbnail(format!(
+                                "https://cdn-old.brawlify.com/profile/{}.png",
+                                player.icon.get("id").unwrap_or(&1)
+                            ))
+                            .fields(vec![
+                                ("Trophies", player.trophies.to_string(), true),
+                                (
+                                    "Highest Trophies",
+                                    player.highest_trophies.to_string(),
+                                    true,
+                                ),
+                                (
+                                    "3v3 Victories",
+                                    player.three_vs_three_victories.to_string(),
+                                    true,
+                                ),
+                                ("Solo Victories", player.solo_victories.to_string(), true),
+                                ("Duo Victories", player.duo_victories.to_string(), true),
+                                ("Club", player.club.unwrap_or_default().name, true),
+                            ])
+                            .timestamp(ctx.created_at())
+                            .color(0x0000FF),
+                    )
+                    .components(vec![CreateActionRow::Buttons(vec![
+                        CreateButton::new("confirm_register")
+                            .label("Confirm")
+                            .style(ButtonStyle::Primary),
+                        CreateButton::new("cancel_register")
+                            .label("Cancel")
+                            .style(ButtonStyle::Danger),
+                    ])])
+                    .ephemeral(true),
+            )
+            .await?;
 
             if let Some(interaction) = &interaction_collector.next().await {
                 match interaction.data.custom_id.as_str() {
@@ -554,7 +588,7 @@ async fn register(ctx: Context<'_>, player_tag: String) -> Result<(), BotError> 
                         msg.edit(
                             ctx,
                             CreateReply::default()
-                                .content("You have successfully registered your profile.")
+                                .content("You have successfully registered your profile. Go ahead and check out /menu again!")
                                 .ephemeral(true)
                                 .components(vec![]),
                         )
