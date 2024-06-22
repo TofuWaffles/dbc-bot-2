@@ -57,8 +57,11 @@ pub trait Database {
     /// Adds a user to the database.
     async fn create_user(&self, discord_id: &str, player_tag: &str) -> Result<(), Self::Error>;
 
-    /// Retrieves a user from the database.
-    async fn get_user(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
+    /// Retrieves a user from the database with a given Discord ID.
+    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
+
+    /// Retrieves a user from the database with a given player tag.
+    async fn get_user_by_player_tag(&self, player_tag: &str) -> Result<Option<User>, Self::Error>;
 
     /// Creates a tournament in the database, returning the tournament id.
     async fn create_tournament(
@@ -284,7 +287,7 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn get_user(&self, discord_id: &str) -> Result<Option<User>, Self::Error> {
+    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error> {
         let user = sqlx::query_as!(
             User,
             r#"
@@ -292,6 +295,21 @@ impl Database for PgDatabase {
             LIMIT 1
             "#,
             discord_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    async fn get_user_by_player_tag(&self, player_tag: &str) -> Result<Option<User>, Self::Error> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT * FROM users WHERE player_tag = $1
+            LIMIT 1
+            "#,
+            player_tag
         )
         .fetch_optional(&self.pool)
         .await?;

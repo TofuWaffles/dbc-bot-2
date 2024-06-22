@@ -52,7 +52,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 
     let user_id = ctx.author().id.to_string();
 
-    let user = ctx.data().database.get_user(&user_id).await?;
+    let user = ctx.data().database.get_user_by_discord_id(&user_id).await?;
 
     let msg = ctx
         .send(
@@ -551,6 +551,26 @@ async fn user_display_registration(
     }
 
     let user_id = ctx.author().id.to_string();
+    if ctx
+        .data()
+        .database
+        .get_user_by_player_tag(&player_tag)
+        .await?
+        .is_some()
+    {
+        msg.edit(ctx, CreateReply::default().content("This game account is currently registered with another user. Please register with another game account.").components(vec![]).ephemeral(true)).await?;
+
+        return Ok(());
+    }
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content("Getting your game account details, please wait...")
+            .components(vec![])
+            .ephemeral(true),
+    )
+    .await?;
 
     let api_result = ctx.data().game_api.get_player(&player_tag).await?;
     match api_result {
@@ -605,7 +625,7 @@ async fn user_display_registration(
                             .await?;
                         ctx.data()
                             .database
-                            .create_user(&user_id, &player.tag)
+                            .create_user(&user_id, &player_tag)
                             .await?;
                         msg.edit(
                             ctx,

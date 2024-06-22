@@ -165,7 +165,7 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    let user = match ctx.data().database.get_user(&ctx.author().id.to_string()).await {
+                    let user = match ctx.data().database.get_user_by_discord_id(&ctx.author().id.to_string()).await {
                         Ok(user) => user,
                         Err(e) => {
                             error!("Error getting user for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);
