@@ -442,7 +442,8 @@ async fn user_display_tournaments(
         );
     }
 
-    msg.edit(
+    if tournament_buttons.len() > 0 {
+        msg.edit(
         ctx,
         CreateReply::default()
             .content(format!(
@@ -452,6 +453,27 @@ async fn user_display_tournaments(
             .components(vec![CreateActionRow::Buttons(tournament_buttons)]),
     )
     .await?;
+    } else {
+        let announcement_channel_id = ctx
+            .data()
+            .database
+            .get_config(&guild_id)
+            .await?
+            .unwrap()
+            .announcement_channel_id;
+        msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(format!(
+                "There are no tournaments currently available. Be sure to check out <#{}> for any new tournaments on the horizon!",
+                announcement_channel_id
+            ))
+            .components(vec![]),
+    )
+    .await?;
+
+        return Ok(());
+    }
 
     while let Some(interaction) = &interaction_collector.next().await {
         match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
