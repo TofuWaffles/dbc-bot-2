@@ -142,7 +142,6 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
     slash_command,
     guild_only,
     check = "is_marshal_or_higher",
-    rename = "tournaments"
 )]
 #[instrument]
 async fn next_round(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
