@@ -33,7 +33,7 @@ impl CommandsContainer for UserCommands {
     type Data = BotData;
     type Error = BotError;
 
-    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
+    fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![menu()]
     }
 }

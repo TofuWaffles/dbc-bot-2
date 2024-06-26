@@ -12,14 +12,14 @@ use crate::{
 
 use super::CommandsContainer;
 
-/// CommandsContainer for the Manager commands
+/// CommandsContainer for the Manager commands.
 pub struct ManagerCommands;
 
 impl CommandsContainer for ManagerCommands {
     type Data = BotData;
     type Error = BotError;
 
-    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>> {
+    fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![set_config(), create_tournament(), start_tournament()]
     }
 }
@@ -146,7 +146,7 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
     Ok(())
 }
 
-/// Start a tournament
+/// Start a tournament.
 #[poise::command(
     slash_command,
     prefix_command,
@@ -212,7 +212,7 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
     }
 
     let matches =
-        generate_matches(&ctx.data().database, tournament_players, &tournament_id).await?;
+        generate_matches_new_tournament(&ctx.data().database, tournament_players, &tournament_id).await?;
 
     ctx.data()
         .database
@@ -229,7 +229,7 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
 }
 
 /// Contains the business logic for generating matches for a newly started tournament.
-pub(self) async fn generate_matches<DB: Database>(
+pub(self) async fn generate_matches_new_tournament<DB: Database>(
     database: &DB,
     tournament_players: Vec<User>,
     tournament_id: &i32,
@@ -270,7 +270,7 @@ pub(self) async fn generate_matches<DB: Database>(
 
 #[cfg(test)]
 mod tests {
-    use super::generate_matches;
+    use super::generate_matches_new_tournament;
     use crate::database::{
         models::{PlayerType, User},
         Database, PgDatabase,
@@ -310,7 +310,7 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches(&db, users, &-1).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-1).await.unwrap();
 
         db.delete_tournament(&-1).await.unwrap();
 
@@ -351,7 +351,7 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches(&db, users, &-2).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-2).await.unwrap();
 
         db.delete_tournament(&-2).await.unwrap();
 
@@ -404,7 +404,7 @@ mod tests {
             db.enter_tournament(&-3, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches(&db, users, &-3).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-3).await.unwrap();
 
         db.delete_tournament(&-3).await.unwrap();
 

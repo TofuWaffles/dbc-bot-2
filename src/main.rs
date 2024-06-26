@@ -88,14 +88,15 @@ async fn run() -> Result<(), BotError> {
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
     let commands = vec![
-        OwnerCommands::get_commands_list(),
-        ManagerCommands::get_commands_list(),
-        MarshalCommands::get_commands_list(),
-        UserCommands::get_commands_list(),
+        OwnerCommands::get_all(),
+        ManagerCommands::get_all(),
+        MarshalCommands::get_all(),
+        UserCommands::get_all(),
     ]
     .into_iter()
     .flatten()
     .collect();
+
     let intents = serenity::GatewayIntents::non_privileged();
 
     let framework = poise::Framework::builder()
@@ -103,6 +104,7 @@ async fn run() -> Result<(), BotError> {
             commands,
             on_error: |error| {
                 Box::pin(async move {
+                    // These error variants aren't really errors and can be safely ignored
                     match error {
                         poise::FrameworkError::NotAnOwner { .. } => return,
                         poise::FrameworkError::GuildOnly { .. } => return,
@@ -154,7 +156,10 @@ async fn run() -> Result<(), BotError> {
 
                     let log_channel = match guild_channels.get(&ChannelId::from_str(&log_channel_id).unwrap_or_default()) {
                         Some(log_channel) => log_channel,
-                        None => todo!(),
+                        None => {
+                            error!("Error sending error message to log channel: Log channel not found for guild: {}", guild_id);
+                            return;
+                        },
                     };
 
                     let player_tournaments = match ctx.data().database.get_player_active_tournaments(&guild_id, &ctx.author().id.to_string()).await {

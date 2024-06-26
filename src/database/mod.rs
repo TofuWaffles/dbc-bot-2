@@ -7,7 +7,7 @@ use self::models::{
     User,
 };
 
-/// Models for the database
+/// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
 /// Most if not all are directly mapped to a table in the database.
@@ -114,6 +114,18 @@ pub trait Database {
 
     /// Gets all players in a tournament.
     async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error>;
+    
+    /// Updates the total number of rounds a tournament has.
+    ///
+    /// Useful for when a tournament starts because the number of rounds can only be determined
+    /// when the number of contestants are known.
+    async fn update_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error>;
+
+    /// Increments the current round of a tournament by 1.
+    ///
+    /// The caller is responsible to check if calls to this method will make a tournament's current
+    /// round exceed its total number of rounds.
+    async fn next_round(&self, tournament_id: &i32) -> Result<(), Self::Error>;
 
     /// Creates a match associated with a tournament.
     async fn create_match(
@@ -329,8 +341,8 @@ impl Database for PgDatabase {
             None => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at)
-            VALUES ($1, $2, $3)
+            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round)
+            VALUES ($1, $2, $3, 0, 0)
             RETURNING tournament_id
             "#,
                     guild_id,
@@ -344,8 +356,8 @@ impl Database for PgDatabase {
             Some(custom_id) => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, tournament_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO tournaments (guild_id, name, created_at, tournament_id, rounds, current_round)
+            VALUES ($1, $2, $3, $4, 0, 0)
             ON CONFLICT (tournament_id) DO NOTHING
             "#,
                     guild_id,
@@ -391,7 +403,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
             FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
             LIMIT 1
@@ -409,7 +421,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
             FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
@@ -425,7 +437,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
             FROM tournaments WHERE guild_id = $1 AND (status = 'pending' OR status = 'started')
             "#,
             guild_id
@@ -444,7 +456,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.created_at, tournaments.start_time
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time
             FROM tournaments
             INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
             WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
@@ -508,6 +520,37 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(players)
+    }
+
+    async fn update_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error> {
+        sqlx::query!(
+                r#"
+                UPDATE tournaments
+                SET rounds = $1
+                WHERE tournament_id = $2
+                "#,
+                rounds,
+                tournament_id
+            )
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    async fn next_round(&self, tournament_id: &i32) -> Result<(), Self::Error> {
+        sqlx::query!(
+                r#"
+                UPDATE tournaments
+                SET current_round = current_round + 1
+                WHERE tournament_id = $1
+                "#,
+                tournament_id
+            )
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 
     async fn create_match(

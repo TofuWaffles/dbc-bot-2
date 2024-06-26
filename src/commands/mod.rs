@@ -40,7 +40,7 @@ pub trait CommandsContainer {
     type Data;
     type Error;
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
-    fn get_commands_list() -> Vec<poise::Command<Self::Data, Self::Error>>;
+    fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>>;
 }
 
 /// Common checks (e.g. role checks) used by various commands.

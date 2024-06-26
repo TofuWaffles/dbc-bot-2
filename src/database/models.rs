@@ -20,7 +20,7 @@ pub struct GuildConfig {
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
-#[derive(Debug, sqlx::Type, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
     Pending,
@@ -46,6 +46,8 @@ pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,
     pub guild_id: String,
+    pub rounds: i32,
+    pub current_round: i32,
     pub created_at: i64,
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
@@ -84,6 +86,29 @@ pub struct Match {
 }
 
 impl Match {
+    pub fn new(
+        match_id: String,
+        tournament_id: i32,
+        round: i32,
+        sequence_in_round: i32,
+        discord_id_1: Option<String>,
+        discord_id_2: Option<String>,
+    ) -> Self {
+        Self {
+            match_id,
+            tournament_id,
+            round,
+            sequence_in_round,
+            player_1_type: PlayerType::Player,
+            player_2_type: PlayerType::Player,
+            discord_id_1,
+            discord_id_2,
+            player_1_ready: false,
+            player_2_ready: false,
+            winner: None,
+        }
+    }
+
     pub fn generate_id(tournament_id: &i32, round: &i32, sequence_in_round: &i32) -> String {
         format!("{}.{}.{}", tournament_id, round, sequence_in_round)
     }
