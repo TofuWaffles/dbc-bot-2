@@ -198,9 +198,10 @@ async fn run() -> Result<(), BotError> {
             },
             ..Default::default()
         })
-        .setup(|ctx, _ready, framework| {
+        .setup(|ctx, ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
+                println!("Ready as {}", ready.user.name);
                 Ok(Data::new(pg_database, brawl_stars_api))
             })
         })
