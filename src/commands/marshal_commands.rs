@@ -137,14 +137,48 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
     Ok(())
 }
 
-/// List all currently active tournaments.
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_marshal_or_higher",
-)]
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn next_round(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
+async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let tournament = ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, &tournament_id)
+        .await?;
+
+    if tournament.is_none() {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "A tournament with the ID {} was not found. Please try again with another ID",
+                    tournament_id
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    ctx.data().database.set_map(&tournament_id, &map).await?;
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Sucessfully set the map of tournament {} to {}",
+                tournament_id, map
+            ))
+            .ephemeral(true),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// List all currently active tournaments.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[instrument]
+async fn next_round(ctx: Context<'_>, tournament_id: i32, map: Option<String>) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournament = match ctx
@@ -204,6 +238,10 @@ async fn next_round(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError
     }
 
     ctx.data().database.next_round(&round).await?;
+
+    if let Some(map) = map {
+        ctx.data().database.set_map(&tournament_id, &map).await?;
+    }
 
     ctx.send(
         CreateReply::default()

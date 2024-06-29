@@ -155,7 +155,11 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
     check = "is_config_set"
 )]
 #[instrument]
-async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
+async fn start_tournament(
+    ctx: Context<'_>,
+    tournament_id: i32,
+    map: String,
+) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournament = match ctx
@@ -212,12 +216,15 @@ async fn start_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), Bo
     }
 
     let matches =
-        generate_matches_new_tournament(&ctx.data().database, tournament_players, &tournament_id).await?;
+        generate_matches_new_tournament(&ctx.data().database, tournament_players, &tournament_id)
+            .await?;
 
     ctx.data()
         .database
         .set_tournament_status(&tournament_id, TournamentStatus::Started)
         .await?;
+
+    ctx.data().database.set_map(&tournament_id, &map).await?;
 
     ctx.send(CreateReply::default()
              .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches.len()))
@@ -310,7 +317,9 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-1).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-1)
+            .await
+            .unwrap();
 
         db.delete_tournament(&-1).await.unwrap();
 
@@ -351,7 +360,9 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-2).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-2)
+            .await
+            .unwrap();
 
         db.delete_tournament(&-2).await.unwrap();
 
@@ -404,7 +415,9 @@ mod tests {
             db.enter_tournament(&-3, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-3).await.unwrap();
+        let matches = generate_matches_new_tournament(&db, users, &-3)
+            .await
+            .unwrap();
 
         db.delete_tournament(&-3).await.unwrap();
 

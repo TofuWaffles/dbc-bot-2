@@ -15,7 +15,7 @@ pub mod models;
 
 /// Any database that the bot could use to operate the tournament.
 ///
-/// Note that changing the implementor of this trait will only allow you to change which database
+/// Note that changing the implementation of this trait will only allow you to change which database
 /// you'll be using (e.g. Postgres, SQLite, etc.).
 ///
 /// If you want to change the database schema, you'll need to change this trait as well as all its associated types.
@@ -119,7 +119,7 @@ pub trait Database {
 
     /// Gets all players in a tournament.
     async fn get_tournament_players(&self, tournament_id: &i32) -> Result<Vec<User>, Self::Error>;
-    
+
     /// Updates the total number of rounds a tournament has.
     ///
     /// Useful for when a tournament starts because the number of rounds can only be determined
@@ -529,31 +529,31 @@ impl Database for PgDatabase {
 
     async fn update_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error> {
         sqlx::query!(
-                r#"
+            r#"
                 UPDATE tournaments
                 SET rounds = $1
                 WHERE tournament_id = $2
                 "#,
-                rounds,
-                tournament_id
-            )
-            .execute(&self.pool)
-            .await?;
+            rounds,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
     async fn next_round(&self, tournament_id: &i32) -> Result<(), Self::Error> {
         sqlx::query!(
-                r#"
+            r#"
                 UPDATE tournaments
                 SET current_round = current_round + 1
                 WHERE tournament_id = $1
                 "#,
-                tournament_id
-            )
-            .execute(&self.pool)
-            .await?;
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
@@ -723,7 +723,7 @@ impl Database for PgDatabase {
         Ok(brackets)
     }
 
-    async fn set_map(&self, tournament_id: &i32, map: String) -> Result<(), Self::Error> {
+    async fn set_map(&self, tournament_id: &i32, map: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
             UPDATE tournaments
@@ -732,9 +732,9 @@ impl Database for PgDatabase {
             "#,
             map,
             tournament_id
-            )
-            .execute(&self.pool)
-            .await?;
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
