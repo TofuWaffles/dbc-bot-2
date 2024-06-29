@@ -105,6 +105,11 @@ pub trait Database {
     /// Deletes a tournament from the database.
     async fn delete_tournament(&self, tournament_id: &i32) -> Result<(), Self::Error>;
 
+    /// Sets the current map for a given tournament.
+    ///
+    /// All matches must be done in the current map in order for them to be counted.
+    async fn set_map(&self, tournament_id: &i32, map: String) -> Result<(), Self::Error>;
+
     /// Enters a user into a tournament.
     async fn enter_tournament(
         &self,
@@ -403,7 +408,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
             FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
             LIMIT 1
@@ -421,7 +426,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
             FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
@@ -437,7 +442,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
             FROM tournaments WHERE guild_id = $1 AND (status = 'pending' OR status = 'started')
             "#,
             guild_id
@@ -456,7 +461,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map
             FROM tournaments
             INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
             WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
@@ -716,5 +721,21 @@ impl Database for PgDatabase {
         };
 
         Ok(brackets)
+    }
+
+    async fn set_map(&self, tournament_id: &i32, map: String) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET map = $1
+            WHERE tournament_id = $2
+            "#,
+            map,
+            tournament_id
+            )
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }

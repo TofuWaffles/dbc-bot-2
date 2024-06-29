@@ -51,6 +51,7 @@ pub struct Tournament {
     pub created_at: i64,
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
+    pub map: Option<String>,
 }
 
 /// A Discord user within the database.
