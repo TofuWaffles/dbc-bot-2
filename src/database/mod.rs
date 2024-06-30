@@ -108,7 +108,7 @@ pub trait Database {
     /// Sets the current map for a given tournament.
     ///
     /// All matches must be done in the current map in order for them to be counted.
-    async fn set_map(&self, tournament_id: &i32, map: String) -> Result<(), Self::Error>;
+    async fn set_map(&self, tournament_id: &i32, map: &str) -> Result<(), Self::Error>;
 
     /// Enters a user into a tournament.
     async fn enter_tournament(

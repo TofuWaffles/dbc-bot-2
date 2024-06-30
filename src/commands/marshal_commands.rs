@@ -1,5 +1,8 @@
 use chrono::DateTime;
-use poise::{serenity_prelude::CreateEmbed, CreateReply};
+use poise::{
+    serenity_prelude::{CreateEmbed, User},
+    CreateReply,
+};
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
 
@@ -21,7 +24,7 @@ impl CommandsContainer for MarshalCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![get_tournament(), list_active_tournaments(), next_round()]
+        vec![get_tournament(), list_active_tournaments(), next_round(), set_map(), disqualify()]
     }
 }
 
@@ -137,6 +140,7 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
     Ok(())
 }
 
+/// Set the map for a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
@@ -175,10 +179,55 @@ async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<()
     Ok(())
 }
 
+/// Disqualify a player from a given tournament.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, &tournament_id)
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.send(CreateReply::default().content(format!("A tournament with the ID {} was not found. Try again with an existing tournament ID.", tournament_id)).ephemeral(true)).await?;
+            return Ok(());
+        }
+    };
+
+    let bracket = match ctx
+        .data()
+        .database
+        .get_match_by_player(&tournament.tournament_id, &player.id.to_string())
+        .await?
+    {
+        Some(bracket) => bracket,
+        None => {
+            ctx.send(CreateReply::default().content(format!("An unfinished match could not be found for <@{}> in tournament {}.", player.id.to_string(), tournament_id)).ephemeral(true)).await?;
+            return Ok(());
+        },
+    };
+
+    if player.id.to_string() == bracket.discord_id_1.unwrap() {
+        ctx.data().database.set_winner(&bracket.match_id, PlayerNumber::Player2).await?;
+    } else {
+        ctx.data().database.set_winner(&bracket.match_id, PlayerNumber::Player1).await?;
+    }
+
+    ctx.send(CreateReply::default().content(format!("Successfully disqualified <@{}> from match {}", player.id.to_string(), bracket.match_id)).ephemeral(true)).await?;
+
+    Ok(())
+}
+
 /// List all currently active tournaments.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn next_round(ctx: Context<'_>, tournament_id: i32, map: Option<String>) -> Result<(), BotError> {
+async fn next_round(
+    ctx: Context<'_>,
+    tournament_id: i32,
+    map: Option<String>,
+) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournament = match ctx
