@@ -24,7 +24,13 @@ impl CommandsContainer for MarshalCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![get_tournament(), list_active_tournaments(), next_round(), set_map(), disqualify()]
+        vec![
+            get_tournament(),
+            list_active_tournaments(),
+            next_round(),
+            set_map(),
+            disqualify(),
+        ]
     }
 }
 
@@ -179,6 +185,103 @@ async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<()
     Ok(())
 }
 
+/// Get the information about a match from a match ID or user.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn get_match(
+    ctx: Context<'_>,
+    match_id: Option<String>,
+    player: Option<User>,
+) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let bracket;
+
+    match match_id {
+        Some(match_id) => {
+            bracket = ctx.data().database.get_match_by_id(&match_id).await?;
+        }
+        None => match player {
+            Some(player) => {
+                let player_active_tournaments = ctx
+                    .data()
+                    .database
+                    .get_player_active_tournaments(&guild_id, &player.id.to_string())
+                    .await?;
+                if player_active_tournaments.len() < 1 {
+                    ctx.send(
+                        CreateReply::default()
+                            .content(format!(
+                                "The player <@{}> is not currently in any active tournaments.",
+                                player.id.to_string()
+                            ))
+                            .ephemeral(true),
+                    )
+                    .await?;
+
+                    return Ok(());
+                }
+                bracket = ctx
+                    .data()
+                    .database
+                    .get_match_by_player(
+                        &player_active_tournaments[0].tournament_id,
+                        &player.id.to_string(),
+                    )
+                    .await?;
+            }
+            None => {
+                ctx.send(CreateReply::default().content("You must provide either a match ID or a player ID to run this command.").ephemeral(true)).await?;
+                return Ok(());
+            }
+        },
+    };
+
+    match bracket {
+        Some(bracket) => {
+            ctx.send(
+                CreateReply::default()
+                    .content("")
+                    .embed(
+                        CreateEmbed::new()
+                            .title(format!("Match {}", bracket.match_id))
+                            .fields(vec![
+                                ("Tournament ID", bracket.tournament_id.to_string(), false),
+                                ("Round", bracket.round.to_string(), false),
+                                (
+                                    "Player 1",
+                                    match bracket.discord_id_1 {
+                                        Some(player_id) => format!("<@{}>", player_id),
+                                        None => "No player".to_string(),
+                                    },
+                                    false,
+                                ),
+                                (
+                                    "Player 2",
+                                    match bracket.discord_id_2 {
+                                        Some(player_id) => format!("<@{}>", player_id),
+                                        None => "No player".to_string(),
+                                    },
+                                    false,
+                                ),
+                                ("Winner", format!("<@{:#?}>", bracket.winner), false),
+                            ]),
+                    )
+                    .ephemeral(true),
+            )
+            .await?
+        }
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content("No match found for the given ID or player.")
+                    .ephemeral(true),
+            )
+            .await?
+        }
+    };
+
+    Ok(())
+}
+
 /// Disqualify a player from a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
@@ -204,18 +307,42 @@ async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Resul
     {
         Some(bracket) => bracket,
         None => {
-            ctx.send(CreateReply::default().content(format!("An unfinished match could not be found for <@{}> in tournament {}.", player.id.to_string(), tournament_id)).ephemeral(true)).await?;
+            ctx.send(
+                CreateReply::default()
+                    .content(format!(
+                        "An unfinished match could not be found for <@{}> in tournament {}.",
+                        player.id.to_string(),
+                        tournament_id
+                    ))
+                    .ephemeral(true),
+            )
+            .await?;
             return Ok(());
-        },
+        }
     };
 
     if player.id.to_string() == bracket.discord_id_1.unwrap() {
-        ctx.data().database.set_winner(&bracket.match_id, PlayerNumber::Player2).await?;
+        ctx.data()
+            .database
+            .set_winner(&bracket.match_id, PlayerNumber::Player2)
+            .await?;
     } else {
-        ctx.data().database.set_winner(&bracket.match_id, PlayerNumber::Player1).await?;
+        ctx.data()
+            .database
+            .set_winner(&bracket.match_id, PlayerNumber::Player1)
+            .await?;
     }
 
-    ctx.send(CreateReply::default().content(format!("Successfully disqualified <@{}> from match {}", player.id.to_string(), bracket.match_id)).ephemeral(true)).await?;
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Successfully disqualified <@{}> from match {}",
+                player.id.to_string(),
+                bracket.match_id
+            ))
+            .ephemeral(true),
+    )
+    .await?;
 
     Ok(())
 }
