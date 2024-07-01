@@ -89,6 +89,9 @@ pub trait Database {
     async fn get_all_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
 
     /// Retrieves all active tournaments from the database.
+    ///
+    /// This will get all active tournaments that have their status set to either "pending", 
+    /// "started", or "paused".
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
 
     /// Retrieves all active tournaments that the player has currently entered.
@@ -443,7 +446,7 @@ impl Database for PgDatabase {
             Tournament,
             r#"
             SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
-            FROM tournaments WHERE guild_id = $1 AND (status = 'pending' OR status = 'started')
+            FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')
             "#,
             guild_id
         )

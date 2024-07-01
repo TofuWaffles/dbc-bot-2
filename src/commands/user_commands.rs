@@ -17,7 +17,7 @@ use crate::{
     database::{
         models::{
             PlayerNumber::{Player1, Player2},
-            PlayerType, Tournament,
+            PlayerType, Tournament, TournamentStatus,
         },
         Database,
     },
@@ -90,6 +90,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
     Ok(())
 }
 
+/// Display the main menu to the registered user.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_menu(
     ctx: Context<'_>,
@@ -215,6 +216,7 @@ async fn user_display_menu(
     Ok(())
 }
 
+/// Display match information to the user.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_match(
     ctx: Context<'_>,
@@ -400,6 +402,8 @@ async fn user_display_match(
     Ok(())
 }
 
+/// Display all active (and not started) tournaments to the user who has not yet joined a
+/// tournament.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_tournaments(
     ctx: Context<'_>,
@@ -411,11 +415,14 @@ async fn user_display_tournaments(
         ctx.author().name
     );
     let guild_id = ctx.guild_id().unwrap().to_string();
-    let tournaments = ctx
+    let tournaments: Vec<Tournament> = ctx
         .data()
         .database
         .get_active_tournaments(&guild_id)
-        .await?;
+        .await?
+        .into_iter()
+        .filter(|tournament| tournament.status == TournamentStatus::Pending)
+        .collect();
 
     let mut table = Table::new();
     table.set_titles(row!["No.", "Name", "Status"]);
