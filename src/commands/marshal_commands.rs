@@ -35,11 +35,7 @@ impl CommandsContainer for MarshalCommands {
 }
 
 /// Get information about a tournament.
-#[poise::command(
-    slash_command,
-    guild_only,
-    check = "is_marshal_or_higher",
-)]
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();

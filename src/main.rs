@@ -1,20 +1,18 @@
-use poise::serenity_prelude as serenity;
-use std::{fs::File, str::FromStr, time::SystemTime};
+use std::fs::File;
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use api::{BrawlStarsApi, GameApi};
 
 use database::{Database, PgDatabase};
-use poise::{
-    serenity_prelude::{ChannelId, CreateEmbed, CreateMessage},
-    CreateReply,
-};
+use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
     owner_commands::OwnerCommands, user_commands::UserCommands, CommandsContainer,
 };
+
+use crate::log::discord_log_error;
 
 /// Utilities for interacting with the game API.
 mod api;
@@ -25,6 +23,7 @@ mod api;
 mod commands;
 /// Traits and types used for interacting with the database.
 mod database;
+mod log;
 
 /// Stores data used by the bot.
 ///
@@ -133,34 +132,6 @@ async fn run() -> Result<(), BotError> {
                             return;
                         },
                     };
-                    let log_channel_id = match ctx.data().database.get_config(&guild_id).await {
-                        Ok(config) => match config {
-                            Some(config) => config.log_channel_id,
-                            None => {
-                                warn!("No config found for guild {}. Cannot send error message to log channel.", guild_id);
-                                return;
-                            },
-                        },
-                        Err(e) => {
-                            error!("Error getting log channel id for guild {}. Cannot send error message to log channel: {}", guild_id, e);
-                            return;
-                        },
-                    };
-                    let guild_channels = match ctx.guild_id().unwrap().channels(ctx).await {
-                        Ok(guild_channels) => guild_channels,
-                        Err(e) => {
-                            error!("Error getting guild channels for guild {}. Cannot send error message to log channel: {}", guild_id, e);
-                            return;
-                        },
-                    };
-
-                    let log_channel = match guild_channels.get(&ChannelId::from_str(&log_channel_id).unwrap_or_default()) {
-                        Some(log_channel) => log_channel,
-                        None => {
-                            error!("Error sending error message to log channel: Log channel not found for guild: {}", guild_id);
-                            return;
-                        },
-                    };
 
                     let player_tournaments = match ctx.data().database.get_player_active_tournaments(&guild_id, &ctx.author().id.to_string()).await {
                         Ok(tournament) => tournament,
@@ -178,19 +149,12 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    match log_channel.send_message(
+                    match discord_log_error(
                         ctx,
-                        CreateMessage::default()
-                            .content("⚠️ An error occured in a command!")
-                            .embed(CreateEmbed::new()
-                                   .title(format!("{}", error))
-                                   .description("Please check the logs for more information.")
-                                   .fields(vec!(
-                                           ("User", &ctx.author().name, false),
-                                           ("Seen at", &format!("<t:{}:F>", SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()), false),
-                                           ("Player ID", &format!("{:?}", user), false),
-                                           ("Tournament", &format!("{:?}", player_tournaments), false),
-                                           )))).await {
+                        &error.to_string(),
+                        user,
+                        player_tournaments,
+                        ).await {
                         Ok(_) => (),
                         Err(e) => error!("Error sending error message to log channel: {:?}", e),
                     };

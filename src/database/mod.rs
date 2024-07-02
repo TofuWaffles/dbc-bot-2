@@ -90,7 +90,7 @@ pub trait Database {
 
     /// Retrieves all active tournaments from the database.
     ///
-    /// This will get all active tournaments that have their status set to either "pending", 
+    /// This will get all active tournaments that have their status set to either "pending",
     /// "started", or "paused".
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
 
