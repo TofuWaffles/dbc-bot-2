@@ -100,8 +100,14 @@ impl Match {
             tournament_id,
             round,
             sequence_in_round,
-            player_1_type: PlayerType::Player,
-            player_2_type: PlayerType::Player,
+            player_1_type: match discord_id_1 {
+                Some(_) => PlayerType::Player,
+                None => PlayerType::Dummy,
+            },
+            player_2_type: match discord_id_2 {
+                Some(_) => PlayerType::Player,
+                None => PlayerType::Dummy,
+            },
             discord_id_1,
             discord_id_2,
             player_1_ready: false,

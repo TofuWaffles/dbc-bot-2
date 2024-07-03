@@ -2,13 +2,10 @@ use poise::{serenity_prelude as serenity, CreateReply};
 use tracing::{error, info, instrument};
 
 use crate::{
-    commands::checks::{is_config_set, is_manager},
-    database::{
-        models::{Match, PlayerType, TournamentStatus, User},
+    commands::checks::{is_config_set, is_manager}, database::{
+        models::{Match, TournamentStatus, User},
         Database,
-    },
-    log::discord_log_info,
-    BotData, BotError, Context,
+    }, log::discord_log_info, BotData, BotError, Context
 };
 
 use super::CommandsContainer;
@@ -229,9 +226,24 @@ async fn start_tournament(
 
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as i32;
 
-    let matches =
-        generate_matches_new_tournament(&ctx.data().database, tournament_players, &tournament_id)
-            .await?;
+    let matches = generate_matches_new_tournament(tournament_players, &tournament_id).await?;
+
+    let matches_count = matches.len();
+
+    for bracket in matches {
+        ctx.data()
+            .database
+            .create_match(
+                &bracket.tournament_id,
+                &bracket.round,
+                &bracket.sequence_in_round,
+                bracket.player_1_type,
+                bracket.player_2_type,
+                bracket.discord_id_1.as_deref(),
+                bracket.discord_id_2.as_deref(),
+            )
+            .await?
+    }
 
     ctx.data()
         .database
@@ -246,7 +258,7 @@ async fn start_tournament(
     ctx.data().database.set_map(&tournament_id, &map).await?;
 
     ctx.send(CreateReply::default()
-             .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches.len()))
+             .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
              .ephemeral(true)
         )
         .await?;
@@ -258,6 +270,7 @@ async fn start_tournament(
             ("Tournament ID", &tournament_id.to_string(), false),
             ("Tournament name", &tournament.name, false),
             ("Rounds", &rounds_count.to_string(), false),
+            ("Number of matches", &matches_count.to_string(), false),
             ("Started by", &ctx.author().name, false),
         ],
     )
@@ -266,16 +279,16 @@ async fn start_tournament(
     Ok(())
 }
 
-/// Contains the business logic for generating matches for a newly started tournament.
-pub(self) async fn generate_matches_new_tournament<DB: Database>(
-    database: &DB,
+/// Contains the logic for generating matches for a newly started tournament.
+pub(self) async fn generate_matches_new_tournament(
     tournament_players: Vec<User>,
     tournament_id: &i32,
-) -> Result<Vec<Match>, DB::Error> {
-    // TODO: Factor out database writing from this func, and maybe pass in round count as an arg
+) -> Result<Vec<Match>, BotError> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
     let matches_count = (2 as u32).pow(rounds_count - 1);
+
+    let mut matches = Vec::new();
 
     for i in 0..matches_count {
         // Guaranteed to have a player
@@ -283,28 +296,20 @@ pub(self) async fn generate_matches_new_tournament<DB: Database>(
         // Not guaranteed to have a player, this would be a bye round if there is no player
         let player_2 = &tournament_players.get(matches_count as usize + i as usize);
 
-        database
-            .create_match(
-                &tournament_id,
-                &1,
-                &(i as i32 + 1 as i32),
-                PlayerType::Player,
-                match player_2 {
-                    Some(_) => PlayerType::Player,
-                    None => PlayerType::Dummy,
-                },
-                Some(&player_1.discord_id),
-                match player_2 {
-                    Some(player) => Some(&player.discord_id),
-                    None => None,
-                },
-            )
-            .await?;
+        matches.push(Match::new(
+            Match::generate_id(&tournament_id, &1, &((i + 1) as i32)),
+            *tournament_id,
+            1,
+            (i + 1) as i32,
+            Some(player_1.discord_id.to_owned()),
+            match player_2 {
+                Some(player_2) => Some(player_2.discord_id.to_owned()),
+                None => None,
+            },
+        ));
     }
 
-    Ok(database
-        .get_matches_by_tournament(tournament_id, Some(&1))
-        .await?)
+    Ok(matches)
 }
 
 #[cfg(test)]
@@ -349,9 +354,7 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-1)
-            .await
-            .unwrap();
+        let matches = generate_matches_new_tournament(users, &-1).await.unwrap();
 
         db.delete_tournament(&-1).await.unwrap();
 
@@ -392,9 +395,7 @@ mod tests {
             db.enter_tournament(&-1, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-2)
-            .await
-            .unwrap();
+        let matches = generate_matches_new_tournament(users, &-2).await.unwrap();
 
         db.delete_tournament(&-2).await.unwrap();
 
@@ -447,9 +448,7 @@ mod tests {
             db.enter_tournament(&-3, &user.discord_id).await.unwrap();
         }
 
-        let matches = generate_matches_new_tournament(&db, users, &-3)
-            .await
-            .unwrap();
+        let matches = generate_matches_new_tournament(users, &-3).await.unwrap();
 
         db.delete_tournament(&-3).await.unwrap();
 
