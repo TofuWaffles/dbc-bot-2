@@ -7,6 +7,7 @@ use crate::{
         models::{Match, PlayerType, TournamentStatus, User},
         Database,
     },
+    log::discord_log_info,
     BotData, BotError, Context,
 };
 
@@ -138,6 +139,17 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
     )
     .await?;
 
+    discord_log_info(
+        ctx,
+        "A new tournament has been created.",
+        vec![
+            ("Tournament ID", &new_tournament_id.to_string(), false),
+            ("Tournament name", &name, false),
+            ("Created by", &ctx.author().name, false),
+        ],
+    )
+    .await?;
+
     info!(
         "Created tournament {} for guild {}",
         new_tournament_id, guild_id
@@ -215,6 +227,8 @@ async fn start_tournament(
         return Ok(());
     }
 
+    let rounds_count = (tournament_players.len() as f64).log2().ceil() as i32;
+
     let matches =
         generate_matches_new_tournament(&ctx.data().database, tournament_players, &tournament_id)
             .await?;
@@ -222,6 +236,11 @@ async fn start_tournament(
     ctx.data()
         .database
         .set_tournament_status(&tournament_id, TournamentStatus::Started)
+        .await?;
+
+    ctx.data()
+        .database
+        .set_rounds(&tournament_id, &rounds_count)
         .await?;
 
     ctx.data().database.set_map(&tournament_id, &map).await?;
@@ -232,6 +251,18 @@ async fn start_tournament(
         )
         .await?;
 
+    discord_log_info(
+        ctx,
+        "A tournament has started",
+        vec![
+            ("Tournament ID", &tournament_id.to_string(), false),
+            ("Tournament name", &tournament.name, false),
+            ("Rounds", &rounds_count.to_string(), false),
+            ("Started by", &ctx.author().name, false),
+        ],
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -241,6 +272,7 @@ pub(self) async fn generate_matches_new_tournament<DB: Database>(
     tournament_players: Vec<User>,
     tournament_id: &i32,
 ) -> Result<Vec<Match>, DB::Error> {
+    // TODO: Factor out database writing from this func, and maybe pass in round count as an arg
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
     let matches_count = (2 as u32).pow(rounds_count - 1);

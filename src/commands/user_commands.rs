@@ -12,16 +12,13 @@ use prettytable::{row, Table};
 use tracing::{info, instrument};
 
 use crate::{
-    api::{ApiResult, GameApi},
-    commands::checks::is_config_set,
-    database::{
+    api::{ApiResult, GameApi}, commands::checks::is_config_set, database::{
         models::{
             PlayerNumber::{Player1, Player2},
             PlayerType, Tournament, TournamentStatus,
         },
         Database,
-    },
-    BotData, BotError, Context,
+    }, BotData, BotError, Context
 };
 
 use super::CommandsContainer;
@@ -351,6 +348,7 @@ async fn user_display_match(
                 interaction
                     .create_response(ctx, CreateInteractionResponse::Acknowledge)
                     .await?;
+
                 msg.edit(
                     ctx,
                     CreateReply::default()
@@ -358,15 +356,19 @@ async fn user_display_match(
                     .components(vec![])
                     .ephemeral(true))
                     .await?;
+
                 let player_number = bracket
                     .get_player_number(&ctx.author().id.to_string())
                     .unwrap();
+
                 let player_1_id = bracket.discord_id_1.clone().unwrap();
                 let player_2_id = bracket.discord_id_2.clone().unwrap();
+
                 ctx.data()
                     .database
                     .set_ready(&bracket.match_id, &player_number)
                     .await?;
+
                 let notification_message = match player_number {
                     Player1 => {
                         if bracket.player_2_ready {
@@ -383,6 +385,7 @@ async fn user_display_match(
                         }
                     }
                 };
+
                 let notification_channel = ChannelId::from_str(
                     &ctx.data()
                         .database
@@ -391,6 +394,7 @@ async fn user_display_match(
                         .unwrap()
                         .notification_channel_id,
                 )?;
+
                 notification_channel
                     .send_message(ctx, CreateMessage::default().content(notification_message))
                     .await?;

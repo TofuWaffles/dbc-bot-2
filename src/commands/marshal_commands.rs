@@ -11,6 +11,7 @@ use crate::{
         models::{Match, PlayerNumber, TournamentStatus},
         Database,
     },
+    log::discord_log_info,
     BotData, BotError, Context,
 };
 
@@ -146,24 +147,26 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
 #[instrument]
 async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
-    let tournament = ctx
+    let tournament = match ctx
         .data()
         .database
         .get_tournament(&guild_id, &tournament_id)
-        .await?;
-
-    if tournament.is_none() {
-        ctx.send(
-            CreateReply::default()
-                .content(format!(
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content(format!(
                     "A tournament with the ID {} was not found. Please try again with another ID",
                     tournament_id
                 ))
-                .ephemeral(true),
-        )
-        .await?;
-        return Ok(());
-    }
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
 
     ctx.data().database.set_map(&tournament_id, &map).await?;
 
@@ -174,6 +177,22 @@ async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<()
                 tournament_id, map
             ))
             .ephemeral(true),
+    )
+    .await?;
+
+    discord_log_info(
+        ctx,
+        &format!("A new map has been set for tournament {}", tournament.name),
+        vec![
+            (
+                "Tournament ID",
+                &tournament.tournament_id.to_string(),
+                false,
+            ),
+            ("Tournament name", &tournament.name, false),
+            ("Map", &map, false),
+            ("Set by", &ctx.author().name, false),
+        ],
     )
     .await?;
 
@@ -339,6 +358,23 @@ async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Resul
     )
     .await?;
 
+    discord_log_info(
+        ctx,
+        &format!(
+            "Player <@{}> was disqualified from tournament {}",
+            player.id.to_string(),
+            tournament.tournament_id
+        ),
+        vec![
+            ("Disqualified player", &format!("<@{}>", player.id.to_string()), false),
+            ("Match ID", &bracket.match_id, false),
+            ("Tournament ID", &tournament.tournament_id.to_string(), false),
+            ("Tournament name", &tournament.name, false),
+            ("Disqualified by", &ctx.author().name, false),
+        ],
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -392,6 +428,7 @@ async fn next_round(
 
     let round = tournament.current_round + 1;
     let next_round_brackets = generate_next_round(with_winners, round)?;
+    let new_brackets_count = next_round_brackets.len();
 
     for bracket in next_round_brackets {
         ctx.data()
@@ -408,7 +445,7 @@ async fn next_round(
             .await?;
     }
 
-    ctx.data().database.next_round(&round).await?;
+    ctx.data().database.next_round(&tournament_id).await?;
 
     if let Some(map) = map {
         ctx.data().database.set_map(&tournament_id, &map).await?;
@@ -421,6 +458,23 @@ async fn next_round(
                 tournament_id, round
             ))
             .ephemeral(true),
+    )
+    .await?;
+
+    discord_log_info(
+        ctx,
+        &format!(
+            "Tournament {} has advanced to round {}.",
+            tournament.name,
+            round
+        ),
+        vec![
+            ("Tournament ID", &tournament.tournament_id.to_string(), false),
+            ("Tournament name", &tournament.name, false),
+            ("New round", &round.to_string(), false),
+            ("Number of matches", &new_brackets_count.to_string(), false),
+            ("Advanced by", &ctx.author().name, false),
+        ],
     )
     .await?;
 

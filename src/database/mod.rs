@@ -127,7 +127,7 @@ pub trait Database {
     ///
     /// Useful for when a tournament starts because the number of rounds can only be determined
     /// when the number of contestants are known.
-    async fn update_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error>;
+    async fn set_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error>;
 
     /// Increments the current round of a tournament by 1.
     ///
@@ -530,7 +530,7 @@ impl Database for PgDatabase {
         Ok(players)
     }
 
-    async fn update_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error> {
+    async fn set_rounds(&self, tournament_id: &i32, rounds: &i32) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
                 UPDATE tournaments
