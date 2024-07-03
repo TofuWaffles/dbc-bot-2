@@ -48,13 +48,13 @@ where
 pub type BotData = Data<PgDatabase, BrawlStarsApi>;
 
 /// A thread-safe Error type used by the bot.
-pub type BotError = Box<dyn std::error::Error + Send + Sync>;
+pub type BotError = anyhow::Error;
 
 /// A context that gives the bot information about the action that invoked it.
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-pub type Context<'a> = poise::Context<'a, BotData, BotError>;
+pub type BotContext<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
 async fn main() {
@@ -82,7 +82,7 @@ async fn run() -> Result<(), BotError> {
         .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
     info!("Successfully loaded Brawl Stars Token");
 
-    let pg_database = PgDatabase::connect().await.unwrap();
+    let pg_database = PgDatabase::connect().await?;
     info!("Successfully connected to the database");
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
@@ -103,7 +103,7 @@ async fn run() -> Result<(), BotError> {
             commands,
             on_error: |error| {
                 Box::pin(async move {
-                    // These error variants aren't really errors and can be safely ignored
+                    let mut error_msg = "".to_string();
                     match error {
                         poise::FrameworkError::NotAnOwner { .. } => return,
                         poise::FrameworkError::GuildOnly { .. } => return,
@@ -111,6 +111,11 @@ async fn run() -> Result<(), BotError> {
                         poise::FrameworkError::NsfwOnly { .. } => return,
                         poise::FrameworkError::CommandCheckFailed { .. } => return,
                         poise::FrameworkError::UnknownCommand { .. } => return,
+                        poise::FrameworkError::Setup { ref error, .. } => error_msg = format!("{}", error),
+                        poise::FrameworkError::EventHandler { ref error, .. } => error_msg = format!("{}", error),
+                        poise::FrameworkError::Command { ref error, .. } => error_msg = format!("{}", error),
+                        poise::FrameworkError::ArgumentParse { ref error, .. } => error_msg = format!("{}", error),
+                        poise::FrameworkError::DynamicPrefix { ref error, .. } => error_msg = format!("{}", error),
                         _ => (),
                     }
                     error!("Error in command: {:?}", error);
@@ -141,19 +146,19 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    let user = match ctx.data().database.get_user_by_discord_id(&ctx.author().id.to_string()).await {
-                        Ok(user) => user,
-                        Err(e) => {
-                            error!("Error getting user for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);
-                            return;
-                        },
-                    };
+                    let user_field = &format!("<@{}>", ctx.author().id.to_string());
+                    let tournaments_field = &format!("{:#?}", player_tournaments);
+
+                    let fields = vec![
+                        ("Cause", error_msg.as_str(), false),
+                        ("User", &user_field, false),
+                        ("Tournaments", &tournaments_field, false),
+                    ];
 
                     match discord_log_error(
                         ctx,
                         &error.to_string(),
-                        user,
-                        player_tournaments,
+                        fields
                         ).await {
                         Ok(_) => (),
                         Err(e) => error!("Error sending error message to log channel: {:?}", e),

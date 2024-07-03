@@ -3,23 +3,24 @@ use std::{
     time::SystemTime,
 };
 
+use anyhow::anyhow;
 use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateMessage};
 use tracing::info;
 
 use crate::{
-    database::{models::Tournament, Database},
-    BotError, Context,
+    database::Database,
+    BotError, BotContext,
 };
 
 /// Creates an info log message in the current guild's designated log channel.
 pub async fn discord_log_info(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     title: &str,
     mut fields: Vec<(&str, &str, bool)>,
 ) -> Result<(), BotError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or("Error sending info log: Attempted to perform an info log outside of a guild")?
+        .ok_or(anyhow!("Error sending info log: Attempted to perform an info log outside of a guild"))?
         .to_string();
 
     let log_channel = ChannelId::from_str(
@@ -27,7 +28,7 @@ pub async fn discord_log_info(
             .database
             .get_config(&guild_id)
             .await?
-            .ok_or(format!(
+            .ok_or(anyhow!(
                 "Error sending info log: config not found for guild {}",
                 guild_id
             ))?
@@ -63,14 +64,13 @@ pub async fn discord_log_info(
 
 /// Creates an error log message in the current guild's designated log channel.
 pub async fn discord_log_error(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     title: &str,
-    user: Option<crate::database::models::User>,
-    tournament: Vec<Tournament>,
+    mut fields: Vec<(&str, &str, bool)>
 ) -> Result<(), BotError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or("Error sending error log: Attempted to perform an info log outside of a guild")?
+        .ok_or(anyhow!("Error sending error log: Attempted to perform an info log outside of a guild"))?
         .to_string();
 
     let log_channel = ChannelId::from_str(
@@ -78,12 +78,22 @@ pub async fn discord_log_error(
             .database
             .get_config(&guild_id)
             .await?
-            .ok_or(format!(
+            .ok_or(anyhow!(
                 "Error sending error log: config not found for guild {}",
                 guild_id
             ))?
             .log_channel_id,
     )?;
+
+    let now_string = format!(
+        "<t:{}:F>",
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    );
+
+    fields.push(("Seen at", &now_string, false));
 
     log_channel
         .send_message(
@@ -94,22 +104,7 @@ pub async fn discord_log_error(
                     CreateEmbed::new()
                         .title(format!("{}", title))
                         .description("Please check the logs for more information.")
-                        .fields(vec![
-                            ("User", &ctx.author().name, false),
-                            (
-                                "Seen at",
-                                &format!(
-                                    "<t:{}:F>",
-                                    SystemTime::now()
-                                        .duration_since(SystemTime::UNIX_EPOCH)
-                                        .unwrap_or_default()
-                                        .as_secs()
-                                ),
-                                false,
-                            ),
-                            ("Player ID", &format!("{:#?}", user), false),
-                            ("Tournament", &format!("{:#?}", tournament), false),
-                        ])
+                        .fields(fields)
                         .color(Color::RED),
                 ),
         )

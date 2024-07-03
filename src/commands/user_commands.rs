@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use anyhow::anyhow;
 use futures::Stream;
 use poise::{
     serenity_prelude::{
@@ -12,13 +13,16 @@ use prettytable::{row, Table};
 use tracing::{info, instrument};
 
 use crate::{
-    api::{ApiResult, GameApi}, commands::checks::is_config_set, database::{
+    api::{ApiResult, GameApi},
+    commands::checks::is_config_set,
+    database::{
         models::{
             PlayerNumber::{Player1, Player2},
             PlayerType, Tournament, TournamentStatus,
         },
         Database,
-    }, BotData, BotError, Context
+    },
+    BotContext, BotData, BotError,
 };
 
 use super::CommandsContainer;
@@ -42,7 +46,7 @@ const USER_CMD_TIMEOUT: u64 = 120000;
 /// All-in-one command for all your tournament needs.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_config_set")]
 #[instrument]
-async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
+async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu", ctx.author().name);
 
     ctx.defer_ephemeral().await?;
@@ -90,7 +94,7 @@ async fn menu(ctx: Context<'_>) -> Result<(), BotError> {
 /// Display the main menu to the registered user.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_menu(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     msg: ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
@@ -216,7 +220,7 @@ async fn user_display_menu(
 /// Display match information to the user.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_match(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     msg: ReplyHandle<'_>,
     tournament: Tournament,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
@@ -241,7 +245,11 @@ async fn user_display_match(
                         &bracket.match_id,
                         bracket
                             .get_player_number(&ctx.author().id.to_string())
-                            .unwrap(),
+                            .ok_or(anyhow!(
+                                "Player <@{}> is not in this match {}",
+                                ctx.author().id.to_string(),
+                                bracket.match_id
+                            ))?,
                     )
                     .await?;
                 reply = CreateReply::default().content("").embed(
@@ -271,7 +279,11 @@ async fn user_display_match(
             } else {
                 let player_number = bracket
                     .get_player_number(&ctx.author().id.to_string())
-                    .unwrap();
+                    .ok_or(anyhow!(
+                        "Player <@{}> is not in match {}",
+                        ctx.author().id.to_string(),
+                        bracket.match_id
+                    ))?;
                 let button_components = match player_number {
                     Player1 => {
                         if !bracket.player_1_ready {
@@ -307,14 +319,14 @@ async fn user_display_match(
                             ("Round", bracket.round.to_string(), true),
                             ("Player 1",
                              match bracket.player_1_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.to_owned().unwrap()),
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.to_owned().ok_or(anyhow!("Player 1 is set to type Player but has no Discord ID in match {}", bracket.match_id))?),
                                 PlayerType::Dummy => "No opponent, please proceed by clicking 'Submit'".to_string(),
                                 PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
                             },
                              false),
                             ("Player 2", 
                              match bracket.player_2_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.to_owned().unwrap()),
+                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.to_owned().ok_or(anyhow!("Player 2 is set to type Player but has not Discord ID in match {}", bracket.match_id))?),
                                 PlayerType::Dummy => "No opponent for the current match, please proceed by clicking 'Submit'".to_string(),
                                 PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
                             },
@@ -361,8 +373,14 @@ async fn user_display_match(
                     .get_player_number(&ctx.author().id.to_string())
                     .unwrap();
 
-                let player_1_id = bracket.discord_id_1.clone().unwrap();
-                let player_2_id = bracket.discord_id_2.clone().unwrap();
+                let player_1_id = bracket.discord_id_1.clone().ok_or(anyhow!(
+                    "Player 1 type is set to Player but has not Discord ID in match {}",
+                    bracket.match_id
+                ))?;
+                let player_2_id = bracket.discord_id_2.clone().ok_or(anyhow!(
+                    "Player 2 type is set to Player but has not Discord ID in match {}",
+                    bracket.match_id
+                ))?;
 
                 ctx.data()
                     .database
@@ -410,7 +428,7 @@ async fn user_display_match(
 /// tournament.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_tournaments(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     msg: ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
@@ -509,7 +527,7 @@ async fn user_display_tournaments(
 /// Register your in-game profile with the bot.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_registration(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     msg: ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
@@ -543,7 +561,7 @@ async fn user_display_registration(
                     ProfileRegistrationModal,
                 >(ctx, interaction, None, None)
                 .await?
-                .unwrap()
+                .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?
                 .player_tag
                 .to_uppercase();
 
@@ -552,7 +570,7 @@ async fn user_display_registration(
                 }
             }
             _ => {
-                return Err(format!(
+                return Err(anyhow!(
                     "Unknown interaction from player registration.\n\nUser: {}",
                     ctx.author()
                 )

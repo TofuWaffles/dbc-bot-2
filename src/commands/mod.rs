@@ -47,18 +47,19 @@ pub trait CommandsContainer {
 pub(self) mod checks {
     use std::str::FromStr;
 
+    use anyhow::anyhow;
     use poise::{
         serenity_prelude::{GuildId, RoleId},
         CreateReply,
     };
 
-    use crate::{database::Database, BotError, Context};
+    use crate::{database::Database, BotError, BotContext};
 
     /// Checks if the user has a manager role.
-    pub async fn is_manager(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
-            .ok_or("This command can only be used in a server.")?
+            .ok_or(anyhow!("This command can only be used in a server."))?
             .id
             .to_string();
 
@@ -97,10 +98,10 @@ pub(self) mod checks {
     }
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
-    pub async fn is_marshal_or_higher(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
-            .ok_or("This command can only be used in a server.")?
+            .ok_or(anyhow!("This command can only be used in a server."))?
             .id
             .to_string();
 
@@ -149,10 +150,10 @@ pub(self) mod checks {
     }
 
     /// Checks if the configuration has been set up for the guild.
-    pub async fn is_config_set(ctx: Context<'_>) -> Result<bool, BotError> {
+    pub async fn is_config_set(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild()
-            .ok_or("This command can only be used in a server.")?
+            .ok_or(anyhow!("This command can only be used in a server."))?
             .id
             .to_string();
 

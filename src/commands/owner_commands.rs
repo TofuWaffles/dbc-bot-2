@@ -1,7 +1,7 @@
 use poise::serenity_prelude as serenity;
 use tracing::{info, instrument};
 
-use crate::{database::Database, BotData, BotError, Context};
+use crate::{database::Database, BotData, BotError, BotContext};
 
 use super::CommandsContainer;
 
@@ -23,7 +23,7 @@ impl CommandsContainer for OwnerCommands {
 #[poise::command(slash_command, prefix_command, guild_only, owners_only)]
 #[instrument]
 async fn set_manager(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     #[description = "The Manager role"] role: serenity::Role,
 ) -> Result<(), BotError> {
     if ctx.guild().is_none() {
@@ -35,7 +35,7 @@ async fn set_manager(
         .await?;
     }
 
-    let guild_id = ctx.guild().unwrap().id.to_string(); // This unwrap is safe
+    let guild_id = ctx.guild_id().unwrap().to_string();
     let manager_role_id = role.id.to_string();
 
     ctx.data()

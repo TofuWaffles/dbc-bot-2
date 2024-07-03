@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use chrono::DateTime;
 use poise::{
     serenity_prelude::{CreateEmbed, User},
@@ -12,7 +13,7 @@ use crate::{
         Database,
     },
     log::discord_log_info,
-    BotData, BotError, Context,
+    BotData, BotError, BotContext,
 };
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
@@ -38,7 +39,7 @@ impl CommandsContainer for MarshalCommands {
 /// Get information about a tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotError> {
+async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournament = ctx
@@ -96,7 +97,7 @@ async fn get_tournament(ctx: Context<'_>, tournament_id: i32) -> Result<(), BotE
     rename = "list_tournaments"
 )]
 #[instrument]
-async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
+async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournaments = ctx
@@ -145,7 +146,7 @@ async fn list_active_tournaments(ctx: Context<'_>) -> Result<(), BotError> {
 /// Set the map for a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
+async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
     let tournament = match ctx
         .data()
@@ -202,7 +203,7 @@ async fn set_map(ctx: Context<'_>, tournament_id: i32, map: String) -> Result<()
 /// Get the information about a match from a match ID or user.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn get_match(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     match_id: Option<String>,
     player: Option<User>,
 ) -> Result<(), BotError> {
@@ -298,7 +299,7 @@ async fn get_match(
 
 /// Disqualify a player from a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
-async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
+async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
     let tournament = match ctx
         .data()
@@ -335,16 +336,18 @@ async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Resul
         }
     };
 
-    if player.id.to_string() == bracket.discord_id_1.unwrap() {
+    if player.id.to_string() == bracket.discord_id_1.unwrap_or_default() {
         ctx.data()
             .database
             .set_winner(&bracket.match_id, PlayerNumber::Player2)
             .await?;
-    } else {
+    } else if player.id.to_string() == bracket.discord_id_2.unwrap_or_default() {
         ctx.data()
             .database
             .set_winner(&bracket.match_id, PlayerNumber::Player1)
             .await?;
+    } else {
+        return Err(anyhow!("Player <@{}> did not match either player in match {}", player.id, bracket.match_id));
     }
 
     ctx.send(
@@ -366,9 +369,17 @@ async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Resul
             tournament.tournament_id
         ),
         vec![
-            ("Disqualified player", &format!("<@{}>", player.id.to_string()), false),
+            (
+                "Disqualified player",
+                &format!("<@{}>", player.id.to_string()),
+                false,
+            ),
             ("Match ID", &bracket.match_id, false),
-            ("Tournament ID", &tournament.tournament_id.to_string(), false),
+            (
+                "Tournament ID",
+                &tournament.tournament_id.to_string(),
+                false,
+            ),
             ("Tournament name", &tournament.name, false),
             ("Disqualified by", &ctx.author().name, false),
         ],
@@ -382,7 +393,7 @@ async fn disqualify(ctx: Context<'_>, tournament_id: i32, player: User) -> Resul
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn next_round(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     tournament_id: i32,
     map: Option<String>,
 ) -> Result<(), BotError> {
@@ -439,8 +450,8 @@ async fn next_round(
                 &bracket.sequence_in_round,
                 bracket.player_1_type,
                 bracket.player_2_type,
-                Some(&bracket.discord_id_1.unwrap()),
-                Some(&bracket.discord_id_2.unwrap()),
+                Some(&bracket.discord_id_1.ok_or(anyhow!("Newly generated match {} has no Discord ID in slot 1", bracket.match_id))?),
+                Some(&bracket.discord_id_2.ok_or(anyhow!("Newly generated match {} has no Discord ID in slot 2", bracket.match_id))?),
             )
             .await?;
     }
@@ -465,11 +476,14 @@ async fn next_round(
         ctx,
         &format!(
             "Tournament {} has advanced to round {}.",
-            tournament.name,
-            round
+            tournament.name, round
         ),
         vec![
-            ("Tournament ID", &tournament.tournament_id.to_string(), false),
+            (
+                "Tournament ID",
+                &tournament.tournament_id.to_string(),
+                false,
+            ),
             ("Tournament name", &tournament.name, false),
             ("New round", &round.to_string(), false),
             ("Number of matches", &new_brackets_count.to_string(), false),
@@ -487,21 +501,21 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
     let mut brackets_iter = brackets.into_iter();
 
     for _i in 1..=next_round_brackets.len() {
-        let old_bracket_1 = brackets_iter.next().unwrap();
-        let old_bracket_2 = brackets_iter.next().unwrap();
+        let old_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round"))?;
+        let old_bracket_2 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
 
-        let discord_id_1 = match old_bracket_1.winner.unwrap() {
+        let discord_id_1 = match old_bracket_1.winner.ok_or(anyhow!("Error advancing to the next round: Match {} has no winner!", old_bracket_1.match_id))? {
             PlayerNumber::Player1 => old_bracket_1.discord_id_1,
             PlayerNumber::Player2 => old_bracket_1.discord_id_2,
         };
-        let discord_id_2 = match old_bracket_2.winner.unwrap() {
+        let discord_id_2 = match old_bracket_2.winner.ok_or(anyhow!("Error advancing to the next round: Match {} has no winner!", old_bracket_2.match_id))? {
             PlayerNumber::Player1 => old_bracket_2.discord_id_1,
             PlayerNumber::Player2 => old_bracket_2.discord_id_2,
         };
         let new_sequence = (old_bracket_1.sequence_in_round as f32 / 2.0).ceil() as i32;
 
         if new_sequence != (old_bracket_2.sequence_in_round / 2) {
-            return Err(format!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id).into());
+            return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id));
         }
 
         let match_id = Match::generate_id(&tournament_id, &round, &new_sequence);

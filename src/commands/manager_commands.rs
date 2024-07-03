@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use poise::{serenity_prelude as serenity, CreateReply};
 use tracing::{error, info, instrument};
 
@@ -5,7 +6,7 @@ use crate::{
     commands::checks::{is_config_set, is_manager}, database::{
         models::{Match, TournamentStatus, User},
         Database,
-    }, log::discord_log_info, BotData, BotError, Context
+    }, log::discord_log_info, BotData, BotError, BotContext
 };
 
 use super::CommandsContainer;
@@ -36,7 +37,7 @@ impl CommandsContainer for ManagerCommands {
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 #[instrument]
 async fn set_config(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     marshal_role: serenity::Role,
     announcement_channel: serenity::Channel,
     notification_channel: serenity::Channel,
@@ -90,7 +91,7 @@ async fn set_config(
         .database
         .set_config(
             &ctx.guild_id()
-                .ok_or("This command must be used within a server")?
+                .ok_or(anyhow!("This command must be used within a server"))?
                 .to_string(),
             &marshal_role_id,
             &announcement_channel_id,
@@ -117,7 +118,7 @@ async fn set_config(
 /// Create a new tournament.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 #[instrument]
-async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotError> {
+async fn create_tournament(ctx: BotContext<'_>, name: String) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let new_tournament_id = ctx
@@ -165,7 +166,7 @@ async fn create_tournament(ctx: Context<'_>, name: String) -> Result<(), BotErro
 )]
 #[instrument]
 async fn start_tournament(
-    ctx: Context<'_>,
+    ctx: BotContext<'_>,
     tournament_id: i32,
     map: String,
 ) -> Result<(), BotError> {

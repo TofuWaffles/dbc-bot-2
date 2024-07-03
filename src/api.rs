@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::BotError;
+use anyhow::anyhow;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
@@ -117,7 +118,7 @@ impl GameApi for BrawlStarsApi {
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(format!(
+            _ => Err(anyhow!(
                 "Failed to get player {} from API with status code {}",
                 player_tag,
                 response.status()
@@ -143,7 +144,7 @@ impl GameApi for BrawlStarsApi {
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(format!(
+            _ => Err(anyhow!(
                 "Failed to get battle log of player {} from API with status code {}",
                 player_tag,
                 response.status()
@@ -166,7 +167,7 @@ impl GameApi for BrawlStarsApi {
         match response.status() {
             StatusCode::OK => Ok(false),
             StatusCode::SERVICE_UNAVAILABLE => Ok(true),
-            _ => Err(format!(
+            _ => Err(anyhow!(
                 "Failed to check maintenance with status code {}",
                 response.status()
             )
