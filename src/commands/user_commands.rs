@@ -14,7 +14,7 @@ use tracing::{info, instrument};
 
 use crate::{
     api::{ApiResult, GameApi},
-    commands::checks::is_config_set,
+    commands::checks::{is_config_set, is_tournament_paused},
     database::{
         models::{
             PlayerNumber::{Player1, Player2},
@@ -44,7 +44,7 @@ impl CommandsContainer for UserCommands {
 const USER_CMD_TIMEOUT: u64 = 120000;
 
 /// All-in-one command for all your tournament needs.
-#[poise::command(slash_command, prefix_command, guild_only, check = "is_config_set")]
+#[poise::command(slash_command, prefix_command, guild_only, check = "is_config_set", check = "is_tournament_paused")]
 #[instrument]
 async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu", ctx.author().name);

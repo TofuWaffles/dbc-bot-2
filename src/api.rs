@@ -97,6 +97,7 @@ pub struct BrawlStarsApi {
 impl GameApi for BrawlStarsApi {
     type Error = BotError;
 
+    /// Create a new API client.
     fn new(token: &str) -> Self {
         Self {
             token: token.to_string(),
@@ -104,6 +105,7 @@ impl GameApi for BrawlStarsApi {
         }
     }
 
+    /// Get a player's profile information from the API
     async fn get_player(&self, player_tag: &str) -> Result<ApiResult<PlayerProfile>, Self::Error> {
         let endpoint = format!("https://bsproxy.royaleapi.dev/v1/players/%23{}", player_tag);
 
@@ -127,6 +129,7 @@ impl GameApi for BrawlStarsApi {
         }
     }
 
+    /// Get the battle log of a particular player.
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error> {
         let endpoint = format!(
             "https://bsproxy.royaleapi.dev/v1/players/%23{}/battlelog",
@@ -153,6 +156,7 @@ impl GameApi for BrawlStarsApi {
         }
     }
 
+    /// Check whether or not the game is currently undergoing maintenance.
     async fn check_maintenance(&self) -> Result<bool, Self::Error> {
         // Make some arbitrary request to the server; it doesn't matter what it is
         let endpoint = "https://bsproxy.royaleapi.dev/v1/events/rotation";

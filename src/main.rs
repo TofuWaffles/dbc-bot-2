@@ -111,7 +111,12 @@ async fn run() -> Result<(), BotError> {
                         poise::FrameworkError::GuildOnly { .. } => return,
                         poise::FrameworkError::DmOnly { .. } => return,
                         poise::FrameworkError::NsfwOnly { .. } => return,
-                        poise::FrameworkError::CommandCheckFailed { .. } => return,
+                        poise::FrameworkError::CommandCheckFailed { ref error, .. } => {
+                            match error {
+                                Some(error) => error_msg = format!("{}", error),
+                                None => return,
+                            }
+                        },
                         poise::FrameworkError::UnknownCommand { .. } => return,
                         poise::FrameworkError::Setup { ref error, .. } => error_msg = format!("{}", error),
                         poise::FrameworkError::EventHandler { ref error, .. } => error_msg = format!("{}", error),

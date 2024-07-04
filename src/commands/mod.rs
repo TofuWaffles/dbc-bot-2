@@ -54,7 +54,10 @@ pub(self) mod checks {
         CreateReply,
     };
 
-    use crate::{database::Database, BotError, BotContext};
+    use crate::{
+        database::{models::TournamentStatus, Database},
+        BotContext, BotError,
+    };
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
@@ -159,6 +162,7 @@ pub(self) mod checks {
             .to_string();
 
         let config = ctx.data().database.get_config(&guild_id).await?;
+
         if config.is_some() {
             return Ok(true);
         }
@@ -171,5 +175,33 @@ pub(self) mod checks {
         .await?;
 
         Ok(false)
+    }
+
+    /// Check if the tournament that the user is in is paused.
+    ///
+    /// The check still returns true if the user is not in a tournament.
+    pub async fn is_tournament_paused(ctx: BotContext<'_>) -> Result<bool, BotError> {
+        let guild_id = ctx
+            .guild_id()
+            .ok_or(anyhow!("This command can only be used in a server."))?
+            .to_string();
+
+        let tournaments = ctx
+            .data()
+            .database
+            .get_player_active_tournaments(&guild_id, &ctx.author().id.to_string())
+            .await?;
+
+        match tournaments.get(0) {
+            Some(tournament) => {
+                if tournament.status == TournamentStatus::Paused {
+                    ctx.send(CreateReply::default().content("Your tournament is currently paused. Please come back again later.").ephemeral(true)).await?;
+                    return Ok(false);
+                }
+            }
+            None => return Ok(true),
+        }
+
+        Ok(true)
     }
 }

@@ -13,7 +13,7 @@ use crate::{
         Database,
     },
     log::discord_log_info,
-    BotData, BotError, BotContext,
+    BotContext, BotData, BotError,
 };
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
@@ -30,8 +30,12 @@ impl CommandsContainer for MarshalCommands {
             get_tournament(),
             list_active_tournaments(),
             next_round(),
+            pause_tournament(),
+            unpause_tournament(),
+            get_match(),
             set_map(),
             disqualify(),
+            next_round(),
         ]
     }
 }
@@ -297,6 +301,101 @@ async fn get_match(
     Ok(())
 }
 
+/// Manually pause a tournament and prevent any progress on it.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn pause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, &tournament_id)
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.send(CreateReply::default().content(format!("No tournament found for the given ID {}. Try again with a different tournament ID.", tournament_id)).ephemeral(true)).await?;
+            return Ok(());
+        }
+    };
+
+    if tournament.status == TournamentStatus::Paused {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "The tournament with ID {} is already paused.",
+                    tournament_id
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    ctx.data()
+        .database
+        .set_tournament_status(&tournament_id, TournamentStatus::Paused)
+        .await?;
+
+    ctx.send(CreateReply::default()
+             .content(format!("Successfully paused tournament with ID {}.\n\nNo progress can be made on the tournament until is is unpaused with the /unpause_tournament command.", tournament_id))
+             .ephemeral(true)
+        ).await?;
+
+    Ok(())
+}
+
+/// Unpause a tournament so that progress can be made on it again.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, &tournament_id)
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.send(CreateReply::default().content(format!("No tournament found for the given ID {}. Try again with a different tournament ID.", tournament_id)).ephemeral(true)).await?;
+            return Ok(());
+        }
+    };
+
+    if tournament.status != TournamentStatus::Paused {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "The tournament with ID {} is not currently paused.\n\nTournament status: {}",
+                    tournament_id, tournament.status
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    ctx.data()
+        .database
+        .set_tournament_status(&tournament_id, TournamentStatus::Started)
+        .await?;
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Successfully unpaused tournament with ID {}",
+                tournament_id
+            ))
+            .ephemeral(true),
+    )
+    .await?;
+
+    Ok(())
+}
+
 /// Disqualify a player from a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
@@ -347,7 +446,11 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
             .set_winner(&bracket.match_id, PlayerNumber::Player1)
             .await?;
     } else {
-        return Err(anyhow!("Player <@{}> did not match either player in match {}", player.id, bracket.match_id));
+        return Err(anyhow!(
+            "Player <@{}> did not match either player in match {}",
+            player.id,
+            bracket.match_id
+        ));
     }
 
     ctx.send(
@@ -450,8 +553,14 @@ async fn next_round(
                 &bracket.sequence_in_round,
                 bracket.player_1_type,
                 bracket.player_2_type,
-                Some(&bracket.discord_id_1.ok_or(anyhow!("Newly generated match {} has no Discord ID in slot 1", bracket.match_id))?),
-                Some(&bracket.discord_id_2.ok_or(anyhow!("Newly generated match {} has no Discord ID in slot 2", bracket.match_id))?),
+                Some(&bracket.discord_id_1.ok_or(anyhow!(
+                    "Newly generated match {} has no Discord ID in slot 1",
+                    bracket.match_id
+                ))?),
+                Some(&bracket.discord_id_2.ok_or(anyhow!(
+                    "Newly generated match {} has no Discord ID in slot 2",
+                    bracket.match_id
+                ))?),
             )
             .await?;
     }
@@ -495,6 +604,7 @@ async fn next_round(
     Ok(())
 }
 
+/// Generates the matches for the next round.
 fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, BotError> {
     let mut next_round_brackets = Vec::with_capacity(brackets.len() / 2);
     let tournament_id = brackets[0].tournament_id.to_owned();
@@ -504,11 +614,17 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
         let old_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round"))?;
         let old_bracket_2 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
 
-        let discord_id_1 = match old_bracket_1.winner.ok_or(anyhow!("Error advancing to the next round: Match {} has no winner!", old_bracket_1.match_id))? {
+        let discord_id_1 = match old_bracket_1.winner.ok_or(anyhow!(
+            "Error advancing to the next round: Match {} has no winner!",
+            old_bracket_1.match_id
+        ))? {
             PlayerNumber::Player1 => old_bracket_1.discord_id_1,
             PlayerNumber::Player2 => old_bracket_1.discord_id_2,
         };
-        let discord_id_2 = match old_bracket_2.winner.ok_or(anyhow!("Error advancing to the next round: Match {} has no winner!", old_bracket_2.match_id))? {
+        let discord_id_2 = match old_bracket_2.winner.ok_or(anyhow!(
+            "Error advancing to the next round: Match {} has no winner!",
+            old_bracket_2.match_id
+        ))? {
             PlayerNumber::Player1 => old_bracket_2.discord_id_1,
             PlayerNumber::Player2 => old_bracket_2.discord_id_2,
         };

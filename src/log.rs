@@ -1,16 +1,10 @@
-use std::{
-    str::FromStr,
-    time::SystemTime,
-};
+use std::{str::FromStr, time::SystemTime};
 
 use anyhow::anyhow;
 use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateMessage};
 use tracing::info;
 
-use crate::{
-    database::Database,
-    BotError, BotContext,
-};
+use crate::{database::Database, BotContext, BotError};
 
 /// Creates an info log message in the current guild's designated log channel.
 pub async fn discord_log_info(
@@ -20,7 +14,9 @@ pub async fn discord_log_info(
 ) -> Result<(), BotError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or(anyhow!("Error sending info log: Attempted to perform an info log outside of a guild"))?
+        .ok_or(anyhow!(
+            "Error sending info log: Attempted to perform an info log outside of a guild"
+        ))?
         .to_string();
 
     let log_channel = ChannelId::from_str(
@@ -66,11 +62,13 @@ pub async fn discord_log_info(
 pub async fn discord_log_error(
     ctx: BotContext<'_>,
     title: &str,
-    mut fields: Vec<(&str, &str, bool)>
+    mut fields: Vec<(&str, &str, bool)>,
 ) -> Result<(), BotError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or(anyhow!("Error sending error log: Attempted to perform an info log outside of a guild"))?
+        .ok_or(anyhow!(
+            "Error sending error log: Attempted to perform an info log outside of a guild"
+        ))?
         .to_string();
 
     let log_channel = ChannelId::from_str(

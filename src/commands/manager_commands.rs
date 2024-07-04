@@ -3,10 +3,13 @@ use poise::{serenity_prelude as serenity, CreateReply};
 use tracing::{error, info, instrument};
 
 use crate::{
-    commands::checks::{is_config_set, is_manager}, database::{
+    commands::checks::{is_config_set, is_manager},
+    database::{
         models::{Match, TournamentStatus, User},
         Database,
-    }, log::discord_log_info, BotData, BotError, BotContext
+    },
+    log::discord_log_info,
+    BotContext, BotData, BotError,
 };
 
 use super::CommandsContainer;
@@ -313,6 +316,7 @@ pub(self) async fn generate_matches_new_tournament(
     Ok(matches)
 }
 
+/// Test for the match generation for new tournaments.
 #[cfg(test)]
 mod tests {
     use super::generate_matches_new_tournament;
