@@ -239,6 +239,8 @@ async fn user_display_match(
             if bracket.player_1_type == PlayerType::Dummy
                 || bracket.player_2_type == PlayerType::Dummy
             {
+                // Automatically advance the player to the next round if the opponent is a dummy
+                // (a bye round)
                 ctx.data()
                     .database
                     .set_winner(
@@ -266,6 +268,7 @@ async fn user_display_match(
             } else if bracket.player_1_type == PlayerType::Pending
                 || bracket.player_2_type == PlayerType::Pending
             {
+                // Pending is not currently in use, but we check for it anyway
                 reply = CreateReply::default().content("").embed(
                     CreateEmbed::new()
                         .title("Match Information.")
@@ -284,6 +287,7 @@ async fn user_display_match(
                         ctx.author().id.to_string(),
                         bracket.match_id
                     ))?;
+                // We don't want to show the player the ready button if they're already ready
                 let button_components = match player_number {
                     Player1 => {
                         if !bracket.player_1_ready {
@@ -524,7 +528,7 @@ async fn user_display_tournaments(
     Ok(())
 }
 
-/// Register your in-game profile with the bot.
+/// Registers the user's in-game profile with the bot.
 #[instrument(skip(msg, interaction_collector))]
 async fn user_display_registration(
     ctx: BotContext<'_>,

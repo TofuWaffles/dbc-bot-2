@@ -39,6 +39,7 @@ pub mod user_commands;
 pub trait CommandsContainer {
     type Data;
     type Error;
+
     /// Retrive all the commands from a module, such as manager commands or marshal commands.
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>>;
 }
@@ -70,7 +71,7 @@ pub(self) mod checks {
             None => {
                 ctx.send(
                     CreateReply::default()
-                        .content("The manager role has not been set up for this server. Please a bot owner to set it up.")
+                        .content("The manager role has not been set up for this server. Please ask the bot owner to set it up.")
                         .ephemeral(true),
                 ).await?;
                 return Ok(false);

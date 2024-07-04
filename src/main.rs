@@ -23,6 +23,7 @@ mod api;
 mod commands;
 /// Traits and types used for interacting with the database.
 mod database;
+/// Contains functions for logging.
 mod log;
 
 /// Stores data used by the bot.
@@ -39,6 +40,7 @@ where
     DB: Database,
     P: GameApi,
 {
+    /// Create a new data struct with a given Database and Game API.
     fn new(database: DB, game_api: P) -> Self {
         Self { database, game_api }
     }
@@ -103,7 +105,7 @@ async fn run() -> Result<(), BotError> {
             commands,
             on_error: |error| {
                 Box::pin(async move {
-                    let mut error_msg = "".to_string();
+                    let error_msg;
                     match error {
                         poise::FrameworkError::NotAnOwner { .. } => return,
                         poise::FrameworkError::GuildOnly { .. } => return,
@@ -116,7 +118,7 @@ async fn run() -> Result<(), BotError> {
                         poise::FrameworkError::Command { ref error, .. } => error_msg = format!("{}", error),
                         poise::FrameworkError::ArgumentParse { ref error, .. } => error_msg = format!("{}", error),
                         poise::FrameworkError::DynamicPrefix { ref error, .. } => error_msg = format!("{}", error),
-                        _ => (),
+                        _ => error_msg = "No cause available for this error type.".to_string(),
                     }
                     error!("Error in command: {:?}", error);
                     let ctx = match error.ctx() {
