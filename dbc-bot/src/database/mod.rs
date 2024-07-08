@@ -1,6 +1,6 @@
-use sqlx::PgPool;
-
+use crate::info;
 use crate::BotError;
+use sqlx::PgPool;
 
 use self::models::{
     GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, Tournament, TournamentStatus,
@@ -199,6 +199,7 @@ impl Database for PgDatabase {
         let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
 
         let pool = PgPool::connect(db_url.as_str()).await?;
+        info!("Successfully connected to the database.");
 
         Ok(PgDatabase { pool })
     }

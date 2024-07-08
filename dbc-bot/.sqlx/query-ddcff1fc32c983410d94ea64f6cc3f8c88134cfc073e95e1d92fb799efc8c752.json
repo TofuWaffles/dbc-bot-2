@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    UPDATE matches\n                    SET player_1_ready = true\n                    WHERE match_id = $1\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ddcff1fc32c983410d94ea64f6cc3f8c88134cfc073e95e1d92fb799efc8c752"
+}

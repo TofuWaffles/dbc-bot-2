@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as \"status: _\", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map\n            FROM tournaments\n            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id\n            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "tournament_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "started",
+                "paused",
+                "inactive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "rounds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_time",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "map",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2cbf526aa6b17a3228c99f30afb4796cebdbc421816362fd3d54d70d3677f6e8"
+}

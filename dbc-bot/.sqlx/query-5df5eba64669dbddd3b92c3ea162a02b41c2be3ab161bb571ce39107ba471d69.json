@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO users (discord_id, player_tag)\n            VALUES ($1, $2)\n            ON CONFLICT (discord_id)\n            DO UPDATE SET\n                player_tag = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5df5eba64669dbddd3b92c3ea162a02b41c2be3ab161bb571ce39107ba471d69"
+}

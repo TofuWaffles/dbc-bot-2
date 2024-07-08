@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM config WHERE guild_id = $1\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "marshal_role_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "announcement_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "notification_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "log_channel_id",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "73928c1d22326362c73c3337ff391bcbd58683ea3be994ef2154880134bfa477"
+}

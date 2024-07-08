@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM users WHERE player_tag = $1\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "player_tag",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "ab86d120b9cf2fda428243c893549033930475c062b240be57b6940668da5ba8"
+}

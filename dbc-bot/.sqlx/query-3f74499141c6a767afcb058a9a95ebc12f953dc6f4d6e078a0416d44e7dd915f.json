@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT * FROM manager_roles WHERE guild_id = $1\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "manager_role_id",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3f74499141c6a767afcb058a9a95ebc12f953dc6f4d6e078a0416d44e7dd915f"
+}

@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map\n            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "tournament_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "started",
+                "paused",
+                "inactive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "rounds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_time",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "map",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b48094247d1a277a84b09d989fe0d89097559b618146ca13e669a9a198edc974"
+}
