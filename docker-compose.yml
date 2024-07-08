@@ -1,6 +1,7 @@
 networks:
   postgresql:
     driver: bridge
+<<<<<<< HEAD
 
 volumes:
   pgdata:
@@ -36,13 +37,54 @@ services:
       SQLX_OFFLINE: ${SQLX_OFFLINE}
     networks:
       - postgresql
+=======
+volumes:
+  postgres_data:
+    
+services:
+  dbc-bot:
+    container_name: dbc-bot
+>>>>>>> 13e12cb8a1287ca08dc720ebb30faa45226a7c11
     volumes:
       - /etc/ssl/certs/:/etc/ssl/certs:ro
     build:
       context: ./dbc-bot
       dockerfile: Dockerfile
+<<<<<<< HEAD
     restart: always
     depends_on:
       - postgres
     
   
+=======
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      BRAWL_STARS_TOKEN: ${BRAWL_STARS_TOKEN}
+    restart: always
+    networks:
+      - postgresql
+    
+  postgresql:  
+    container_name: postgresql
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./dbc-bot/migrations/entrypoint.sh:/entrypoint.sh
+      - ./dbc-bot/migrations:/docker-entrypoint-initdb.d
+    restart: always
+    entrypoint: ["/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    networks:
+      - postgresql
+>>>>>>> 13e12cb8a1287ca08dc720ebb30faa45226a7c11
