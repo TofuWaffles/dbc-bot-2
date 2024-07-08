@@ -32,6 +32,7 @@ mod log;
 #[derive(Debug)]
 pub struct Data<DB, P> {
     database: DB,
+    cache: Cache,
     game_api: P,
 }
 
@@ -42,9 +43,15 @@ where
 {
     /// Create a new data struct with a given Database and Game API.
     fn new(database: DB, game_api: P) -> Self {
-        Self { database, game_api }
+        Self {
+            database,
+            game_api,
+            cache,
+        }
     }
 }
+
+pub struct Cache {}
 
 /// Convenience type for the bot's data with generics filled in.
 pub type BotData = Data<PgDatabase, BrawlStarsApi>;
@@ -80,12 +87,12 @@ async fn run() -> Result<(), BotError> {
     let discord_token =
         std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
     info!("Successfully loaded Discord Token");
-    let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
-        .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
-    info!("Successfully loaded Brawl Stars Token");
 
     let pg_database = PgDatabase::connect().await?;
     info!("Successfully connected to the database");
+    let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
+        .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
+    info!("Successfully loaded Brawl Stars Token");
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
     let commands = vec![
