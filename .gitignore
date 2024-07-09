@@ -1,10 +1,5 @@
-<<<<<<< HEAD
+
 /dbc-bot/target
 .env
 /dbc-bot/*.excalidraw
 .idea
-=======
-.env
-/dbc-bot/target
-/dbc-bot/*.excalidraw
->>>>>>> 13e12cb8a1287ca08dc720ebb30faa45226a7c11
