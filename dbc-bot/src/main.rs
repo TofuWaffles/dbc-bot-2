@@ -26,6 +26,7 @@ mod database;
 /// Contains functions for logging.
 mod log;
 
+mod utils;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.

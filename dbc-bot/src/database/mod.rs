@@ -1,5 +1,11 @@
 use crate::info;
 use crate::BotError;
+use models::Battle;
+use models::BattleClass;
+use models::Event;
+use models::Mode;
+use models::BattleResult;
+use models::BattleType;
 use sqlx::PgPool;
 
 use self::models::{
@@ -27,6 +33,8 @@ pub trait Database {
     async fn connect() -> Result<Self, Self::Error>
     where
         Self: Sized;
+
+    async fn migrate(&self) -> Result<(), Self::Error>;
 
     /// Sets the manager role for a guild.
     async fn set_manager_role(
@@ -147,6 +155,14 @@ pub trait Database {
         discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error>;
 
+    async fn add_records(&self, match_id: &str, records: Vec<i64>) -> Result<(), Self::Error>;
+
+    async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error>;
+
+    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<(), Self::Error>;
+
+    async fn add_event(&self, event: Event) -> Result<(), Self::Error>;
+
     /// Sets the ready status of a player of a specified match to true.
     async fn set_ready(
         &self,
@@ -181,6 +197,8 @@ pub trait Database {
         tournament_id: &i32,
         round: Option<&i32>,
     ) -> Result<Vec<Match>, Self::Error>;
+
+    // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error>;
 }
 
 /// The Postgres database used for the DBC tournament system.
@@ -196,12 +214,21 @@ impl Database for PgDatabase {
         #[cfg(debug_assertions)]
         dotenv::dotenv().ok();
 
-        let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL was not set.");
-
+        let db_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => {
+                return Err(BotError::msg("DATABASE_URL environment variable not found"));
+            }
+        };
         let pool = PgPool::connect(db_url.as_str()).await?;
         info!("Successfully connected to the database.");
 
         Ok(PgDatabase { pool })
+    }
+
+    async fn migrate(&self) -> Result<(), Self::Error> {
+        sqlx::migrate!("./migrations").run(&self.pool).await?;
+        Ok(())
     }
 
     async fn set_manager_role(
@@ -739,7 +766,83 @@ impl Database for PgDatabase {
         )
         .execute(&self.pool)
         .await?;
-
         Ok(())
     }
+    async fn add_records(&self, match_id: &str, battle_id: Vec<i64>) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+                INSERT INTO battle_records (match_id, battle_id)
+                VALUES ($1, $2)
+                "#,
+            match_id,
+            &serde_json::json!(battle_id)
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+    
+    async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO battles (battle_time, event_id, battle_class_id)
+            VALUES ($1, $2, $3)
+            "#,
+            battle.battle_time,
+            battle.event.id,
+            battle.battle.id,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO battle_classes (mode, battle_type, result, duration, trophy_change, teams)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
+            battle_class.mode as Mode,
+            battle_class.battle_type as BattleType,
+            battle_class.result as BattleResult,
+            battle_class.duration,
+            battle_class.trophy_change.unwrap_or(0),
+            serde_json::to_value(battle_class.teams)?, // Convert teams to JSONB
+        )
+        .execute(&self.pool)
+        .await?;
+    Ok(())
+    
+    }
+
+    async fn add_event(&self, event: Event) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO events (mode, map)
+            VALUES ($1, $2)
+            "#,
+            event.mode as Mode,
+            event.map,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+    // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error> {
+    //     let record = sqlx::query_as!(
+    //         BattleRecord,
+    //         r#"
+    //         SELECT match_id, battle_log
+    //         FROM battle_records
+    //         WHERE match_id = $1
+    //         LIMIT 1
+    //         "#,
+    //         match_id
+    //     )
+    //     .fetch_optional(&self.pool)
+    //     .await?;
+
+    //     Ok(record)
+    // }
 }
