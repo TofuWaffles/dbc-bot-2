@@ -46,11 +46,11 @@ where
         Self {
             database,
             game_api,
-            cache,
+            cache: Cache {},
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Cache {}
 
 /// Convenience type for the bot's data with generics filled in.
