@@ -6,6 +6,7 @@ use models::Event;
 use models::Mode;
 use models::BattleResult;
 use models::BattleType;
+use serde_json::json;
 use sqlx::PgPool;
 
 use self::models::{
@@ -808,7 +809,7 @@ impl Database for PgDatabase {
             battle_class.result as BattleResult,
             battle_class.duration,
             battle_class.trophy_change.unwrap_or(0),
-            serde_json::to_value(battle_class.teams)?, // Convert teams to JSONB
+            json!(battle_class.teams.as_slice()), // Convert teams to JSONB
         )
         .execute(&self.pool)
         .await?;
