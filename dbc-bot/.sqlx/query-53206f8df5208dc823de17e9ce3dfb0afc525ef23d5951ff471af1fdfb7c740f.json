@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO manager_roles (guild_id, manager_role_id)\n            VALUES ($1, $2)\n            ON CONFLICT (guild_id)\n            DO UPDATE SET\n                manager_role_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53206f8df5208dc823de17e9ce3dfb0afc525ef23d5951ff471af1fdfb7c740f"
+}

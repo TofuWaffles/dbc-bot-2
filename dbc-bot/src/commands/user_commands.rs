@@ -44,7 +44,13 @@ impl CommandsContainer for UserCommands {
 const USER_CMD_TIMEOUT: u64 = 120000;
 
 /// All-in-one command for all your tournament needs.
-#[poise::command(slash_command, prefix_command, guild_only, check = "is_config_set", check = "is_tournament_paused")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_config_set",
+    check = "is_tournament_paused"
+)]
 #[instrument]
 async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu", ctx.author().name);

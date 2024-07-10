@@ -1,5 +1,4 @@
 use std::fmt::Display;
-
 use serde::{Deserialize, Serialize};
 
 /// The manager role configuration for a guild within the database.
@@ -165,5 +164,95 @@ pub struct MatchSchedule {
     proposed_time: i32,
     time_of_proposal: chrono::DateTime<chrono::Utc>,
     proposer: Option<i32>,
-    accepted: bool,
+    accepted:
+    bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct BattleRecord{
+    pub match_id: String,
+    pub battles: Vec<Battle>
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Battle {
+    pub battle_time: i64,
+    pub event: Event,
+    pub battle: BattleClass,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BattleClass {
+    pub id: i64,
+    pub mode: Mode,
+    #[serde(rename = "type")]
+    pub battle_type: BattleType,
+    pub result: BattleResult,
+    pub duration: i64,
+    pub trophy_change: Option<i64>,
+    pub teams: Vec<Vec<Player>>,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub struct Player {
+    pub tag: String,
+    pub name: String,
+    pub brawler: Brawler,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub struct Brawler {
+    pub id: i64,
+    pub name: String,
+    pub power: i64,
+    pub trophies: i64,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub struct Event {
+    pub id: i64,
+    pub mode: Mode,
+    pub map: Option<String>,
+}
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[sqlx(type_name = "mode", rename_all = "snake_case")]
+pub enum Mode{
+    BrawlBall,
+    GemGrab,
+    Heist,
+    Bounty,
+    Siege,
+    SoloShowdown,
+    DuoShowdown,
+    HotZone,
+    Knockout,
+    Takedown,
+    LoneStar,
+    BigGame,
+    RoboRumble,
+    BossFight,
+    WipeOut,
+    Duels,
+    PaintBrawl,
+    BrawlBall5v5,
+    GemGrab5v5,
+    Bounty5v5,
+    KnockOut5v5
+}
+
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[sqlx(type_name = "type", rename_all = "snake_case")]
+pub enum BattleType{
+    Ranked,
+    Friendly,
+}
+
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[sqlx(type_name = "result", rename_all = "snake_case")]
+pub enum BattleResult{
+    Victory,
+    Defeat,
+    Draw
 }

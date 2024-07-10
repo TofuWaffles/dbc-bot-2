@@ -1,44 +1,48 @@
 networks:
   postgresql:
     driver: bridge
+
 volumes:
-  postgres_data:
-    
+  pgdata:
+
 services:
+  postgres:  
+      container_name: postgresql
+      image: postgres:16-alpine
+      environment:
+        POSTGRES_USER: ${POSTGRES_USER}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+        POSTGRES_DB: ${POSTGRES_DB}
+      ports:
+        - "5432:5432"
+      volumes:
+        - pgdata:/var/lib/postgresql/data
+        - ./dbc-bot/migrations:/docker-entrypoint-initdb.d
+      restart: always
+      networks:
+        - postgresql
+      healthcheck:
+        test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+
   dbc-bot:
     container_name: dbc-bot
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      BRAWL_STARS_TOKEN: ${BRAWL_STARS_TOKEN}
+      SQLX_OFFLINE: ${SQLX_OFFLINE}
+    networks:
+      - postgresql
     volumes:
       - /etc/ssl/certs/:/etc/ssl/certs:ro
     build:
       context: ./dbc-bot
       dockerfile: Dockerfile
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgresql:5432/${POSTGRES_DB}
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
-      BRAWL_STARS_TOKEN: ${BRAWL_STARS_TOKEN}
     restart: always
-    networks:
-      - postgresql
+    depends_on:
+      - postgres
     
-  postgresql:  
-    container_name: postgresql
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./dbc-bot/migrations/entrypoint.sh:/entrypoint.sh
-      - ./dbc-bot/migrations:/docker-entrypoint-initdb.d
-    restart: always
-    entrypoint: ["/entrypoint.sh"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 30s
-      timeout: 30s
-      retries: 3
-    networks:
-      - postgresql
+  

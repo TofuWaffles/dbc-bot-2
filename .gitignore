@@ -1,3 +1,5 @@
-.env
+
 /dbc-bot/target
+.env
 /dbc-bot/*.excalidraw
+.idea

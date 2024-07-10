@@ -35,7 +35,6 @@ impl CommandsContainer for MarshalCommands {
             get_match(),
             set_map(),
             disqualify(),
-            next_round(),
         ]
     }
 }

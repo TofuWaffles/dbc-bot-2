@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO tournament_players (tournament_id, discord_id)\n            VALUES ($1, $2)\n            ON CONFLICT (tournament_id, discord_id)\n            DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe3748401a84f76ca76427bccb412c8a0ad3eeb578e66e2545cca509fc3c05bf"
+}

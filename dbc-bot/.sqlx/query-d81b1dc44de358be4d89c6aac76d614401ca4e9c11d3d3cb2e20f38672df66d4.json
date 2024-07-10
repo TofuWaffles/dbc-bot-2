@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tournaments\n            SET map = $1\n            WHERE tournament_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d81b1dc44de358be4d89c6aac76d614401ca4e9c11d3d3cb2e20f38672df66d4"
+}

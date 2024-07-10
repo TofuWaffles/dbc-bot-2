@@ -26,6 +26,7 @@ mod database;
 /// Contains functions for logging.
 mod log;
 
+mod utils;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
@@ -46,11 +47,12 @@ where
         Self {
             database,
             game_api,
-            cache,
+            cache: Cache {},
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Cache {}
 
 /// Convenience type for the bot's data with generics filled in.
