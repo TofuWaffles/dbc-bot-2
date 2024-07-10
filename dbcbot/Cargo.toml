@@ -1,5 +1,5 @@
 [package]
-name = "dbc-bot-2"
+name = "dbcbot"
 version = "0.1.0"
 edition = "2021"
 

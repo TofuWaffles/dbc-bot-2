@@ -170,6 +170,7 @@ pub struct MatchSchedule {
 
 #[derive(Serialize, Deserialize)]
 pub struct BattleRecord{
+    pub record_id: i64,
     pub match_id: String,
     pub battles: Vec<Battle>
 }
@@ -177,45 +178,33 @@ pub struct BattleRecord{
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
+    pub id: i64,
+    pub record_id: i64,
     pub battle_time: i64,
-    pub event: Event,
-    pub battle: BattleClass,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleClass {
     pub id: i64,
+    pub battle_id: i64,
     pub mode: Mode,
-    #[serde(rename = "type")]
     pub battle_type: BattleType,
     pub result: BattleResult,
     pub duration: i64,
     pub trophy_change: Option<i64>,
-    pub teams: Vec<Vec<Player>>,
+    pub teams: serde_json::Value, // Assuming teams is stored as JSONB
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
-pub struct Player {
-    pub tag: String,
-    pub name: String,
-    pub brawler: Brawler,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
-pub struct Brawler {
-    pub id: i64,
-    pub name: String,
-    pub power: i64,
-    pub trophies: i64,
-}
-
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, sqlx::FromRow)]
 pub struct Event {
     pub id: i64,
     pub mode: Mode,
-    pub map: Option<String>,
+    pub map: Option<String>, // Optional because map can be NULL in the database
+    pub battle_id: i64,
 }
+
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
 #[sqlx(type_name = "mode", rename_all = "snake_case")]
 pub enum Mode{

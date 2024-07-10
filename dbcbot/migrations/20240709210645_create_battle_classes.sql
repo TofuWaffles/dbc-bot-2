@@ -14,10 +14,12 @@ CREATE TYPE result AS ENUM (
 );
 CREATE TABLE IF NOT EXISTS battle_classes (
     id BIGSERIAL PRIMARY KEY,
+    battle_id BIGINT NOT NULL,
     mode mode NOT NULL,
     battle_type battle_type NOT NULL,
     result result NOT NULL,
     duration BIGINT NOT NULL,
     trophy_change BIGINT,
-    teams JSONB NOT NULL
+    teams JSONB NOT NULL,
+    FOREIGN KEY (battle_id) REFERENCES battles(id)
 );
