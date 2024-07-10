@@ -19,3 +19,6 @@ tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread", "time"] }
 sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "chrono", "macros"]}
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+urlencoding = "2.1.3"
+strum_macros = "0.26.4"
+strum = {version = "0.26.3", features = ["derive"]}

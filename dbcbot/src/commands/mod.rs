@@ -2,6 +2,7 @@ pub mod manager_commands;
 pub mod marshal_commands;
 pub mod owner_commands;
 pub mod user_commands;
+pub mod test;
 
 /// A way to group commands together while side-stepping the need to use global variables.
 ///

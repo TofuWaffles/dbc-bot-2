@@ -6,7 +6,6 @@ use models::BattleResult;
 use models::BattleType;
 use models::Event;
 use models::Mode;
-use serde_json::json;
 use sqlx::PgPool;
 
 use self::models::{
@@ -156,13 +155,13 @@ pub trait Database {
         discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error>;
 
-    async fn add_records(&self, match_id: &str) -> Result<(), Self::Error>;
+    async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error>;
 
-    async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error>;
+    async fn add_battle(&self, battle: Battle) -> Result<i64, Self::Error>;
 
-    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<(), Self::Error>;
+    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<i64, Self::Error>;
 
-    async fn add_event(&self, event: Event) -> Result<(), Self::Error>;
+    async fn add_event(&self, event: Event) -> Result<i64, Self::Error>;
 
     /// Sets the ready status of a player of a specified match to true.
     async fn set_ready(
@@ -769,38 +768,41 @@ impl Database for PgDatabase {
         .await?;
         Ok(())
     }
-    async fn add_records(&self, match_id: &str) -> Result<(), Self::Error> {
-        sqlx::query!(
+    async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error> {
+        let query = sqlx::query!(
             r#"
                 INSERT INTO battle_records (match_id)
                 VALUES ($1)
+                RETURNING record_id
                 "#,
             match_id,
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(query.record_id)
     }
 
-    async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error> {
-        sqlx::query!(
+    async fn add_battle(&self, battle: Battle) -> Result<i64, Self::Error> {
+        let query = sqlx::query!(
             r#"
             INSERT INTO battles (record_id, battle_time)
             VALUES ($1, $2)
+            RETURNING id
             "#,
             battle.record_id,
             battle.battle_time,
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(query.id)
     }
 
-    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<(), Self::Error> {
-        sqlx::query!(
+    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<i64, Self::Error> {
+        let query = sqlx::query!(
             r#"
             INSERT INTO battle_classes (battle_id, mode, battle_type, result, duration, trophy_change, teams)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id
             "#,
             battle_class.battle_id,
             battle_class.mode as Mode,
@@ -810,23 +812,24 @@ impl Database for PgDatabase {
             battle_class.trophy_change.unwrap_or(0),
             battle_class.teams, // teams as JSONB
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(query.id)   
     }
 
-    async fn add_event(&self, event: Event) -> Result<(), Self::Error> {
-        sqlx::query!(
+    async fn add_event(&self, event: Event) -> Result<i64, Self::Error> {
+        let query = sqlx::query!(
             r#"
             INSERT INTO events (mode, map)
             VALUES ($1, $2)
+            RETURNING id
             "#,
             event.mode as Mode,
             event.map,
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(query.id)
     }
     // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error> {
     //     let record = sqlx::query_as!(

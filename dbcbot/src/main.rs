@@ -8,8 +8,7 @@ use database::{Database, PgDatabase};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
-    manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
-    owner_commands::OwnerCommands, user_commands::UserCommands, CommandsContainer,
+    manager_commands::ManagerCommands, marshal_commands::MarshalCommands, owner_commands::OwnerCommands, test::battle_log, user_commands::UserCommands, CommandsContainer
 };
 
 use crate::log::discord_log_error;
@@ -30,7 +29,7 @@ mod utils;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Data<DB, P> {
     database: DB,
     cache: Cache,
@@ -52,7 +51,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cache {}
 
 /// Convenience type for the bot's data with generics filled in.
@@ -76,6 +75,7 @@ async fn main() {
     if let Err(e) = run().await {
         panic!("Error trying to run the bot: {}", e);
     }
+    
 }
 
 /// The main function that runs the bot.
@@ -97,7 +97,7 @@ async fn run() -> Result<(), BotError> {
     info!("Successfully loaded Brawl Stars Token");
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
-    let commands = vec![
+    let mut commands: Vec<_> = vec![
         OwnerCommands::get_all(),
         ManagerCommands::get_all(),
         MarshalCommands::get_all(),
@@ -106,6 +106,8 @@ async fn run() -> Result<(), BotError> {
     .into_iter()
     .flatten()
     .collect();
+    commands.push(battle_log::battle_log());
+    commands.iter().for_each(|c| println!("Command: {}", c.name));
 
     let intents = serenity::GatewayIntents::non_privileged();
 
@@ -171,14 +173,12 @@ async fn run() -> Result<(), BotError> {
                         ("Tournaments", &tournaments_field, false),
                     ];
 
-                    match discord_log_error(
+                    discord_log_error(
                         ctx,
                         &error.to_string(),
                         fields
-                        ).await {
-                        Ok(_) => (),
-                        Err(e) => error!("Error sending error message to log channel: {:?}", e),
-                    };
+                        ).await.unwrap_or_else(|e|error!("Error sending error message to log channel: {:?}", e));
+                    
                 })
             },
             ..Default::default()

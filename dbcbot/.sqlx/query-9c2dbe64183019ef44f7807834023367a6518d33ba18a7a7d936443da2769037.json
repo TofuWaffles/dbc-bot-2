@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO battle_classes (battle_id, mode, battle_type, result, duration, trophy_change, teams)\n            VALUES ($1, $2, $3, $4, $5, $6, $7)\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "battle_type",
+            "kind": {
+              "Enum": [
+                "friendly",
+                "ranked"
+              ]
+            }
+          }
+        },
+        {
+          "Custom": {
+            "name": "result",
+            "kind": {
+              "Enum": [
+                "victory",
+                "defeat",
+                "draw"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9c2dbe64183019ef44f7807834023367a6518d33ba18a7a7d936443da2769037"
+}

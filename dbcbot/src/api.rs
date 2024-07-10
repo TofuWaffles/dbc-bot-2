@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-
-use crate::BotError;
+use tracing::info;
+use urlencoding::encode;
+use crate::{database::{self, models::{BattleResult, Mode}}, utils::time::BDateTime, BotError};
 use anyhow::anyhow;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -33,6 +34,10 @@ pub enum ApiResult<M> {
     Maintenance,
 }
 
+pub trait Convert<T>{
+    fn convert(&self) -> T;
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
@@ -63,19 +68,66 @@ pub struct BattleLog {
     pub items: Vec<BattleLogItem>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BattleLogItem {
-    pub battle: Battle,
+impl Convert<database::models::BattleRecord> for BattleLog {
+    fn convert(&self) -> database::models::BattleRecord{
+        database::models::BattleRecord{
+            record_id: 0,
+            match_id: "".to_string(),
+            battles: self.items.iter().map(|item| item.convert()).collect()
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BattleLogItem {
+    pub battle_time: String,
+    pub event: database::models::Event,
+    pub battle: Battle,
+}
+
+impl Convert<database::models::Battle> for BattleLogItem {
+    fn convert(&self) -> database::models::Battle{
+        database::models::Battle{
+            id: 0,
+            record_id: 0,
+            battle_time: BDateTime::from_str(&self.battle_time).map_or_else(|_| 0, |f| f.datetime),
+            battle_class: self.battle.convert(),
+            event: self.event.clone()
+        }
+    }
+}
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Battle {
-    pub mode: String,
-    pub result: String,
-    pub duration: u32,
+    pub mode: Mode,
+    #[serde(rename="type")]
+    pub battle_type: String,
+    #[serde(default)]
+    pub rank: i64,
+    #[serde(default)]
+    pub result: BattleResult,
+    pub trophy_change: Option<i64>,
+    pub duration: Option<u32>,
+    #[serde(default)]
     pub teams: Vec<Vec<TeamPlayer>>,
+    #[serde(default)]
+    pub players: Vec<TeamPlayer>,
+}
+
+impl Convert<database::models::BattleClass> for Battle{
+    fn convert(&self) -> database::models::BattleClass{
+        database::models::BattleClass{
+            id: 0,
+            battle_id: 0,
+            trophy_change: self.trophy_change,
+            mode: self.mode,
+            battle_type: serde_json::from_str(&self.battle_type).unwrap_or(database::models::BattleType::unknown),
+            result: self.result,
+            duration: self.duration.unwrap_or(0) as i64,
+            teams: serde_json::to_value(&self.teams).unwrap_or(serde_json::Value::Null)
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -83,8 +135,16 @@ pub struct Battle {
 pub struct TeamPlayer {
     pub tag: String,
     pub name: String,
+    pub brawler: Brawler
 }
-
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Brawler{
+    pub id: i64,
+    pub name: String,
+    pub power: i64,
+    pub trophies: i64,
+}
 /// The Brawl Stars API.
 #[derive(Debug)]
 pub struct BrawlStarsApi {
@@ -107,8 +167,7 @@ impl GameApi for BrawlStarsApi {
 
     /// Get a player's profile information from the API
     async fn get_player(&self, player_tag: &str) -> Result<ApiResult<PlayerProfile>, Self::Error> {
-        let endpoint = format!("https://bsproxy.royaleapi.dev/v1/players/%23{}", player_tag);
-
+        let endpoint = encode(&format!("https://bsproxy.royaleapi.dev/v1/players/{}", player_tag)).into_owned();
         let response = self
             .client
             .get(&endpoint)
@@ -117,7 +176,7 @@ impl GameApi for BrawlStarsApi {
             .await?;
 
         match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
+            StatusCode::OK => Ok(ApiResult::Ok(response.json::<PlayerProfile>().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(anyhow!(
@@ -131,20 +190,21 @@ impl GameApi for BrawlStarsApi {
 
     /// Get the battle log of a particular player.
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error> {
-        let endpoint = format!(
-            "https://bsproxy.royaleapi.dev/v1/players/%23{}/battlelog",
-            player_tag
-        );
+        // let endpoint = encode(&format!(
+        //     "https://bsproxy.royaleapi.dev/v1/players/{}/battlelog",
+        //     player_tag
+        // )).into_owned();
 
+        let endpoint = |tag: &str| format!("https://bsproxy.royaleapi.dev/v1/players/%23{tag}/battlelog");
         let response = self
             .client
-            .get(&endpoint)
+            .get(endpoint(player_tag))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
 
         match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
+            StatusCode::OK => Ok(ApiResult::Ok({let a = response.json::<BattleLog>().await; info!("{:#?}", a); a?})),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(anyhow!(
