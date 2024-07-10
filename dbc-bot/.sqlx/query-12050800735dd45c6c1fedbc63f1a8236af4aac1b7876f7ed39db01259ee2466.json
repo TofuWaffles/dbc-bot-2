@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO battle_records (match_id)\n                VALUES ($1)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "12050800735dd45c6c1fedbc63f1a8236af4aac1b7876f7ed39db01259ee2466"
+}

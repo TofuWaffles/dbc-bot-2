@@ -2,10 +2,10 @@ use crate::info;
 use crate::BotError;
 use models::Battle;
 use models::BattleClass;
-use models::Event;
-use models::Mode;
 use models::BattleResult;
 use models::BattleType;
+use models::Event;
+use models::Mode;
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -156,7 +156,7 @@ pub trait Database {
         discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error>;
 
-    async fn add_records(&self, match_id: &str, records: Vec<i64>) -> Result<(), Self::Error>;
+    async fn add_records(&self, match_id: &str) -> Result<(), Self::Error>;
 
     async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error>;
 
@@ -769,29 +769,27 @@ impl Database for PgDatabase {
         .await?;
         Ok(())
     }
-    async fn add_records(&self, match_id: &str, battle_id: Vec<i64>) -> Result<(), Self::Error> {
+    async fn add_records(&self, match_id: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-                INSERT INTO battle_records (match_id, battle_id)
-                VALUES ($1, $2)
+                INSERT INTO battle_records (match_id)
+                VALUES ($1)
                 "#,
             match_id,
-            &serde_json::json!(battle_id)
         )
         .execute(&self.pool)
         .await?;
         Ok(())
     }
-    
+
     async fn add_battle(&self, battle: Battle) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO battles (battle_time, event_id, battle_class_id)
-            VALUES ($1, $2, $3)
+            INSERT INTO battles (record_id, battle_time)
+            VALUES ($1, $2)
             "#,
+            battle.record_id,
             battle.battle_time,
-            battle.event.id,
-            battle.battle.id,
         )
         .execute(&self.pool)
         .await?;
@@ -801,20 +799,20 @@ impl Database for PgDatabase {
     async fn add_battle_class(&self, battle_class: BattleClass) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO battle_classes (mode, battle_type, result, duration, trophy_change, teams)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO battle_classes (battle_id, mode, battle_type, result, duration, trophy_change, teams)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             "#,
+            battle_class.battle_id,
             battle_class.mode as Mode,
             battle_class.battle_type as BattleType,
             battle_class.result as BattleResult,
             battle_class.duration,
             battle_class.trophy_change.unwrap_or(0),
-            json!(battle_class.teams.as_slice()), // Convert teams to JSONB
+            battle_class.teams, // teams as JSONB
         )
         .execute(&self.pool)
         .await?;
-    Ok(())
-    
+        Ok(())
     }
 
     async fn add_event(&self, event: Event) -> Result<(), Self::Error> {
