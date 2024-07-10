@@ -22,7 +22,6 @@ ENV SQLX_OFFLINE=true
 COPY --from=planner /dbcbot/recipe.json recipe.json
 RUN cargo chef cook --recipe-path recipe.json
 COPY . .
-RUN cargo install sqlx-cli --no-default-features --features rustls,postgres
 RUN cargo build --release
 
 # Final stage for the runtime image

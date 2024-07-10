@@ -17,7 +17,7 @@ services:
         - "5432:5432"
       volumes:
         - pgdata:/var/lib/postgresql/data
-        - ./dbc-bot/migrations:/docker-entrypoint-initdb.d
+        - ./dbcbot/migrations:/docker-entrypoint-initdb.d
       restart: always
       networks:
         - postgresql
@@ -39,7 +39,7 @@ services:
     volumes:
       - /etc/ssl/certs/:/etc/ssl/certs:ro
     build:
-      context: ./dbc-bot
+      context: ./dbcbot
       dockerfile: Dockerfile
     restart: always
     depends_on:
