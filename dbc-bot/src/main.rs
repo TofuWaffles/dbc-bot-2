@@ -47,7 +47,10 @@ where
         Self {
             database,
             game_api,
+<<<<<<< HEAD
             cache: Cache {},
+=======
+>>>>>>> 7b9dccf (Remove cache from BotData)
         }
     }
 }
