@@ -172,7 +172,20 @@ async fn start_tournament(
     ctx: BotContext<'_>,
     tournament_id: i32,
     map: String,
+    wins_required: Option<i32>,
 ) -> Result<(), BotError> {
+    let wins_required = match wins_required {
+        Some(wins) => {
+            if wins < 1 {
+                ctx.send(CreateReply::default().content("Aborting operation: the number of required wins must not be less than 1!").ephemeral(true)).await?;
+                return Ok(());
+            } else {
+                wins
+            }
+        }
+        None => 2,
+    };
+
     let guild_id = ctx.guild_id().unwrap().to_string();
 
     let tournament = match ctx
@@ -261,6 +274,8 @@ async fn start_tournament(
 
     ctx.data().database.set_map(&tournament_id, &map).await?;
 
+    ctx.data().database.set_wins_required(&tournament_id, &wins_required).await?;
+
     ctx.send(CreateReply::default()
              .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
              .ephemeral(true)
@@ -275,6 +290,7 @@ async fn start_tournament(
             ("Tournament name", &tournament.name, false),
             ("Rounds", &rounds_count.to_string(), false),
             ("Number of matches", &matches_count.to_string(), false),
+            ("Wins required per match", &wins_required.to_string(), false),
             ("Started by", &ctx.author().name, false),
         ],
     )
