@@ -61,19 +61,22 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
             };
             ctx.send(
                 CreateReply::default()
-                    .embed(
-                        CreateEmbed::new()
-                            .title(tournament.name)
-                            .field("ID", tournament.tournament_id.to_string(), true)
-                            .field(
+                    .embed(CreateEmbed::new().title(tournament.name).fields(
+                        vec![("ID", tournament.tournament_id.to_string(), true),
+                        ("Status", tournament.status.to_string(), true),
+                        ("Rounds", tournament.rounds.to_string(), true),
+                        ("Current Round", tournament.current_round.to_string(), true),
+                        ("Wins Required Per Round", tournament.wins_required.to_string(), true),
+                        ("Map", format!("{:#?}", tournament.map), true),
+                            (
                                 "Created At",
                                 DateTime::from_timestamp(tournament.created_at, 0)
                                     .unwrap_or_default()
                                     .to_rfc2822(),
                                 true,
-                            )
-                            .field("Started At", start_time_str, true),
-                    )
+                            ),
+                            ("Started At", start_time_str, true),],
+                    ))
                     .ephemeral(true),
             )
             .await?;

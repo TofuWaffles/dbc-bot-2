@@ -1,5 +1,5 @@
-use std::fmt::Display;
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 /// The manager role configuration for a guild within the database.
 #[derive(Serialize, Deserialize)]
@@ -165,15 +165,14 @@ pub struct MatchSchedule {
     proposed_time: i32,
     time_of_proposal: chrono::DateTime<chrono::Utc>,
     proposer: Option<i32>,
-    accepted:
-    bool,
+    accepted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BattleRecord{
+pub struct BattleRecord {
     pub record_id: i64,
     pub match_id: String,
-    pub battles: Vec<Battle>
+    pub battles: Vec<Battle>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -197,8 +196,7 @@ pub struct BattleClass {
     pub teams: serde_json::Value, // Assuming teams is stored as JSONB
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, sqlx::FromRow)]
 pub struct Event {
     pub id: i64,
     pub mode: Mode,
@@ -208,7 +206,7 @@ pub struct Event {
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
 #[sqlx(type_name = "mode", rename_all = "snake_case")]
-pub enum Mode{
+pub enum Mode {
     BrawlBall,
     GemGrab,
     Heist,
@@ -229,20 +227,20 @@ pub enum Mode{
     BrawlBall5v5,
     GemGrab5v5,
     Bounty5v5,
-    KnockOut5v5
+    KnockOut5v5,
 }
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
 #[sqlx(type_name = "type", rename_all = "snake_case")]
-pub enum BattleType{
+pub enum BattleType {
     Ranked,
     Friendly,
 }
 
 #[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
 #[sqlx(type_name = "result", rename_all = "snake_case")]
-pub enum BattleResult{
+pub enum BattleResult {
     Victory,
     Defeat,
-    Draw
+    Draw,
 }

@@ -274,7 +274,10 @@ async fn start_tournament(
 
     ctx.data().database.set_map(&tournament_id, &map).await?;
 
-    ctx.data().database.set_wins_required(&tournament_id, &wins_required).await?;
+    ctx.data()
+        .database
+        .set_wins_required(&tournament_id, &wins_required)
+        .await?;
 
     ctx.send(CreateReply::default()
              .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
