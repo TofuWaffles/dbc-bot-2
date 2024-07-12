@@ -45,16 +45,24 @@ impl<M> ApiResult<M>
 where
     M: DeserializeOwned,
 {
+    /// Create an API result from a response.
+    ///
+    /// If the response code is 200, an Ok variant will be returned containing the json data, which
+    /// can then be deserialized into any type that implements Serialize.
+    ///
+    /// Errors if the response code is something that is either not covered by the API
+    /// documentation or is not something that can be appropriately dealt with by the bot.
     pub async fn from_response(response: Response) -> Result<Self, BotError> {
         match response.status() {
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(anyhow!("Response failed with status code: {}\n\nResponse details: {:#?}", response.status(), response).into()),
+            _ => Err(anyhow!("Request failed with status code: {}\n\nResponse details: {:#?}", response.status(), response).into()),
         }
     }
 }
 
+/// The API endpoint to retrieve resources from.
 #[derive(Debug)]
 pub struct Endpoint {
     url: String,
