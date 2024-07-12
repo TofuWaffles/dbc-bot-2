@@ -2,11 +2,14 @@ use std::collections::HashMap;
 
 use crate::BotError;
 use anyhow::anyhow;
-use reqwest::{Client, StatusCode};
+use reqwest::{Client, Response, StatusCode};
 
 mod models;
 
-use models::{PlayerProfile, BattleLog};
+use models::{BattleLog, PlayerProfile};
+use serde::de::DeserializeOwned;
+
+use self::models::Brawler;
 
 /// Describes the API that the bot will use to interact with the game.
 ///
@@ -25,6 +28,8 @@ pub trait GameApi {
     /// Retrieves a player's battle log.
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error>;
 
+    async fn get_all_brawlers(&self) -> Result<ApiResult<Vec<Brawler>>, Self::Error>;
+
     /// Checks if the game is under maintenance by making a request to the game's API.
     async fn check_maintenance(&self) -> Result<bool, Self::Error>;
 }
@@ -36,6 +41,42 @@ pub enum ApiResult<M> {
     Maintenance,
 }
 
+impl<M> ApiResult<M>
+where
+    M: DeserializeOwned,
+{
+    pub async fn from_response(response: Response) -> Result<Self, BotError> {
+        match response.status() {
+            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
+            StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
+            StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
+            _ => Err(anyhow!("Response failed with status code: {}\n\nResponse details: {:#?}", response.status(), response).into()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Endpoint {
+    url: String,
+}
+
+impl Endpoint {
+    fn new(url: String) -> Self {
+        Self { url }
+    }
+    /// Append a path to retrieve a specific resource from the endpoint. e.g. pass in
+    /// format!("players/%23{}", player_tag) to get a specific player profile.
+    ///
+    /// Refer to the API documentation for the exact path.
+    fn append_path(&self, path: &str) -> String {
+        let mut full_url = self.url.clone();
+
+        full_url.push_str(path);
+
+        full_url
+    }
+}
+
 /// The Brawl Stars API.
 #[derive(Debug)]
 pub struct BrawlStarsApi {
@@ -43,6 +84,8 @@ pub struct BrawlStarsApi {
     token: String,
     /// The reqwest client used to make HTTP requests to the Brawl Stars API.
     client: Client,
+    /// The API endpoint to request resources from.
+    endpoint: Endpoint,
 }
 
 impl GameApi for BrawlStarsApi {
@@ -53,68 +96,40 @@ impl GameApi for BrawlStarsApi {
         Self {
             token: token.to_string(),
             client: Client::new(),
+            endpoint: Endpoint::new("https://bsproxy.royaleapi.dev/v1/".to_string()),
         }
     }
 
     /// Get a player's profile information from the API
     async fn get_player(&self, player_tag: &str) -> Result<ApiResult<PlayerProfile>, Self::Error> {
-        let endpoint = format!("https://bsproxy.royaleapi.dev/v1/players/%23{}", player_tag);
-
         let response = self
             .client
-            .get(&endpoint)
+            .get(&self.endpoint.append_path(&format!("players/%23{}", player_tag)))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
 
-        match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
-            StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
-            StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(anyhow!(
-                "Failed to get player {} from API with status code {}",
-                player_tag,
-                response.status()
-            )
-            .into()),
-        }
+        Ok(ApiResult::from_response(response).await?)
     }
 
     /// Get the battle log of a particular player.
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error> {
-        let endpoint = format!(
-            "https://bsproxy.royaleapi.dev/v1/players/%23{}/battlelog",
-            player_tag
-        );
-
         let response = self
             .client
-            .get(&endpoint)
+            .get(&self.endpoint.append_path(&format!("players/%23{}/battlelog", player_tag)))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
 
-        match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
-            StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
-            StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(anyhow!(
-                "Failed to get battle log of player {} from API with status code {}",
-                player_tag,
-                response.status()
-            )
-            .into()),
-        }
+        Ok(ApiResult::from_response(response).await?)
     }
 
     /// Check whether or not the game is currently undergoing maintenance.
     async fn check_maintenance(&self) -> Result<bool, Self::Error> {
         // Make some arbitrary request to the server; it doesn't matter what it is
-        let endpoint = "https://bsproxy.royaleapi.dev/v1/events/rotation";
-
         let response = self
             .client
-            .get(endpoint)
+            .get(&self.endpoint.append_path("events/rotation"))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
@@ -128,5 +143,16 @@ impl GameApi for BrawlStarsApi {
             )
             .into()),
         }
+    }
+
+    async fn get_all_brawlers(&self) -> Result<ApiResult<Vec<Brawler>>, Self::Error> {
+        let response = self
+            .client
+            .get(&self.endpoint.append_path("brawlers"))
+            .header("Authorization", format!("Bearer {}", self.token))
+            .send()
+            .await?;
+
+        Ok(ApiResult::from_response(response).await?)
     }
 }
