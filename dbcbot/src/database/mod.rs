@@ -1,4 +1,3 @@
-use crate::api::Brawler;
 use crate::info;
 use crate::BotError;
 use models::Battle;

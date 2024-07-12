@@ -192,8 +192,7 @@ impl GameApi for BrawlStarsApi {
                 "Failed to get player {} from API with status code {}",
                 player_tag,
                 response.status()
-            )
-            .into()),
+            )),
         }
     }
 
@@ -220,8 +219,7 @@ impl GameApi for BrawlStarsApi {
                 "Failed to get battle log of player {} from API with status code {}",
                 player_tag,
                 response.status()
-            )
-            .into()),
+            )),
         }
     }
 
@@ -243,8 +241,7 @@ impl GameApi for BrawlStarsApi {
             _ => Err(anyhow!(
                 "Failed to check maintenance with status code {}",
                 response.status()
-            )
-            .into()),
+            )),
         }
     }
 }

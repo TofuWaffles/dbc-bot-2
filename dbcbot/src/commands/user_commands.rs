@@ -120,7 +120,7 @@ async fn user_display_menu(
         )
         .await?;
 
-    if player_active_tournaments.len() < 1 {
+    if player_active_tournaments.is_empty() {
         msg.edit(ctx,
             CreateReply::default()
                 .content("")
@@ -370,13 +370,12 @@ async fn user_display_match(
     };
 
     if let Some(interaction) = &interaction_collector.next().await {
-        match interaction.data.custom_id.as_str() {
-            "match_menu_ready" => {
-                interaction
-                    .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                    .await?;
+        if interaction.data.custom_id.as_str() == "match_menu_ready" {
+            interaction
+                .create_response(ctx, CreateInteractionResponse::Acknowledge)
+                .await?;
 
-                msg.edit(
+            msg.edit(
                     ctx,
                     CreateReply::default()
                     .content("Your have set yourself to ready. A notification has been sent to your opponent to let them know.\n\nBe sure to play your matches and hit the \"Submit\" button when you're done.")
@@ -384,58 +383,55 @@ async fn user_display_match(
                     .ephemeral(true))
                     .await?;
 
-                let player_number = bracket
-                    .get_player_number(&ctx.author().id.to_string())
-                    .unwrap();
+            let player_number = bracket
+                .get_player_number(&ctx.author().id.to_string())
+                .unwrap();
 
-                let player_1_id = bracket.discord_id_1.clone().ok_or(anyhow!(
-                    "Player 1 type is set to Player but has not Discord ID in match {}",
-                    bracket.match_id
-                ))?;
-                let player_2_id = bracket.discord_id_2.clone().ok_or(anyhow!(
-                    "Player 2 type is set to Player but has not Discord ID in match {}",
-                    bracket.match_id
-                ))?;
+            let player_1_id = bracket.discord_id_1.clone().ok_or(anyhow!(
+                "Player 1 type is set to Player but has not Discord ID in match {}",
+                bracket.match_id
+            ))?;
+            let player_2_id = bracket.discord_id_2.clone().ok_or(anyhow!(
+                "Player 2 type is set to Player but has not Discord ID in match {}",
+                bracket.match_id
+            ))?;
 
-                ctx.data()
+            ctx.data()
+                .database
+                .set_ready(&bracket.match_id, &player_number)
+                .await?;
+
+            let notification_message = match player_number {
+                Player1 => {
+                    if bracket.player_2_ready {
+                        format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
+                    } else {
+                        format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_2_id, player_1_id)
+                    }
+                }
+                Player2 => {
+                    if bracket.player_1_ready {
+                        format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
+                    } else {
+                        format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_1_id, player_2_id)
+                    }
+                }
+            };
+
+            let notification_channel = ChannelId::from_str(
+                &ctx.data()
                     .database
-                    .set_ready(&bracket.match_id, &player_number)
-                    .await?;
+                    .get_config(&ctx.guild_id().unwrap().to_string())
+                    .await?
+                    .unwrap()
+                    .notification_channel_id,
+            )?;
 
-                let notification_message = match player_number {
-                    Player1 => {
-                        if bracket.player_2_ready {
-                            format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
-                        } else {
-                            format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_2_id, player_1_id)
-                        }
-                    }
-                    Player2 => {
-                        if bracket.player_1_ready {
-                            format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
-                        } else {
-                            format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_1_id, player_2_id)
-                        }
-                    }
-                };
-
-                let notification_channel = ChannelId::from_str(
-                    &ctx.data()
-                        .database
-                        .get_config(&ctx.guild_id().unwrap().to_string())
-                        .await?
-                        .unwrap()
-                        .notification_channel_id,
-                )?;
-
-                notification_channel
-                    .send_message(ctx, CreateMessage::default().content(notification_message))
-                    .await?;
-            }
-            _ => {}
+            notification_channel
+                .send_message(ctx, CreateMessage::default().content(notification_message))
+                .await?;
         }
     }
-
     Ok(())
 }
 
@@ -486,13 +482,13 @@ async fn user_display_tournaments(
         );
     }
 
-    if tournament_buttons.len() > 0 {
+    if !tournament_buttons.is_empty() {
         msg.edit(
         ctx,
         CreateReply::default()
             .content(format!(
                 "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.\n```\n{}\n```",
-                table.to_string()
+                table
             ))
             .components(vec![CreateActionRow::Buttons(tournament_buttons)]),
     )
@@ -581,7 +577,7 @@ async fn user_display_registration(
                 .player_tag
                 .to_uppercase();
 
-                if player_tag.chars().nth(0) == Some('#') {
+                if player_tag.starts_with('#') {
                     player_tag.remove(0);
                 }
                 user.player_tag = player_tag;
@@ -590,8 +586,7 @@ async fn user_display_registration(
                 return Err(anyhow!(
                     "Unknown interaction from player registration.\n\nUser: {}",
                     ctx.author()
-                )
-                .into())
+                ))
             }
         }
     }

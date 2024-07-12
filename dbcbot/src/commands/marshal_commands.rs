@@ -137,7 +137,7 @@ async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
         CreateReply::default()
             .content(format!(
                 "Here are the currently active tournaments\n```\n{}\n```",
-                table.to_string()
+                table
             ))
             .ephemeral(true),
     )
@@ -224,12 +224,12 @@ async fn get_match(
                     .database
                     .get_player_active_tournaments(&guild_id, &player.id.to_string())
                     .await?;
-                if player_active_tournaments.len() < 1 {
+                if player_active_tournaments.is_empty() {
                     ctx.send(
                         CreateReply::default()
                             .content(format!(
                                 "The player <@{}> is not currently in any active tournaments.",
-                                player.id.to_string()
+                                player.id
                             ))
                             .ephemeral(true),
                     )
@@ -424,8 +424,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
                 CreateReply::default()
                     .content(format!(
                         "An unfinished match could not be found for <@{}> in tournament {}.",
-                        player.id.to_string(),
-                        tournament_id
+                        player.id, tournament_id
                     ))
                     .ephemeral(true),
             )
@@ -456,8 +455,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         CreateReply::default()
             .content(format!(
                 "Successfully disqualified <@{}> from match {}",
-                player.id.to_string(),
-                bracket.match_id
+                player.id, bracket.match_id
             ))
             .ephemeral(true),
     )
@@ -467,15 +465,10 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         ctx,
         &format!(
             "Player <@{}> was disqualified from tournament {}",
-            player.id.to_string(),
-            tournament.tournament_id
+            player.id, tournament.tournament_id
         ),
         vec![
-            (
-                "Disqualified player",
-                &format!("<@{}>", player.id.to_string()),
-                false,
-            ),
+            ("Disqualified player", &format!("<@{}>", player.id), false),
             ("Match ID", &bracket.match_id, false),
             (
                 "Tournament ID",
@@ -533,7 +526,7 @@ async fn next_round(
         .into_iter()
         .partition(|bracket| bracket.winner.is_some());
 
-    if without_winners.len() > 0 {
+    if !without_winners.is_empty() {
         // TODO: Show unfinished matches as a table or a CSV file
         ctx.send(CreateReply::default().content("Unable to advance to the next round. Some players have not finished their matches yet!").ephemeral(true)).await?;
         return Ok(());

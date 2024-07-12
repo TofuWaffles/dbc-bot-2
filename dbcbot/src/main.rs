@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, fs::File};
+use std::fs::File;
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
@@ -87,7 +87,7 @@ async fn run() -> Result<(), BotError> {
     let setup_span = info_span!("bot_setup");
     let _guard = setup_span.enter();
     // Load the .env file only in the development environment (bypassed with the --release flag)
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let discord_token =
@@ -170,7 +170,7 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    let user_field = &format!("<@{}>", ctx.author().id.to_string());
+                    let user_field = &format!("<@{}>", ctx.author().id);
                     let tournaments_field = &format!("{:#?}", player_tournaments);
 
                     let fields = vec![

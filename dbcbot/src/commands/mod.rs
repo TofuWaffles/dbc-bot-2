@@ -46,7 +46,7 @@ pub trait CommandsContainer {
 }
 
 /// Common checks (e.g. role checks) used by various commands.
-pub(self) mod checks {
+mod checks {
     use std::str::FromStr;
 
     use anyhow::anyhow;
@@ -99,7 +99,7 @@ pub(self) mod checks {
         )
         .await?;
 
-        return Ok(false);
+        Ok(false)
     }
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
@@ -151,7 +151,7 @@ pub(self) mod checks {
         )
         .await?;
 
-        return Ok(false);
+        Ok(false)
     }
 
     /// Checks if the configuration has been set up for the guild.
@@ -193,7 +193,7 @@ pub(self) mod checks {
             .get_player_active_tournaments(&guild_id, &ctx.author().id.to_string())
             .await?;
 
-        match tournaments.get(0) {
+        match tournaments.first() {
             Some(tournament) => {
                 if tournament.status == TournamentStatus::Paused {
                     ctx.send(CreateReply::default().content("Your tournament is currently paused. Please come back again later.").ephemeral(true)).await?;
