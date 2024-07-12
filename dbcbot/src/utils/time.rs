@@ -10,7 +10,6 @@ impl BDateTime {
     pub fn from_str(s: &str) -> Result<Self, chrono::ParseError> {
         let datetime = DateTime::parse_from_str(s, "%Y%m%dT%H%M%S%.3fZ")?;
         let unix = datetime.timestamp();
-        Ok(BDateTime { datetime: unix})
+        Ok(BDateTime { datetime: unix })
     }
-
 }

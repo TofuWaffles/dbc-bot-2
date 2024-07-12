@@ -5,7 +5,7 @@ use tracing::{error, info, instrument};
 use crate::{
     commands::checks::{is_config_set, is_manager},
     database::{
-        models::{Match, TournamentStatus, User},
+        models::{Match, Player, TournamentStatus},
         Database,
     },
     log::discord_log_info,
@@ -34,7 +34,7 @@ impl CommandsContainer for ManagerCommands {
 /// marshals.
 /// - Announcement Channel: The channel where the bot will announce the start and end of tournaments.
 /// and other important announcements.
-/// - Notification Channel: The channel where the bot will send notifications to users about their
+/// - Notification Channel: The channel where the bot will send notifications to players about their
 /// progress and matches.
 /// - Log Channel: The channel where the bot will log all the actions it takes.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
@@ -178,7 +178,7 @@ async fn start_tournament(
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -212,7 +212,7 @@ async fn start_tournament(
     let tournament_players = ctx
         .data()
         .database
-        .get_tournament_players(&tournament_id)
+        .get_tournament_players(tournament_id)
         .await?;
 
     if tournament_players.len() < 2 {
@@ -230,7 +230,7 @@ async fn start_tournament(
 
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as i32;
 
-    let matches = generate_matches_new_tournament(tournament_players, &tournament_id).await?;
+    let matches = generate_matches_new_tournament(tournament_players, tournament_id).await?;
 
     let matches_count = matches.len();
 
@@ -238,9 +238,9 @@ async fn start_tournament(
         ctx.data()
             .database
             .create_match(
-                &bracket.tournament_id,
-                &bracket.round,
-                &bracket.sequence_in_round,
+                bracket.tournament_id,
+                bracket.round,
+                bracket.sequence_in_round,
                 bracket.player_1_type,
                 bracket.player_2_type,
                 bracket.discord_id_1.as_deref(),
@@ -251,15 +251,15 @@ async fn start_tournament(
 
     ctx.data()
         .database
-        .set_tournament_status(&tournament_id, TournamentStatus::Started)
+        .set_tournament_status(tournament_id, TournamentStatus::Started)
         .await?;
 
     ctx.data()
         .database
-        .set_rounds(&tournament_id, &rounds_count)
+        .set_rounds(tournament_id, rounds_count)
         .await?;
 
-    ctx.data().database.set_map(&tournament_id, &map).await?;
+    ctx.data().database.set_map(tournament_id, &map).await?;
 
     ctx.send(CreateReply::default()
              .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
@@ -285,8 +285,8 @@ async fn start_tournament(
 
 /// Contains the logic for generating matches for a newly started tournament.
 pub(self) async fn generate_matches_new_tournament(
-    tournament_players: Vec<User>,
-    tournament_id: &i32,
+    tournament_players: Vec<Player>,
+    tournament_id: i32,
 ) -> Result<Vec<Match>, BotError> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
@@ -301,8 +301,8 @@ pub(self) async fn generate_matches_new_tournament(
         let player_2 = &tournament_players.get(matches_count as usize + i as usize);
 
         matches.push(Match::new(
-            Match::generate_id(&tournament_id, &1, &((i + 1) as i32)),
-            *tournament_id,
+            Match::generate_id(tournament_id, 1, (i + 1) as i32),
+            tournament_id,
             1,
             (i + 1) as i32,
             Some(player_1.discord_id.to_owned()),
@@ -321,47 +321,42 @@ pub(self) async fn generate_matches_new_tournament(
 mod tests {
     use super::generate_matches_new_tournament;
     use crate::database::{
-        models::{PlayerType, User},
+        models::{Player, PlayerType, User},
         Database, PgDatabase,
     };
+
+    fn create_dummy(sample: usize) -> Vec<User> {
+        let mut users: Vec<User> = Vec::new();
+        for index in 0..sample {
+            let mut user = User::default();
+            user.discord_id = index.to_string();
+            user.player_tag = index.to_string();
+            users.push(user);
+        }
+        users
+    }
 
     #[tokio::test]
     async fn creates_two_matches() {
         let db = PgDatabase::connect().await.unwrap();
-
-        let mut users = Vec::new();
-
-        users.push(User {
-            discord_id: 0.to_string(),
-            player_tag: 0.to_string(),
-        });
-        users.push(User {
-            discord_id: 1.to_string(),
-            player_tag: 1.to_string(),
-        });
-        users.push(User {
-            discord_id: 2.to_string(),
-            player_tag: 2.to_string(),
-        });
-        users.push(User {
-            discord_id: 3.to_string(),
-            player_tag: 3.to_string(),
-        });
-
-        db.create_tournament("0", "test", Some(&-1)).await.unwrap();
+        const SAMPLE: usize = 4;
+        let mut users: Vec<User> = create_dummy(SAMPLE);
+        db.create_tournament("0", "test", -1).await.unwrap();
 
         println!("{:?}", users);
 
         for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
+            db.create_user(user).await.unwrap();
+            db.enter_tournament(-1, &user.discord_id).await.unwrap();
         }
+        let players = users
+            .iter()
+            .map(|user| user.to_player())
+            .collect::<Vec<Player>>();
 
-        let matches = generate_matches_new_tournament(users, &-1).await.unwrap();
+        let matches = generate_matches_new_tournament(players, -1).await.unwrap();
 
-        db.delete_tournament(&-1).await.unwrap();
+        db.delete_tournament(-1).await.unwrap();
 
         println!("{:?}", matches);
 
@@ -374,35 +369,23 @@ mod tests {
 
     #[tokio::test]
     async fn creates_two_matches_with_one_bye() {
+        const SAMPLE: usize = 3;
         let db = PgDatabase::connect().await.unwrap();
 
-        let mut users = Vec::new();
-
-        users.push(User {
-            discord_id: 0.to_string(),
-            player_tag: 0.to_string(),
-        });
-        users.push(User {
-            discord_id: 1.to_string(),
-            player_tag: 1.to_string(),
-        });
-        users.push(User {
-            discord_id: 2.to_string(),
-            player_tag: 2.to_string(),
-        });
-
-        db.create_tournament("0", "test", Some(&-2)).await.unwrap();
+        let mut users = create_dummy(SAMPLE);
+        db.create_tournament("0", "test", -2).await.unwrap();
 
         for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
+            db.create_user(user).await.unwrap();
+            db.enter_tournament(-1, &user.discord_id).await.unwrap();
         }
+        let players = users
+            .iter()
+            .map(|user| user.to_player())
+            .collect::<Vec<Player>>();
+        let matches = generate_matches_new_tournament(players, -2).await.unwrap();
 
-        let matches = generate_matches_new_tournament(users, &-2).await.unwrap();
-
-        db.delete_tournament(&-2).await.unwrap();
+        db.delete_tournament(-2).await.unwrap();
 
         println!("{:?}", matches);
 
@@ -415,47 +398,21 @@ mod tests {
 
     #[tokio::test]
     async fn creates_four_matches_with_two_byes() {
+        const SAMPLE: usize = 6;
         let db = PgDatabase::connect().await.unwrap();
-
-        let mut users = Vec::new();
-
-        users.push(User {
-            discord_id: 0.to_string(),
-            player_tag: 0.to_string(),
-        });
-        users.push(User {
-            discord_id: 1.to_string(),
-            player_tag: 1.to_string(),
-        });
-        users.push(User {
-            discord_id: 2.to_string(),
-            player_tag: 2.to_string(),
-        });
-        users.push(User {
-            discord_id: 3.to_string(),
-            player_tag: 3.to_string(),
-        });
-        users.push(User {
-            discord_id: 4.to_string(),
-            player_tag: 4.to_string(),
-        });
-        users.push(User {
-            discord_id: 5.to_string(),
-            player_tag: 5.to_string(),
-        });
-
-        db.create_tournament("0", "test", Some(&-3)).await.unwrap();
-
+        let users = create_dummy(SAMPLE);
+        db.create_tournament("0", "test", -3).await.unwrap();
         for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-3, &user.discord_id).await.unwrap();
+            db.create_user(user).await.unwrap();
+            db.enter_tournament(-3, &user.discord_id).await.unwrap();
         }
+        let players = users
+            .iter()
+            .map(|user| user.to_player())
+            .collect::<Vec<Player>>();
+        let matches = generate_matches_new_tournament(players, -3).await.unwrap();
 
-        let matches = generate_matches_new_tournament(users, &-3).await.unwrap();
-
-        db.delete_tournament(&-3).await.unwrap();
+        db.delete_tournament(-3).await.unwrap();
 
         println!("{:?}", matches);
 

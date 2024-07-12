@@ -1,10 +1,15 @@
-use std::collections::HashMap;
-use tracing::info;
-use urlencoding::encode;
-use crate::{database::{self, models::{BattleResult, Mode}}, utils::time::BDateTime, BotError};
+use crate::{
+    database::{
+        self,
+        models::{BattleResult, Mode},
+    },
+    utils::time::BDateTime,
+    BotError,
+};
 use anyhow::anyhow;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
 /// Describes the API that the bot will use to interact with the game.
 ///
@@ -34,17 +39,21 @@ pub enum ApiResult<M> {
     Maintenance,
 }
 
-pub trait Convert<T>{
+pub trait Convert<T> {
     fn convert(&self) -> T;
 }
-
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Icon {
+    pub id: i32,
+}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
     pub tag: String,
     pub name: String,
     pub club: Option<Club>,
-    pub icon: HashMap<String, u32>,
+    pub icon: Icon,
     pub trophies: u32,
     #[serde(rename = "3vs3Victories")]
     pub three_vs_three_victories: u32,
@@ -53,6 +62,7 @@ pub struct PlayerProfile {
     pub exp_level: u32,
     pub exp_points: u32,
     pub highest_trophies: u32,
+    pub brawlers: Vec<Brawler>,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -69,11 +79,11 @@ pub struct BattleLog {
 }
 
 impl Convert<database::models::BattleRecord> for BattleLog {
-    fn convert(&self) -> database::models::BattleRecord{
-        database::models::BattleRecord{
+    fn convert(&self) -> database::models::BattleRecord {
+        database::models::BattleRecord {
             record_id: 0,
             match_id: "".to_string(),
-            battles: self.items.iter().map(|item| item.convert()).collect()
+            battles: self.items.iter().map(|item| item.convert()).collect(),
         }
     }
 }
@@ -87,13 +97,13 @@ pub struct BattleLogItem {
 }
 
 impl Convert<database::models::Battle> for BattleLogItem {
-    fn convert(&self) -> database::models::Battle{
-        database::models::Battle{
+    fn convert(&self) -> database::models::Battle {
+        database::models::Battle {
             id: 0,
             record_id: 0,
             battle_time: BDateTime::from_str(&self.battle_time).map_or_else(|_| 0, |f| f.datetime),
             battle_class: self.battle.convert(),
-            event: self.event.clone()
+            event: self.event.clone(),
         }
     }
 }
@@ -101,7 +111,7 @@ impl Convert<database::models::Battle> for BattleLogItem {
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
     pub mode: Mode,
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     pub battle_type: String,
     #[serde(default)]
     pub rank: i64,
@@ -115,17 +125,18 @@ pub struct Battle {
     pub players: Vec<TeamPlayer>,
 }
 
-impl Convert<database::models::BattleClass> for Battle{
-    fn convert(&self) -> database::models::BattleClass{
-        database::models::BattleClass{
+impl Convert<database::models::BattleClass> for Battle {
+    fn convert(&self) -> database::models::BattleClass {
+        database::models::BattleClass {
             id: 0,
             battle_id: 0,
             trophy_change: self.trophy_change,
             mode: self.mode,
-            battle_type: serde_json::from_str(&self.battle_type).unwrap_or(database::models::BattleType::unknown),
+            battle_type: serde_json::from_str(&self.battle_type)
+                .unwrap_or(database::models::BattleType::unknown),
             result: self.result,
             duration: self.duration.unwrap_or(0) as i64,
-            teams: serde_json::to_value(&self.teams).unwrap_or(serde_json::Value::Null)
+            teams: serde_json::to_value(&self.teams).unwrap_or(serde_json::Value::Null),
         }
     }
 }
@@ -135,15 +146,13 @@ impl Convert<database::models::BattleClass> for Battle{
 pub struct TeamPlayer {
     pub tag: String,
     pub name: String,
-    pub brawler: Brawler
+    pub brawler: Brawler,
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Brawler{
+pub struct Brawler {
     pub id: i64,
     pub name: String,
-    pub power: i64,
-    pub trophies: i64,
 }
 /// The Brawl Stars API.
 #[derive(Debug)]
@@ -167,10 +176,10 @@ impl GameApi for BrawlStarsApi {
 
     /// Get a player's profile information from the API
     async fn get_player(&self, player_tag: &str) -> Result<ApiResult<PlayerProfile>, Self::Error> {
-        let endpoint = encode(&format!("https://bsproxy.royaleapi.dev/v1/players/{}", player_tag)).into_owned();
+        let endpoint = |tag: &str| format!("https://bsproxy.royaleapi.dev/v1/players/%23{}", tag);
         let response = self
             .client
-            .get(&endpoint)
+            .get(&endpoint(player_tag))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
@@ -190,12 +199,8 @@ impl GameApi for BrawlStarsApi {
 
     /// Get the battle log of a particular player.
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error> {
-        // let endpoint = encode(&format!(
-        //     "https://bsproxy.royaleapi.dev/v1/players/{}/battlelog",
-        //     player_tag
-        // )).into_owned();
-
-        let endpoint = |tag: &str| format!("https://bsproxy.royaleapi.dev/v1/players/%23{tag}/battlelog");
+        let endpoint =
+            |tag: &str| format!("https://bsproxy.royaleapi.dev/v1/players/%23{tag}/battlelog");
         let response = self
             .client
             .get(endpoint(player_tag))
@@ -204,7 +209,11 @@ impl GameApi for BrawlStarsApi {
             .await?;
 
         match response.status() {
-            StatusCode::OK => Ok(ApiResult::Ok({let a = response.json::<BattleLog>().await; info!("{:#?}", a); a?})),
+            StatusCode::OK => Ok(ApiResult::Ok({
+                let a = response.json::<BattleLog>().await;
+                info!("{:#?}", a);
+                a?
+            })),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
             _ => Err(anyhow!(

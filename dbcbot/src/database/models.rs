@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
@@ -20,24 +19,17 @@ pub struct GuildConfig {
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
-#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
+    #[strum(to_string = "Open for registration")]
     Pending,
+    #[strum(to_string = "In progress")]
     Started,
+    #[strum(to_string = "Paused")]
     Paused,
+    #[strum(to_string = "Inactive/Completed")]
     Inactive,
-}
-
-impl Display for TournamentStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TournamentStatus::Pending => write!(f, "Open for registration"),
-            TournamentStatus::Started => write!(f, "In progress"),
-            TournamentStatus::Paused => write!(f, "Paused"),
-            TournamentStatus::Inactive => write!(f, "Inactive/Completed"),
-        }
-    }
 }
 
 /// A tournament within the database.
@@ -55,12 +47,31 @@ pub struct Tournament {
 }
 
 /// A Discord user within the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct User {
+    pub discord_id: String,
+    pub discord_name: String,
+    pub player_tag: String,
+    pub player_name: String,
+    pub icon: i32,
+    pub trophies: i32,
+    pub brawlers: sqlx::types::JsonValue,
+}
+
+impl User {
+    pub fn to_player(&self) -> Player {
+        Player {
+            discord_id: self.discord_id.clone(),
+            player_tag: self.player_tag.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Player {
     pub discord_id: String,
     pub player_tag: String,
 }
-
 /// A relational object that links a Discord user to a tournament they've joined.
 #[derive(Serialize, Deserialize)]
 pub struct TournamentPlayer {
@@ -116,7 +127,7 @@ impl Match {
         }
     }
 
-    pub fn generate_id(tournament_id: &i32, round: &i32, sequence_in_round: &i32) -> String {
+    pub fn generate_id(tournament_id: i32, round: i32, sequence_in_round: i32) -> String {
         format!("{}.{}.{}", tournament_id, round, sequence_in_round)
     }
 
@@ -165,16 +176,16 @@ pub struct MatchSchedule {
     proposed_time: i32,
     time_of_proposal: chrono::DateTime<chrono::Utc>,
     proposer: Option<i32>,
-    accepted: bool
+    accepted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct BattleRecord{
+pub struct BattleRecord {
     pub record_id: i64,
     #[serde(default)]
     pub match_id: String,
     #[serde(default)]
-    pub battles: Vec<Battle>
+    pub battles: Vec<Battle>,
 }
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -185,7 +196,7 @@ pub struct Battle {
     pub record_id: i64,
     pub battle_time: i64,
     pub battle_class: BattleClass,
-    pub event: Event
+    pub event: Event,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -203,8 +214,7 @@ pub struct BattleClass {
     pub teams: serde_json::Value, // Assuming teams is stored as JSONB
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 pub struct Event {
     #[serde(default)]
     pub id: i64,
@@ -216,9 +226,11 @@ pub struct Event {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
 #[sqlx(type_name = "mode", rename_all = "camelCase")]
-pub enum Mode{
+pub enum Mode {
     #[strum(to_string = "Brawl Ball")]
     brawlBall,
     #[strum(to_string = "Gem Grab")]
@@ -263,13 +275,15 @@ pub enum Mode{
     knockOut5V5,
     #[default]
     #[strum(to_string = "Unknown")]
-    unknown
+    unknown,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
 #[sqlx(type_name = "type", rename_all = "camelCase")]
-pub enum BattleType{
+pub enum BattleType {
     #[strum(to_string = "Ranked")]
     ranked,
     #[strum(to_string = "Friendly")]
@@ -279,9 +293,11 @@ pub enum BattleType{
     unknown,
 }
 #[allow(non_camel_case_types)]
-#[derive(Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
 #[sqlx(type_name = "result", rename_all = "camelCase")]
-pub enum BattleResult{
+pub enum BattleResult {
     #[strum(to_string = "Victory")]
     victory,
     #[strum(to_string = "Defeat")]
@@ -290,5 +306,5 @@ pub enum BattleResult{
     draw,
     #[strum(to_string = "Unknown")]
     #[default]
-    unknown
+    unknown,
 }

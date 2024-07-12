@@ -10,6 +10,7 @@ use poise::{
     CreateReply, Modal, ReplyHandle,
 };
 use prettytable::{row, Table};
+use serde_json::json;
 use tracing::{info, instrument};
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
     database::{
         models::{
             PlayerNumber::{Player1, Player2},
-            PlayerType, Tournament, TournamentStatus,
+            PlayerType, Tournament, TournamentStatus, User,
         },
         Database,
     },
@@ -59,7 +60,11 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 
     let user_id = ctx.author().id.to_string();
 
-    let user = ctx.data().database.get_user_by_discord_id(&user_id).await?;
+    let user = ctx
+        .data()
+        .database
+        .get_player_by_discord_id(&user_id)
+        .await?;
 
     let msg = ctx
         .send(
@@ -236,7 +241,7 @@ async fn user_display_match(
     let bracket_opt = ctx
         .data()
         .database
-        .get_match_by_player(&tournament.tournament_id, &ctx.author().id.to_string())
+        .get_match_by_player(tournament.tournament_id, &ctx.author().id.to_string())
         .await?;
 
     let bracket = match bracket_opt {
@@ -518,7 +523,7 @@ async fn user_display_tournaments(
         match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
             Some(tournament_number) => {
                 interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
-                ctx.data().database.enter_tournament(&tournaments[tournament_number].tournament_id, &ctx.author().id.to_string()).await?;
+                ctx.data().database.enter_tournament(tournaments[tournament_number].tournament_id, &ctx.author().id.to_string()).await?;
                 msg.edit(
                     ctx,
                     CreateReply::default()
@@ -541,6 +546,7 @@ async fn user_display_registration(
     msg: ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
+    let mut user = User::default();
     msg.edit(ctx,
              CreateReply::default()
              .content("You'll need to register your in-game account with us to enter one of our tournaments.\n\nClick the button below to get started.")
@@ -578,6 +584,7 @@ async fn user_display_registration(
                 if player_tag.chars().nth(0) == Some('#') {
                     player_tag.remove(0);
                 }
+                user.player_tag = player_tag;
             }
             _ => {
                 return Err(anyhow!(
@@ -593,7 +600,7 @@ async fn user_display_registration(
     if ctx
         .data()
         .database
-        .get_user_by_player_tag(&player_tag)
+        .get_player_by_player_tag(&user.player_tag)
         .await?
         .is_some()
     {
@@ -611,7 +618,7 @@ async fn user_display_registration(
     )
     .await?;
 
-    let api_result = ctx.data().game_api.get_player(&player_tag).await?;
+    let api_result = ctx.data().game_api.get_player(&user.player_tag).await?;
     match api_result {
         ApiResult::Ok(player) => {
             msg.edit(
@@ -623,7 +630,7 @@ async fn user_display_registration(
                             .description("**Please confirm that this is your profile**")
                             .thumbnail(format!(
                                 "https://cdn-old.brawlify.com/profile/{}.png",
-                                player.icon.get("id").unwrap_or(&1)
+                                player.icon.id
                             ))
                             .fields(vec![
                                 ("Trophies", player.trophies.to_string(), true),
@@ -659,13 +666,16 @@ async fn user_display_registration(
             if let Some(interaction) = &interaction_collector.next().await {
                 match interaction.data.custom_id.as_str() {
                     "confirm_register" => {
+                        user.brawlers = json!(player.brawlers);
+                        user.player_name = player.name;
+                        user.icon = player.icon.id;
+                        user.trophies = player.trophies as i32;
+                        user.discord_name = ctx.author().name.clone();
+                        user.discord_id = user_id.clone();
                         interaction
                             .create_response(ctx, CreateInteractionResponse::Acknowledge)
                             .await?;
-                        ctx.data()
-                            .database
-                            .create_user(&user_id, &player_tag)
-                            .await?;
+                        ctx.data().database.create_user(&user).await?;
                         msg.edit(
                             ctx,
                             CreateReply::default()
