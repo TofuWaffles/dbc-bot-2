@@ -11,5 +11,6 @@ CREATE TABLE IF NOT EXISTS tournaments (
     start_time BIGINT,
     tournament_role_id VARCHAR(255) NOT NULL,
     status tournament_status NOT NULL DEFAULT 'pending',
-    map VARCHAR(255)
+    map VARCHAR(255),
+    wins_required INT NOT NULL
 );

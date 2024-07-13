@@ -140,6 +140,13 @@ pub trait Database {
         discord_id: &str,
     ) -> Result<(), Self::Error>;
 
+    /// Sets the number of wins required to win each round of the tournament.
+    async fn set_wins_required(
+        &self,
+        tournament_id: &i32,
+        wins_required: &i32,
+    ) -> Result<(), Self::Error>;
+
     /// Gets all players in a tournament.
     async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error>;
 
@@ -480,7 +487,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, tournament_role_id
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, tournament_role_id, wins_required
             FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
             LIMIT 1
@@ -498,7 +505,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required
             FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
@@ -514,7 +521,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required
             FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')
             "#,
             guild_id
@@ -533,7 +540,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required
             FROM tournaments
             INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
             WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
@@ -868,9 +875,29 @@ impl Database for PgDatabase {
             event.mode as Mode,
             event.map,
         )
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await?;
-        Ok(query.id)
+        Ok(())
+    }
+
+    async fn set_wins_required(
+        &self,
+        tournament_id: &i32,
+        wins_required: &i32,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET wins_required = $1
+            WHERE tournament_id = $2
+            "#,
+            wins_required,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
     // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error> {
     //     let record = sqlx::query_as!(
