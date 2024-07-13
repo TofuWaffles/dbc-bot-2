@@ -19,7 +19,7 @@ pub struct GuildConfig {
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
-#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display, Default)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
     #[strum(to_string = "Open for registration")]
@@ -29,11 +29,12 @@ pub enum TournamentStatus {
     #[strum(to_string = "Paused")]
     Paused,
     #[strum(to_string = "Inactive/Completed")]
+    #[default]
     Inactive,
 }
 
 /// A tournament within the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,
@@ -43,6 +44,7 @@ pub struct Tournament {
     pub created_at: i64,
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
+    pub tournament_role_id: String,
     pub map: Option<String>,
 }
 

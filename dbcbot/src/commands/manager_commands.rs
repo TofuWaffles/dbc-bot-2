@@ -1,16 +1,5 @@
-use anyhow::anyhow;
-use poise::serenity_prelude::ChannelType;
-use poise::serenity_prelude::ComponentInteractionDataKind::ChannelSelect;
-use poise::serenity_prelude::ComponentInteractionDataKind::RoleSelect;
-use poise::{
-    serenity_prelude::{
-        self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed, CreateSelectMenu,
-        CreateSelectMenuKind,
-    },
-    CreateReply, ReplyHandle,
-};
-use tracing::{error, info, instrument};
-use crate::utils::prompt::splash;
+use crate::utils::discord::{select_channel, select_role, splash};
+use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
     database::{
@@ -20,6 +9,16 @@ use crate::{
     log::{self, discord_log_info},
     BotContext, BotData, BotError,
 };
+use anyhow::anyhow;
+
+use poise::Modal;
+use poise::{
+    serenity_prelude::{
+        self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed
+    },
+    CreateReply, ReplyHandle,
+};
+use tracing::{error, info, instrument};
 
 use super::CommandsContainer;
 
@@ -79,8 +78,9 @@ async fn set_config_slash(
 async fn create_tournament_slash(
     ctx: BotContext<'_>,
     #[description = "Tournament name"] name: String,
+    #[description = "Role for the tournament"] role: serenity::Role,
 ) -> Result<(), BotError> {
-    create_tournament(ctx, name).await
+    create_tournament(ctx, name, role).await
 }
 
 /// Start a tournament.
@@ -108,11 +108,13 @@ async fn set_config(
     notification_channel: serenity::Channel,
     log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
-    let msg = ctx.send(
-        CreateReply::default()
-            .content("Setting the configuration...")
-            .ephemeral(true),
-    ).await?;
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Setting the configuration...")
+                .ephemeral(true),
+        )
+        .await?;
     let announcement_channel_id = match announcement_channel.guild() {
         Some(guild) => guild.id.to_string(),
         None => {
@@ -187,13 +189,13 @@ async fn set_config(
 }
 
 /// Create a new tournament.
-async fn create_tournament(ctx: BotContext<'_>, name: String) -> Result<(), BotError> {
+async fn create_tournament(ctx: BotContext<'_>, name: String, role: serenity::Role) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
-
+    let role_id = role.id.to_string();
     let new_tournament_id = ctx
         .data()
         .database
-        .create_tournament(&guild_id, &name, None)
+        .create_tournament(&guild_id, &name, None, role_id)
         .await?;
 
     ctx.send(
@@ -414,7 +416,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
             }
             "create" => {
                 mci.defer(ctx.http()).await?;
-                todo!("Create a new tournament");
+                return step_by_step_create_tournament(&ctx, &msg).await;
             }
             "start" => {
                 mci.defer(ctx.http()).await?;
@@ -429,87 +431,59 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 }
 
 async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-    async fn select_marshal_role(
-        ctx: &BotContext<'_>,
-        msg: &ReplyHandle<'_>,
-    ) -> Result<serenity::Role, BotError> {
-        let embed = CreateEmbed::default()
-            .title("Select Marshal Role")
-            .description("Please select the role that can manage the tournament system.")
-            .color(Colour::GOLD);
-        let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
-            "role",
-            CreateSelectMenuKind::Role {
-                default_roles: None,
-            },
-        ))];
-        let builder = CreateReply::default().embed(embed).components(component);
-        msg.edit(*ctx, builder).await?;
-        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
-            .author_id(ctx.author().id)
-            .channel_id(ctx.channel_id())
-            .timeout(std::time::Duration::from_secs(120))
-            .filter(move |mci| mci.data.custom_id == "role")
-            .await
-        {
-            mci.defer(ctx.http()).await?;
-            match mci.data.kind {
-                RoleSelect { values } => {
-                    let role = ctx.guild().unwrap().roles.get(&values[0]).unwrap().clone();
-                    return Ok(role);
+    async fn preset(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+        let config = ctx.get_config().await?;
+        if let Some(c) = config {
+            let embed = CreateEmbed::default()
+                .title("Configuration Already Set For This Server")
+                .description(format!(
+                    r#"Configuration already set for this server.\n
+Marshal role: <@&{role}>,
+Announcement channel: <#{ann}>,
+Notification channel: <#{noti}>,
+Log channel: <#{log}>.                
+"#,
+                    role = c.marshal_role_id,
+                    ann = c.announcement_channel_id,
+                    noti = c.notification_channel_id,
+                    log = c.log_channel_id
+                ))
+                .color(Colour::GOLD);
+            let components = vec![CreateActionRow::Buttons(vec![CreateButton::new("edit")
+                .style(serenity::ButtonStyle::Primary)
+                .label("Edit Configuration")])];
+            let builder = CreateReply::default()
+                .embed(embed)
+                .components(components)
+                .ephemeral(true);
+            msg.edit(*ctx, builder).await?;
+            while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
+                .author_id(ctx.author().id)
+                .channel_id(ctx.channel_id())
+                .filter(move |mci| mci.data.custom_id == "edit")
+                .await
+            {
+                mci.defer(ctx.http()).await?;
+                if mci.data.custom_id.as_str() == "edit" {
+                    return Ok(());
                 }
-                _ => {}
             }
         }
-        Err(anyhow!("No role selected").into())
+        Ok(())
     }
-    async fn select_channel<S>(
-        ctx: &BotContext<'_>,
-        msg: &ReplyHandle<'_>,
-        title: S,
-        description: S,
-    ) -> Result<serenity::Channel, BotError>
-    where
-        S: Into<String> + Send + 'static,
-    {
-        let embed = CreateEmbed::default()
-            .title(title)
-            .description(description)
-            .color(Colour::GOLD);
-        let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
-            "channel",
-            CreateSelectMenuKind::Channel {
-                default_channels: None,
-                channel_types: Some(vec![ChannelType::Text]),
-            },
-        ))];
-        let builder = CreateReply::default().embed(embed).components(component);
-        msg.edit(*ctx, builder).await?;
-        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
-            .author_id(ctx.author().id)
-            .channel_id(ctx.channel_id())
-            .timeout(std::time::Duration::from_secs(120))
-            .filter(move |mci| mci.data.custom_id == "channel")
-            .await
-        {
-            mci.defer(ctx.http()).await?;
-            match mci.data.kind {
-                ChannelSelect { values } => {
-                    let channel = values[0].to_channel(ctx.http()).await?;
-                    return Ok(channel);
-                }
-                _ => {}
-            }
-        }
-        Err(anyhow!("No channel selected").into())
-    }
-    let marshal_role = select_marshal_role(ctx, msg).await?;
+    preset(ctx, msg).await?;
+    let marshal_role = select_role(
+        ctx, 
+        msg,
+        "Select Marshal Role",
+        "Please select the role that will be able to manage the tournament system.",
+    ).await?;
     splash(ctx, msg).await?;
     let announcement_channel = select_channel(
         ctx,
         msg,
         "Select Announcement Channel",
-        "Please select the channel where the bot will announce the start and end of tournaments.",
+        "Please select the channel where the bot will announce the progress of the tournament.",
     )
     .await?;
     splash(ctx, msg).await?;
@@ -532,9 +506,64 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
     .await?;
     Ok(())
 }
+
+async fn step_by_step_create_tournament(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+) -> Result<(), BotError> {
+    async fn input(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<String, BotError> {
+        #[derive(Debug, Modal)]
+        #[name = "Tournament Name"]
+        struct TournamentName {
+            #[name = "Name the tournament here"]
+            #[placeholder = ""]
+            #[min_length = 4]
+            #[max_length = 10]
+            name: String,
+        }
+        let builder = {
+            let components = vec![serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("open_modal")
+                    .label("Open modal")
+                    .style(poise::serenity_prelude::ButtonStyle::Success),
+            ])];
+
+            poise::CreateReply::default()
+                .content("Click the button below to open the modal")
+                .components(components)
+        };
+
+        msg.edit(*ctx, builder).await?;
+
+        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+            .timeout(std::time::Duration::from_secs(120))
+            .filter(move |mci| mci.data.custom_id == "open_modal")
+            .await
+        {
+            let name = poise::execute_modal_on_component_interaction::<TournamentName>(
+                ctx, mci, None, None,
+            )
+            .await?
+            .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?
+            .name;
+            return Ok(name);
+        }  
+        Err(anyhow!("No name entered").into())
+    }
+    let name = input(ctx, msg).await?;
+    let role = select_role(
+        ctx,
+        msg,
+        "Select Role",
+        "Please select the role for the tournament.",
+    ).await?;
+    create_tournament(*ctx, name, role).await
+}
 /// Test for the match generation for new tournaments.
 #[cfg(test)]
 mod tests {
+    use poise::serenity_prelude::Role;
+
     use super::generate_matches_new_tournament;
     use crate::database::{
         models::{Player, PlayerType, User},
@@ -556,8 +585,8 @@ mod tests {
     async fn creates_two_matches() {
         let db = PgDatabase::connect().await.unwrap();
         const SAMPLE: usize = 4;
-        let mut users: Vec<User> = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -1).await.unwrap();
+        let users: Vec<User> = create_dummy(SAMPLE);
+        db.create_tournament("0", "test", -1, Role::default().id.to_string()).await.unwrap();
 
         println!("{:?}", users);
 
@@ -577,10 +606,10 @@ mod tests {
         println!("{:?}", matches);
 
         assert_eq!(matches.len(), 2);
-        assert!(matches[0].player_1_type == PlayerType::Player);
-        assert!(matches[0].player_2_type == PlayerType::Player);
-        assert!(matches[1].player_1_type == PlayerType::Player);
-        assert!(matches[1].player_2_type == PlayerType::Player);
+        matches.iter().take(2).for_each(|game_match| {
+            assert_eq!(game_match.player_1_type, PlayerType::Player);
+            assert_eq!(game_match.player_2_type, PlayerType::Player);
+        });
     }
 
     #[tokio::test]
@@ -589,7 +618,7 @@ mod tests {
         let db = PgDatabase::connect().await.unwrap();
 
         let users = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -2).await.unwrap();
+        db.create_tournament("0", "test", -2, Role::default().id.to_string()).await.unwrap();
 
         for user in &users {
             db.create_user(user).await.unwrap();
@@ -617,7 +646,7 @@ mod tests {
         const SAMPLE: usize = 6;
         let db = PgDatabase::connect().await.unwrap();
         let users = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -3).await.unwrap();
+        db.create_tournament("0", "test", -3, Role::default().id.to_string()).await.unwrap();
         for user in &users {
             db.create_user(user).await.unwrap();
             db.enter_tournament(-3, &user.discord_id).await.unwrap();

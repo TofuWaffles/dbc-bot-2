@@ -1,3 +1,4 @@
 pub mod lru;
 pub mod time;
-pub mod prompt;
+pub mod discord;
+pub mod shorthand;

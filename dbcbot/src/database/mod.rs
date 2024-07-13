@@ -7,10 +7,11 @@ use models::BattleType;
 use models::Event;
 use models::Mode;
 use models::Player;
+use models::Tournament;
 use sqlx::PgPool;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, Tournament, TournamentStatus,
+    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, TournamentStatus,
     User,
 };
 
@@ -87,6 +88,7 @@ pub trait Database {
         guild_id: &str,
         name: &str,
         tournament_id: impl Into<Option<i32>>,
+        role_id: String,
     ) -> Result<i32, Self::Error>;
 
     /// Updates the status of a tournament.
@@ -408,6 +410,7 @@ impl Database for PgDatabase {
         guild_id: &str,
         name: &str,
         tournament_id: impl Into<Option<i32>>,
+        role_id: String,
     ) -> Result<i32, Self::Error> {
         let timestamp_time = chrono::offset::Utc::now().timestamp();
 
@@ -415,13 +418,14 @@ impl Database for PgDatabase {
             None => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round)
-            VALUES ($1, $2, $3, 0, 0)
+            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, tournament_role_id)
+            VALUES ($1, $2, $3, 0, 0, $4)
             RETURNING tournament_id
             "#,
                     guild_id,
                     name,
-                    timestamp_time
+                    timestamp_time,
+                    role_id
                 )
                 .fetch_one(&self.pool)
                 .await?
@@ -476,7 +480,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, tournament_role_id
             FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
             LIMIT 1
