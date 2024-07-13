@@ -48,7 +48,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
     let tournament = ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?;
 
     match tournament {
@@ -140,7 +140,7 @@ async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
         CreateReply::default()
             .content(format!(
                 "Here are the currently active tournaments\n```\n{}\n```",
-                table.to_string()
+                table
             ))
             .ephemeral(true),
     )
@@ -157,7 +157,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -175,7 +175,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result
         }
     };
 
-    ctx.data().database.set_map(&tournament_id, &map).await?;
+    ctx.data().database.set_map(tournament_id, &map).await?;
 
     ctx.send(
         CreateReply::default()
@@ -227,12 +227,12 @@ async fn get_match(
                     .database
                     .get_player_active_tournaments(&guild_id, &player.id.to_string())
                     .await?;
-                if player_active_tournaments.len() < 1 {
+                if player_active_tournaments.is_empty() {
                     ctx.send(
                         CreateReply::default()
                             .content(format!(
                                 "The player <@{}> is not currently in any active tournaments.",
-                                player.id.to_string()
+                                player.id
                             ))
                             .ephemeral(true),
                     )
@@ -244,7 +244,7 @@ async fn get_match(
                     .data()
                     .database
                     .get_match_by_player(
-                        &player_active_tournaments[0].tournament_id,
+                        player_active_tournaments[0].tournament_id,
                         &player.id.to_string(),
                     )
                     .await?;
@@ -311,7 +311,7 @@ async fn pause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(),
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -337,7 +337,7 @@ async fn pause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(),
 
     ctx.data()
         .database
-        .set_tournament_status(&tournament_id, TournamentStatus::Paused)
+        .set_tournament_status(tournament_id, TournamentStatus::Paused)
         .await?;
 
     ctx.send(CreateReply::default()
@@ -356,7 +356,7 @@ async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -382,7 +382,7 @@ async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(
 
     ctx.data()
         .database
-        .set_tournament_status(&tournament_id, TournamentStatus::Started)
+        .set_tournament_status(tournament_id, TournamentStatus::Started)
         .await?;
 
     ctx.send(
@@ -405,7 +405,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -418,7 +418,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
     let bracket = match ctx
         .data()
         .database
-        .get_match_by_player(&tournament.tournament_id, &player.id.to_string())
+        .get_match_by_player(tournament.tournament_id, &player.id.to_string())
         .await?
     {
         Some(bracket) => bracket,
@@ -427,8 +427,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
                 CreateReply::default()
                     .content(format!(
                         "An unfinished match could not be found for <@{}> in tournament {}.",
-                        player.id.to_string(),
-                        tournament_id
+                        player.id, tournament_id
                     ))
                     .ephemeral(true),
             )
@@ -459,8 +458,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         CreateReply::default()
             .content(format!(
                 "Successfully disqualified <@{}> from match {}",
-                player.id.to_string(),
-                bracket.match_id
+                player.id, bracket.match_id
             ))
             .ephemeral(true),
     )
@@ -470,15 +468,10 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         ctx,
         &format!(
             "Player <@{}> was disqualified from tournament {}",
-            player.id.to_string(),
-            tournament.tournament_id
+            player.id, tournament.tournament_id
         ),
         vec![
-            (
-                "Disqualified player",
-                &format!("<@{}>", player.id.to_string()),
-                false,
-            ),
+            ("Disqualified player", &format!("<@{}>", player.id), false),
             ("Match ID", &bracket.match_id, false),
             (
                 "Tournament ID",
@@ -507,7 +500,7 @@ async fn next_round(
     let tournament = match ctx
         .data()
         .database
-        .get_tournament(&guild_id, &tournament_id)
+        .get_tournament(&guild_id, tournament_id)
         .await?
     {
         Some(tournament) => tournament,
@@ -529,14 +522,14 @@ async fn next_round(
     let brackets = ctx
         .data()
         .database
-        .get_matches_by_tournament(&tournament_id, Some(&tournament.current_round))
+        .get_matches_by_tournament(tournament_id, Some(tournament.current_round))
         .await?;
 
     let (with_winners, without_winners): (Vec<Match>, Vec<Match>) = brackets
         .into_iter()
         .partition(|bracket| bracket.winner.is_some());
 
-    if without_winners.len() > 0 {
+    if !without_winners.is_empty() {
         // TODO: Show unfinished matches as a table or a CSV file
         ctx.send(CreateReply::default().content("Unable to advance to the next round. Some players have not finished their matches yet!").ephemeral(true)).await?;
         return Ok(());
@@ -550,9 +543,9 @@ async fn next_round(
         ctx.data()
             .database
             .create_match(
-                &tournament_id,
-                &round,
-                &bracket.sequence_in_round,
+                tournament_id,
+                round,
+                bracket.sequence_in_round,
                 bracket.player_1_type,
                 bracket.player_2_type,
                 Some(&bracket.discord_id_1.ok_or(anyhow!(
@@ -567,10 +560,10 @@ async fn next_round(
             .await?;
     }
 
-    ctx.data().database.next_round(&tournament_id).await?;
+    ctx.data().database.next_round(tournament_id).await?;
 
     if let Some(map) = map {
-        ctx.data().database.set_map(&tournament_id, &map).await?;
+        ctx.data().database.set_map(tournament_id, &map).await?;
     }
 
     ctx.send(
@@ -636,7 +629,7 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
             return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id));
         }
 
-        let match_id = Match::generate_id(&tournament_id, &round, &new_sequence);
+        let match_id = Match::generate_id(tournament_id, round, new_sequence);
 
         next_round_brackets.push(Match::new(
             match_id,

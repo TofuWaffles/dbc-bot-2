@@ -3,12 +3,11 @@ ARG DATABASE_URL="postgres://postgres:password@localhost:5432/example_so_sqlx_no
 ARG BRAWL_STARS_TOKEN="token"
 ARG DISCORD_TOKEN="token"
 
-FROM rust:bullseye AS chef
+FROM clux/muslrust:stable AS chef
+USER root
 RUN cargo install cargo-chef
-RUN cargo install sqlx-cli --no-default-features --features rustls,postgres
-
-# Set the working directory
 WORKDIR /dbcbot
+
 FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
@@ -20,27 +19,22 @@ ENV DATABASE_URL=$DATABASE_URL
 ENV SQLX_OFFLINE=true
 
 COPY --from=planner /dbcbot/recipe.json recipe.json
-RUN cargo chef cook --recipe-path recipe.json
+RUN cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --target x86_64-unknown-linux-musl
 
 # Final stage for the runtime image
-FROM debian:bullseye
-
+FROM alpine:latest AS runtime
 ARG DATABASE_URL
 ARG BRAWL_STARS_TOKEN
 ARG DISCORD_TOKEN
-
 ENV BRAWL_STARS_TOKEN=$BRAWL_STARS_TOKEN
 ENV DISCORD_TOKEN=$DISCORD_TOKEN
 ENV DATABASE_URL=$DATABASE_URL
-
-RUN apt-get update && apt-get install -y \
+RUN apk update && apk add --no-cache \
     ca-certificates \
-    && update-ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /dbcbot/target/release/dbcbot /usr/local/bin/dbcbot
+    && update-ca-certificates
+WORKDIR /dbcbot
+COPY --from=builder /dbcbot/target/x86_64-unknown-linux-musl/release/dbcbot /usr/local/bin/dbcbot
 COPY .sqlx /dbcbot/.sqlx
-
-CMD ["dbcbot"]
+ENTRYPOINT ["/usr/local/bin/dbcbot"]

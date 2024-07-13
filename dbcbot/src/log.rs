@@ -6,6 +6,14 @@ use tracing::info;
 
 use crate::{database::Database, BotContext, BotError};
 
+struct Log{}
+impl Log{
+    
+}
+
+struct Debug{
+
+}
 /// Creates an info log message in the current guild's designated log channel.
 pub async fn discord_log_info(
     ctx: BotContext<'_>,
@@ -100,7 +108,7 @@ pub async fn discord_log_error(
                 .content("⚠️ An error occured in a command!")
                 .embed(
                     CreateEmbed::new()
-                        .title(format!("{}", title))
+                        .title(title.to_string())
                         .description("Please check the logs for more information.")
                         .fields(fields)
                         .color(Color::RED),

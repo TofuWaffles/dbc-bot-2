@@ -9,8 +9,10 @@ use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
-    owner_commands::OwnerCommands, user_commands::UserCommands, CommandsContainer,
+    owner_commands::OwnerCommands, test::battle_log, user_commands::UserCommands,
+    CommandsContainer,
 };
+use utils::lru::LRUCache;
 
 use crate::log::discord_log_error;
 
@@ -30,7 +32,7 @@ mod utils;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-#[derive(Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct Data<DB, P> {
     database: DB,
     cache: Cache,
@@ -47,13 +49,15 @@ where
         Self {
             database,
             game_api,
-            cache: Cache {},
+            cache: Cache::default(),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct Cache {}
+#[derive(Debug, Clone, Default)]
+pub struct Cache {
+    pub assets: LRUCache<String, Vec<u8>>,
+}
 
 /// Convenience type for the bot's data with generics filled in.
 pub type BotData = Data<PgDatabase, BrawlStarsApi>;
@@ -83,7 +87,7 @@ async fn run() -> Result<(), BotError> {
     let setup_span = info_span!("bot_setup");
     let _guard = setup_span.enter();
     // Load the .env file only in the development environment (bypassed with the --release flag)
-    #[cfg(debug_assertions)]
+    // #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let discord_token =
@@ -97,7 +101,7 @@ async fn run() -> Result<(), BotError> {
     info!("Successfully loaded Brawl Stars Token");
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
-    let commands = vec![
+    let mut commands: Vec<_> = vec![
         OwnerCommands::get_all(),
         ManagerCommands::get_all(),
         MarshalCommands::get_all(),
@@ -106,6 +110,10 @@ async fn run() -> Result<(), BotError> {
     .into_iter()
     .flatten()
     .collect();
+    commands.push(battle_log::battle_log());
+    commands
+        .iter()
+        .for_each(|c| println!("Command: {}", c.name));
 
     let intents = serenity::GatewayIntents::non_privileged();
 
@@ -162,7 +170,7 @@ async fn run() -> Result<(), BotError> {
                         },
                     };
 
-                    let user_field = &format!("<@{}>", ctx.author().id.to_string());
+                    let user_field = &format!("<@{}>", ctx.author().id);
                     let tournaments_field = &format!("{:#?}", player_tournaments);
 
                     let fields = vec![
@@ -171,14 +179,11 @@ async fn run() -> Result<(), BotError> {
                         ("Tournaments", &tournaments_field, false),
                     ];
 
-                    match discord_log_error(
+                    discord_log_error(
                         ctx,
                         &error.to_string(),
                         fields
-                        ).await {
-                        Ok(_) => (),
-                        Err(e) => error!("Error sending error message to log channel: {:?}", e),
-                    };
+                        ).await.unwrap_or_else(|e|error!("Error sending error message to log channel: {:?}", e));
                 })
             },
             ..Default::default()

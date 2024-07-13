@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM users WHERE discord_id = $1\n            LIMIT 1\n            ",
+  "query": "\n            SELECT discord_id, player_tag FROM users WHERE player_tag = $1\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "1c2e7940f706df656f76e5ef10153e2f195b85ee32a3c209ba52f547ecc8d170"
+  "hash": "224271c61a01aad7884a16473686fa92e06629c83e563e75abb2b7f5cffdc56b"
 }

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
+use strum::Display;
 
 /// The manager role configuration for a guild within the database.
 #[derive(Serialize, Deserialize)]
@@ -19,28 +19,22 @@ pub struct GuildConfig {
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
-#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display, Default)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
+    #[strum(to_string = "Open for registration")]
     Pending,
+    #[strum(to_string = "In progress")]
     Started,
+    #[strum(to_string = "Paused")]
     Paused,
+    #[strum(to_string = "Inactive/Completed")]
+    #[default]
     Inactive,
 }
 
-impl Display for TournamentStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TournamentStatus::Pending => write!(f, "Open for registration"),
-            TournamentStatus::Started => write!(f, "In progress"),
-            TournamentStatus::Paused => write!(f, "Paused"),
-            TournamentStatus::Inactive => write!(f, "Inactive/Completed"),
-        }
-    }
-}
-
 /// A tournament within the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,
@@ -50,18 +44,38 @@ pub struct Tournament {
     pub created_at: i64,
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
+    pub tournament_role_id: String,
     pub map: Option<String>,
     pub wins_required: i32,
 }
 
 /// A Discord user within the database.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct User {
+    pub discord_id: String,
+    pub discord_name: String,
+    pub player_tag: String,
+    pub player_name: String,
+    pub icon: i32,
+    pub trophies: i32,
+    pub brawlers: sqlx::types::JsonValue,
+}
+
+impl User {
+    pub fn to_player(&self) -> Player {
+        Player {
+            discord_id: self.discord_id.clone(),
+            player_tag: self.player_tag.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Player {
     pub discord_id: String,
     pub player_tag: String,
 }
-
-/// A relational object that links a Discord user to a tournamnet they've joined.
+/// A relational object that links a Discord user to a tournament they've joined.
 #[derive(Serialize, Deserialize)]
 pub struct TournamentPlayer {
     pub tournament_id: i32,
@@ -116,7 +130,7 @@ impl Match {
         }
     }
 
-    pub fn generate_id(tournament_id: &i32, round: &i32, sequence_in_round: &i32) -> String {
+    pub fn generate_id(tournament_id: i32, round: i32, sequence_in_round: i32) -> String {
         format!("{}.{}.{}", tournament_id, round, sequence_in_round)
     }
 
@@ -171,22 +185,29 @@ pub struct MatchSchedule {
 #[derive(Serialize, Deserialize)]
 pub struct BattleRecord {
     pub record_id: i64,
+    #[serde(default)]
     pub match_id: String,
+    #[serde(default)]
     pub battles: Vec<Battle>,
 }
-
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
+    #[serde(default)]
     pub id: i64,
+    #[serde(default)]
     pub record_id: i64,
     pub battle_time: i64,
+    pub battle_class: BattleClass,
+    pub event: Event,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleClass {
+    #[serde(default)]
     pub id: i64,
+    #[serde(default)]
     pub battle_id: i64,
     pub mode: Mode,
     pub battle_type: BattleType,
@@ -196,51 +217,97 @@ pub struct BattleClass {
     pub teams: serde_json::Value, // Assuming teams is stored as JSONB
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, sqlx::FromRow)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 pub struct Event {
+    #[serde(default)]
     pub id: i64,
+    #[serde(default)]
     pub mode: Mode,
     pub map: Option<String>, // Optional because map can be NULL in the database
+    #[serde(default)]
     pub battle_id: i64,
 }
 
-#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
-#[sqlx(type_name = "mode", rename_all = "snake_case")]
+#[allow(non_camel_case_types)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
+#[sqlx(type_name = "mode", rename_all = "camelCase")]
 pub enum Mode {
-    BrawlBall,
-    GemGrab,
-    Heist,
-    Bounty,
-    Siege,
-    SoloShowdown,
-    DuoShowdown,
-    HotZone,
-    Knockout,
-    Takedown,
-    LoneStar,
-    BigGame,
-    RoboRumble,
-    BossFight,
-    WipeOut,
-    Duels,
-    PaintBrawl,
-    BrawlBall5v5,
-    GemGrab5v5,
-    Bounty5v5,
-    KnockOut5v5,
+    #[strum(to_string = "Brawl Ball")]
+    brawlBall,
+    #[strum(to_string = "Gem Grab")]
+    gemGrab,
+    #[strum(to_string = "Heist")]
+    heist,
+    #[strum(to_string = "Bounty")]
+    bounty,
+    #[strum(to_string = "Siege")]
+    siege,
+    #[strum(to_string = "Solo Showdown")]
+    soloShowdown,
+    #[strum(to_string = "Duo Showdown")]
+    duoShowdown,
+    #[strum(to_string = "Hot Zone")]
+    hotZone,
+    #[strum(to_string = "Knockout")]
+    knockout,
+    #[strum(to_string = "Takedown")]
+    takedown,
+    #[strum(to_string = "Lone Star")]
+    loneStar,
+    #[strum(to_string = "Big Game")]
+    bigGame,
+    #[strum(to_string = "Robo Rumble")]
+    roboRumble,
+    #[strum(to_string = "Boss Fight")]
+    bossFight,
+    #[strum(to_string = "Wipeout")]
+    wipeout,
+    #[strum(to_string = "Duels")]
+    duels,
+    #[strum(to_string = "Paint Brawl")]
+    paintBrawl,
+    #[strum(to_string = "Brawl Ball 5v5")]
+    brawlBall5V5,
+    #[strum(to_string = "Gem Grab 5v5")]
+    gemGrab5V5,
+    #[strum(to_string = "Wipeout 5v5")]
+    wipeout5V5,
+    #[strum(to_string = "Knockout 5v5")]
+    knockOut5V5,
+    #[default]
+    #[strum(to_string = "Unknown")]
+    unknown,
 }
 
-#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
-#[sqlx(type_name = "type", rename_all = "snake_case")]
+#[allow(non_camel_case_types)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
+#[sqlx(type_name = "type", rename_all = "camelCase")]
 pub enum BattleType {
-    Ranked,
-    Friendly,
+    #[strum(to_string = "Ranked")]
+    ranked,
+    #[strum(to_string = "Friendly")]
+    friendly,
+    #[strum(to_string = "Unknown")]
+    #[default]
+    unknown,
 }
-
-#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
-#[sqlx(type_name = "result", rename_all = "snake_case")]
+#[allow(non_camel_case_types)]
+#[derive(
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+)]
+#[sqlx(type_name = "result", rename_all = "camelCase")]
 pub enum BattleResult {
-    Victory,
-    Defeat,
-    Draw,
+    #[strum(to_string = "Victory")]
+    victory,
+    #[strum(to_string = "Defeat")]
+    defeat,
+    #[strum(to_string = "Draw")]
+    draw,
+    #[strum(to_string = "Unknown")]
+    #[default]
+    unknown,
 }

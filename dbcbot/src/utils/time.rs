@@ -2,7 +2,7 @@ use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BDateTime {
-    datetime: i64,
+    pub datetime: i64,
 }
 
 impl BDateTime {
