@@ -199,7 +199,7 @@ pub async fn modal<T: poise::modal::Modal>(
 
     msg.edit(*ctx, builder).await?;
 
-    while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+    if let Some(mci) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
         .timeout(std::time::Duration::from_secs(120))
         .filter(move |mci| mci.data.custom_id == "open_modal")
         .await

@@ -407,7 +407,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         .components(components)
         .reply(true);
     let msg = ctx.send(builder).await?;
-    while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
+    if let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
         .author_id(ctx.author().id)
         .channel_id(ctx.channel_id())
         .timeout(std::time::Duration::from_secs(120))
