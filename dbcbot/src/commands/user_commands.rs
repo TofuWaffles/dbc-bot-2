@@ -23,6 +23,7 @@ use crate::{
         },
         Database,
     },
+    utils::{discord::{modal, prompt}, shorthand::BotContextExt},
     BotContext, BotData, BotError,
 };
 
@@ -54,25 +55,16 @@ const USER_CMD_TIMEOUT: u64 = 120000;
 )]
 #[instrument]
 async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
-    info!("User {} has entered the menu", ctx.author().name);
-
+    // info!("User {} has entered the menu", ctx.author().name);
     ctx.defer_ephemeral().await?;
-
-    let user_id = ctx.author().id.to_string();
-
-    let user = ctx
-        .data()
-        .database
-        .get_player_by_discord_id(&user_id)
-        .await?;
-
-    let msg = ctx
-        .send(
-            CreateReply::default()
-                .content("Loading menu...")
-                .ephemeral(true),
-        )
-        .await?;
+    let user = ctx.get_player_from_discord_id(ctx.author().to_owned()).await?;
+    let msg = prompt(
+        &ctx, 
+        None,
+        "Loading menu...",
+        "Please wait while we load the menu.",
+        None
+    ).await?;
 
     let interaction_collector = msg
         .clone()
@@ -418,14 +410,7 @@ async fn user_display_match(
                 }
             };
 
-            let notification_channel = ChannelId::from_str(
-                &ctx.data()
-                    .database
-                    .get_config(&ctx.guild_id().unwrap().to_string())
-                    .await?
-                    .unwrap()
-                    .notification_channel_id,
-            )?;
+            let notification_channel = ChannelId::from_str(&tournament.notification_channel_id)?;
 
             notification_channel
                 .send_message(ctx, CreateMessage::default().content(notification_message))
@@ -569,14 +554,10 @@ async fn user_display_registration(
     if let Some(interaction) = interaction_collector.next().await {
         match interaction.data.custom_id.as_str() {
             "player_profile_registration" => {
-                player_tag = poise::execute_modal_on_component_interaction::<
-                    ProfileRegistrationModal,
-                >(ctx, interaction, None, None)
-                .await?
-                .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?
-                .player_tag
-                .to_uppercase();
-
+                player_tag = modal::<ProfileRegistrationModal>(&ctx, &msg)
+                    .await?
+                    .player_tag
+                    .to_uppercase();
                 if player_tag.starts_with('#') {
                     player_tag.remove(0);
                 }

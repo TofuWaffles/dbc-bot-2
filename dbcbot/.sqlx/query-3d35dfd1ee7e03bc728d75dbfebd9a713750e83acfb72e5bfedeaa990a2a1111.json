@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id)\n            VALUES ($1, $2, $3, 0, 0, $4, $5, $6)\n            RETURNING tournament_id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3d35dfd1ee7e03bc728d75dbfebd9a713750e83acfb72e5bfedeaa990a2a1111"
+}

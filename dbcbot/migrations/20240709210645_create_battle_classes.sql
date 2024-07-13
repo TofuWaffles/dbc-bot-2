@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS battle_classes (
     mode mode NOT NULL,
     battle_type battle_type NOT NULL,
     result result NOT NULL,
-    duration BIGINT NOT NULL,
-    trophy_change BIGINT,
+    duration INT NOT NULL,
+    trophy_change INT,
     teams JSONB NOT NULL,
     FOREIGN KEY (battle_id) REFERENCES battles(id)
 );

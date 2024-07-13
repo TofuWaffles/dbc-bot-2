@@ -1,4 +1,5 @@
-use crate::utils::discord::{select_channel, select_role, splash};
+use crate::database::models::Tournament;
+use crate::utils::discord::{modal, prompt, select_channel, select_options, select_role, splash};
 use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
@@ -11,11 +12,10 @@ use crate::{
 };
 use anyhow::anyhow;
 
+use poise::serenity_prelude::{Channel, Role};
 use poise::Modal;
 use poise::{
-    serenity_prelude::{
-        self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed
-    },
+    serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
     CreateReply, ReplyHandle,
 };
 use tracing::{error, info, instrument};
@@ -55,20 +55,11 @@ async fn set_config_slash(
     ctx: BotContext<'_>,
     #[description = "This role can access tournament monitor commands!"]
     marshal_role: serenity::Role,
-    #[description = "This channel announces winner for each match!"]
+    #[description = "This channel is set for general announcement for the tournament!"]
     announcement_channel: serenity::Channel,
-    #[description = "This channel announces winner for each match!"]
-    notification_channel: serenity::Channel,
     #[description = "This channel logs activities"] log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
-    set_config(
-        ctx,
-        marshal_role,
-        announcement_channel,
-        notification_channel,
-        log_channel,
-    )
-    .await
+    set_config(ctx, marshal_role, announcement_channel, log_channel).await
 }
 
 /// Create a new tournament.
@@ -79,8 +70,10 @@ async fn create_tournament_slash(
     ctx: BotContext<'_>,
     #[description = "Tournament name"] name: String,
     #[description = "Role for the tournament"] role: serenity::Role,
+    #[description = "Announcement channel for the tournament"] announcement: serenity::Channel,
+    #[description = "Notification channel for the tournament"] notification: serenity::Channel,
 ) -> Result<(), BotError> {
-    create_tournament(ctx, name, role).await
+    create_tournament(ctx, name, role, announcement, notification).await
 }
 
 /// Start a tournament.
@@ -106,7 +99,6 @@ async fn set_config(
     ctx: BotContext<'_>,
     marshal_role: serenity::Role,
     announcement_channel: serenity::Channel,
-    notification_channel: serenity::Channel,
     log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
     let msg = ctx
@@ -129,21 +121,6 @@ async fn set_config(
             return Ok(());
         }
     };
-
-    let notification_channel_id = match notification_channel.guild() {
-        Some(guild) => guild.id.to_string(),
-        None => {
-            ctx.send(
-                CreateReply::default()
-                    .content("Please enter a valid server channel as the notification channel")
-                    .ephemeral(true),
-            )
-            .await?;
-            error!("Invalid notification channel entered by {}", ctx.author());
-            return Ok(());
-        }
-    };
-
     let log_channel_id = match log_channel.guild() {
         Some(guild) => guild.id.to_string(),
         None => {
@@ -167,9 +144,8 @@ async fn set_config(
                 .ok_or(anyhow!("This command must be used within a server"))?
                 .to_string(),
             &marshal_role_id,
-            &announcement_channel_id,
-            &notification_channel_id,
             &log_channel_id,
+            &announcement_channel_id,
         )
         .await?;
 
@@ -190,13 +166,26 @@ async fn set_config(
 }
 
 /// Create a new tournament.
-async fn create_tournament(ctx: BotContext<'_>, name: String, role: serenity::Role) -> Result<(), BotError> {
+async fn create_tournament(
+    ctx: BotContext<'_>,
+    name: String,
+    role: serenity::Role,
+    announcement_channel: serenity::Channel,
+    notification_channel: serenity::Channel,
+) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
     let role_id = role.id.to_string();
     let new_tournament_id = ctx
         .data()
         .database
-        .create_tournament(&guild_id, &name, None, role_id)
+        .create_tournament(
+            &guild_id,
+            &name,
+            None,
+            role_id,
+            &announcement_channel.id().to_string(),
+            &notification_channel.id().to_string(),
+        )
         .await?;
 
     ctx.send(
@@ -435,7 +424,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
             }
             "start" => {
                 mci.defer(ctx.http()).await?;
-                todo!("Start a tournament");
+                return step_by_step_start_tournament(&ctx, &msg).await;
             }
             _ => {
                 unreachable!();
@@ -455,12 +444,10 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
                     r#"Configuration already set for this server.\n
 Marshal role: <@&{role}>,
 Announcement channel: <#{ann}>,
-Notification channel: <#{noti}>,
 Log channel: <#{log}>.                
 "#,
                     role = c.marshal_role_id,
                     ann = c.announcement_channel_id,
-                    noti = c.notification_channel_id,
                     log = c.log_channel_id
                 ))
                 .color(Colour::GOLD);
@@ -486,14 +473,101 @@ Log channel: <#{log}>.
         }
         Ok(())
     }
+    async fn confirm(
+        ctx: &BotContext<'_>,
+        msg: &ReplyHandle<'_>,
+        m: &Role,
+        a: &Channel,
+        l: &Channel,
+    ) -> Result<bool, BotError> {
+        let embed = CreateEmbed::default()
+            .title("Configuration Confirmation")
+            .description(format!(
+                r#"Please confirm the following configuration:
+Marshal role: <@&{role}>,
+Announcement channel: <#{ann}>,
+Log channel: <#{log}>.
+"#,
+                role = m.id.get(),
+                ann = a.id().get(),
+                log = l.id().get()
+            ))
+            .color(Colour::GOLD);
+        let components = vec![CreateActionRow::Buttons(vec![
+            CreateButton::new("confirm")
+                .style(serenity::ButtonStyle::Primary)
+                .label("Confirm"),
+            CreateButton::new("cancel")
+                .style(serenity::ButtonStyle::Danger)
+                .label("Cancel"),
+        ])];
+        let builder = CreateReply::default()
+            .embed(embed)
+            .components(components)
+            .ephemeral(true);
+        msg.edit(*ctx, builder).await?;
+        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
+            .author_id(ctx.author().id)
+            .channel_id(ctx.channel_id())
+            .timeout(std::time::Duration::from_secs(120))
+            .await
+        {
+            mci.defer(ctx.http()).await?;
+            match mci.data.custom_id.as_str() {
+                "confirm" => return Ok(true),
+                "cancel" => return Ok(false),
+                _ => {}
+            }
+        }
+        Err(anyhow!("No response from user").into())
+    }
     preset(ctx, msg).await?;
-    let marshal_role = select_role(
-        ctx, 
-        msg,
-        "Select Marshal Role",
-        "Please select the role that will be able to manage the tournament system.",
-    ).await?;
-    splash(ctx, msg).await?;
+    let (m, a, l) = loop{
+        let marshal_role = select_role(
+            ctx,
+            msg,
+            "Select Marshal Role",
+            "Please select the role that will be able to manage the tournament system.",
+        )
+        .await?;
+        splash(ctx, msg).await?;
+        let announcement_channel = select_channel(
+            ctx,
+            msg,
+            "Select Announcement Channel",
+            "Please select the channel where the bot will announce the progress of the tournament.",
+        )
+        .await?;
+        splash(ctx, msg).await?;
+        let log_channel = select_channel(
+            ctx,
+            msg,
+            "Select Log Channel",
+            "Please select the channel where the bot will log all the actions it takes.",
+        )
+        .await?;
+        if confirm(ctx, msg, &marshal_role, &announcement_channel, &log_channel).await? {
+            break (marshal_role, announcement_channel, log_channel);
+        } 
+    };
+    set_config(*ctx, m,a,l).await?;
+    Ok(())
+}
+
+async fn step_by_step_create_tournament(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+) -> Result<(), BotError> {
+    #[derive(Debug, Modal)]
+    #[name = "Tournament Name"]
+    struct TournamentName {
+        #[name = "Name the tournament here"]
+        #[placeholder = ""]
+        #[min_length = 4]
+        #[max_length = 10]
+        name: String,
+    }
+    let name = modal::<TournamentName>(ctx, msg).await?.name;
     let announcement_channel = select_channel(
         ctx,
         msg,
@@ -503,76 +577,53 @@ Log channel: <#{log}>.
     .await?;
     splash(ctx, msg).await?;
     let notification_channel = select_channel(ctx, msg, "Select Notification Channel", "Please select the channel where the bot will send notifications to players about their progress and matches.").await?;
-    splash(ctx, msg).await?;
-    let log_channel = select_channel(
-        ctx,
-        msg,
-        "Select Log Channel",
-        "Please select the channel where the bot will log all the actions it takes.",
-    )
-    .await?;
-    set_config(
-        *ctx,
-        marshal_role,
-        announcement_channel,
-        notification_channel,
-        log_channel,
-    )
-    .await?;
-    Ok(())
-}
 
-async fn step_by_step_create_tournament(
-    ctx: &BotContext<'_>,
-    msg: &ReplyHandle<'_>,
-) -> Result<(), BotError> {
-    async fn input(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<String, BotError> {
-        #[derive(Debug, Modal)]
-        #[name = "Tournament Name"]
-        struct TournamentName {
-            #[name = "Name the tournament here"]
-            #[placeholder = ""]
-            #[min_length = 4]
-            #[max_length = 10]
-            name: String,
-        }
-        let builder = {
-            let components = vec![serenity::CreateActionRow::Buttons(vec![
-                serenity::CreateButton::new("open_modal")
-                    .label("Open modal")
-                    .style(poise::serenity_prelude::ButtonStyle::Success),
-            ])];
-
-            poise::CreateReply::default()
-                .content("Click the button below to open the modal")
-                .components(components)
-        };
-
-        msg.edit(*ctx, builder).await?;
-
-        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
-            .timeout(std::time::Duration::from_secs(120))
-            .filter(move |mci| mci.data.custom_id == "open_modal")
-            .await
-        {
-            let name = poise::execute_modal_on_component_interaction::<TournamentName>(
-                ctx, mci, None, None,
-            )
-            .await?
-            .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?
-            .name;
-            return Ok(name);
-        }  
-        Err(anyhow!("No name entered").into())
-    }
-    let name = input(ctx, msg).await?;
     let role = select_role(
         ctx,
         msg,
         "Select Role",
         "Please select the role for the tournament.",
-    ).await?;
-    create_tournament(*ctx, name, role).await
+    )
+    .await?;
+    create_tournament(*ctx, name, role, announcement_channel, notification_channel).await
+}
+
+async fn step_by_step_start_tournament(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+) -> Result<(), BotError> {
+    #[derive(Debug, Modal)]
+    #[name = "More settings"]
+    struct More {
+        #[name = "Name of the map to use for this tournament!"]
+        #[placeholder = "Write the name of the map here or leave it blank for any!"]
+        #[paragraph]
+        name: Option<String>,
+
+        #[name = "Number of wins required to win a match"]
+        #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
+        wins_required: Option<String>,
+    }
+    let guild_id = ctx
+        .guild_id()
+        .ok_or(anyhow!("No guild id found"))?
+        .to_string();
+    let tournaments = ctx.data().database.get_all_tournaments(&guild_id).await?;
+    let id = select_options::<Tournament>(
+        ctx,
+        msg,
+        "Starting a tournament!",
+        "Select a tournament you want to start",
+        &tournaments,
+    )
+    .await?;
+    let id = id.parse::<i32>()?;
+    let collector = modal::<More>(ctx, msg).await?;
+    let map = collector.name.unwrap_or("".to_string());
+    let wins_required = collector
+        .wins_required
+        .map(|x| x.parse::<i32>().unwrap_or(3));
+    start_tournament(*ctx, id, map, wins_required).await
 }
 /// Test for the match generation for new tournaments.
 #[cfg(test)]
@@ -601,7 +652,17 @@ mod tests {
         let db = PgDatabase::connect().await.unwrap();
         const SAMPLE: usize = 4;
         let users: Vec<User> = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -1, Role::default().id.to_string()).await.unwrap();
+        let channel_id: String = Default::default();
+        db.create_tournament(
+            "0",
+            "test",
+            -1,
+            Role::default().id.to_string(),
+            &channel_id,
+            &channel_id,
+        )
+        .await
+        .unwrap();
 
         println!("{:?}", users);
 
@@ -633,7 +694,17 @@ mod tests {
         let db = PgDatabase::connect().await.unwrap();
 
         let users = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -2, Role::default().id.to_string()).await.unwrap();
+        let channel_id: String = Default::default();
+        db.create_tournament(
+            "0",
+            "test",
+            -2,
+            Role::default().id.to_string(),
+            &channel_id,
+            &channel_id,
+        )
+        .await
+        .unwrap();
 
         for user in &users {
             db.create_user(user).await.unwrap();
@@ -661,7 +732,17 @@ mod tests {
         const SAMPLE: usize = 6;
         let db = PgDatabase::connect().await.unwrap();
         let users = create_dummy(SAMPLE);
-        db.create_tournament("0", "test", -3, Role::default().id.to_string()).await.unwrap();
+        let channel_id: String = Default::default();
+        db.create_tournament(
+            "0",
+            "test",
+            -3,
+            Role::default().id.to_string(),
+            &channel_id,
+            &channel_id,
+        )
+        .await
+        .unwrap();
         for user in &users {
             db.create_user(user).await.unwrap();
             db.enter_tournament(-3, &user.discord_id).await.unwrap();

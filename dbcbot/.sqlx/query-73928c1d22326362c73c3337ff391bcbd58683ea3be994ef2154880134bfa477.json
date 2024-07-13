@@ -15,17 +15,12 @@
       },
       {
         "ordinal": 2,
-        "name": "announcement_channel_id",
+        "name": "log_channel_id",
         "type_info": "Varchar"
       },
       {
         "ordinal": 3,
-        "name": "notification_channel_id",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 4,
-        "name": "log_channel_id",
+        "name": "announcement_channel_id",
         "type_info": "Varchar"
       }
     ],
@@ -35,7 +30,6 @@
       ]
     },
     "nullable": [
-      false,
       false,
       false,
       false,

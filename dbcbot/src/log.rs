@@ -6,14 +6,10 @@ use tracing::info;
 
 use crate::{database::Database, BotContext, BotError};
 
-struct Log{}
-impl Log{
-    
-}
+struct Log {}
+impl Log {}
 
-struct Debug{
-
-}
+struct Debug {}
 /// Creates an info log message in the current guild's designated log channel.
 pub async fn discord_log_info(
     ctx: BotContext<'_>,
