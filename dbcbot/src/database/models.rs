@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
+pub trait Selectable{
+    fn label(&self) -> String;
+    fn value(&self) -> String;
+}
 /// The manager role configuration for a guild within the database.
 #[derive(Serialize, Deserialize)]
 pub struct ManagerRoleConfig {
@@ -13,9 +17,8 @@ pub struct ManagerRoleConfig {
 pub struct GuildConfig {
     pub guild_id: String,
     pub marshal_role_id: String,
-    pub announcement_channel_id: String,
-    pub notification_channel_id: String,
     pub log_channel_id: String,
+    pub announcement_channel_id: String,
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
@@ -47,6 +50,17 @@ pub struct Tournament {
     pub tournament_role_id: String,
     pub map: Option<String>,
     pub wins_required: i32,
+    pub announcement_channel_id: String,
+    pub notification_channel_id: String,
+}
+
+impl Selectable for Tournament {
+    fn label(&self) -> String {
+        self.name.clone()
+    }
+    fn value(&self) -> String {
+        self.tournament_id.to_string()
+    }
 }
 
 /// A Discord user within the database.
@@ -135,9 +149,9 @@ impl Match {
     }
 
     pub fn get_player_number(&self, discord_id: &str) -> Option<PlayerNumber> {
-        if discord_id == &self.discord_id_1.clone().unwrap_or_default() {
+        if discord_id == self.discord_id_1.clone().unwrap_or_default() {
             return Some(PlayerNumber::Player1);
-        } else if discord_id == &self.discord_id_2.clone().unwrap_or_default() {
+        } else if discord_id == self.discord_id_2.clone().unwrap_or_default() {
             return Some(PlayerNumber::Player2);
         }
         None
@@ -212,8 +226,8 @@ pub struct BattleClass {
     pub mode: Mode,
     pub battle_type: BattleType,
     pub result: BattleResult,
-    pub duration: i64,
-    pub trophy_change: Option<i64>,
+    pub duration: i32,
+    pub trophy_change: Option<i32>,
     pub teams: serde_json::Value, // Assuming teams is stored as JSONB
 }
 

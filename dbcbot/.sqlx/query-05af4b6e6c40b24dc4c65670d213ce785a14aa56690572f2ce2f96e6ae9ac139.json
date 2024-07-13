@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as \"status: _\", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required, tournaments.tournament_role_id\n            FROM tournaments\n            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id\n            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2\n            ",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, tournament_role_id, wins_required, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -62,19 +62,29 @@
       },
       {
         "ordinal": 9,
+        "name": "tournament_role_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
         "name": "wins_required",
         "type_info": "Int4"
       },
       {
-        "ordinal": 10,
-        "name": "tournament_role_id",
+        "ordinal": 11,
+        "name": "announcement_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "notification_channel_id",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
       "Left": [
         "Text",
-        "Text"
+        "Int4"
       ]
     },
     "nullable": [
@@ -88,8 +98,10 @@
       true,
       true,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "37c13b5d2b0cf230123826d95532f78a0ddfc9b1ceb1fd75dd9f2b5cd8d67df8"
+  "hash": "05af4b6e6c40b24dc4c65670d213ce785a14aa56690572f2ce2f96e6ae9ac139"
 }

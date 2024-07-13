@@ -55,7 +55,7 @@ where
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(anyhow!("Request failed with status code: {}\n\nResponse details: {:#?}", response.status(), response).into()),
+            _ => Err(anyhow!("Request failed with status code: {}\n\nResponse details: {:#?}", response.status(), response)),
         }
     }
 }
@@ -115,7 +115,7 @@ impl GameApi for BrawlStarsApi {
             .send()
             .await?;
 
-        Ok(ApiResult::from_response(response).await?)
+        ApiResult::from_response(response).await
     }
 
     /// Get the battle log of a particular player.
@@ -127,7 +127,7 @@ impl GameApi for BrawlStarsApi {
             .send()
             .await?;
 
-        Ok(ApiResult::from_response(response).await?)
+        ApiResult::from_response(response).await
     }
 
     /// Check whether or not the game is currently undergoing maintenance.
@@ -146,8 +146,7 @@ impl GameApi for BrawlStarsApi {
             _ => Err(anyhow!(
                 "Failed to check maintenance with status code {}",
                 response.status()
-            )
-            .into()),
+            )),
         }
     }
 
@@ -159,6 +158,6 @@ impl GameApi for BrawlStarsApi {
             .send()
             .await?;
 
-        Ok(ApiResult::from_response(response).await?)
+        ApiResult::from_response(response).await
     }
 }

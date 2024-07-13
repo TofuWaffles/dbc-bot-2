@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id\n            FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')\n            ",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1\n            ORDER BY created_at DESC\n            ",
   "describe": {
     "columns": [
       {
@@ -69,6 +69,16 @@
         "ordinal": 10,
         "name": "tournament_role_id",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 11,
+        "name": "announcement_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "notification_channel_id",
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
@@ -87,8 +97,10 @@
       true,
       true,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "21b26e4123ed6e6a3d36b77a9a76f48f9ed47c5441f433e79099c4ddba4865fe"
+  "hash": "5ae222fdbe637ce804be2df7e5a7e1ab1f81787195fba9e47f394ccb5ee05a68"
 }

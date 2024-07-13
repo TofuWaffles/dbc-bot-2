@@ -1,24 +1,32 @@
-use crate::{BotContext, BotError};
-use poise::{
-    serenity_prelude::{Channel, ChannelType, Colour, ComponentInteractionCollector, CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind, Role, ComponentInteractionDataKind::{ChannelSelect, RoleSelect}},
-    CreateReply, ReplyHandle,
+use crate::{
+    database::{models::Selectable},
+    BotContext, BotError,
 };
 use anyhow::anyhow;
+use poise::{
+    serenity_prelude::{
+        self as serenity, Channel, ChannelType, Colour, ComponentInteractionCollector,
+        ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
+        CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind,
+        CreateSelectMenuOption, Role,
+    },
+    CreateReply, ReplyHandle,
+};
 
-pub async fn prompt<S,O>(
-    ctx: &BotContext<'_>,
-    msg: &ReplyHandle<'_>,
+pub async fn prompt<'a, S>(
+    ctx: &BotContext<'a>,
+    msg: impl Into<Option<ReplyHandle<'a>>>,
     title: S,
     description: S,
-    color: impl Into<Option<u32>>
-) -> Result<(), BotError>
+    color: impl Into<Option<Colour>>,
+) -> Result<ReplyHandle<'a>, BotError>
 where
     S: Into<String> + Send + 'static,
 {
     let embed = CreateEmbed::default()
         .title(title.into())
         .description(description.into())
-        .colour(color.into().unwrap_or(Colour::BLUE.0));
+        .colour(color.into().unwrap_or(Colour::BLUE));
 
     let components = vec![];
     let builder = CreateReply::default()
@@ -26,9 +34,14 @@ where
         .embed(embed)
         .ephemeral(true);
 
-    msg.edit(*ctx, builder).await?;
-
-    Ok(())
+    let msg = match msg.into() {
+        Some(msg) => {
+            msg.edit(*ctx, builder).await?;
+            msg
+        }
+        None => ctx.send(builder).await?,
+    };
+    Ok(msg)
 }
 
 pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
@@ -77,15 +90,12 @@ where
         .await
     {
         mci.defer(ctx.http()).await?;
-        match mci.data.kind {
-            ChannelSelect { values } => {
-                let channel = values[0].to_channel(ctx.http()).await?;
-                return Ok(channel);
-            }
-            _ => {}
-        }
+        if let ChannelSelect { values } = mci.data.kind {
+            let channel = values[0].to_channel(ctx.http()).await?;
+            return Ok(channel);
+        }        
     }
-    Err(anyhow!("No channel selected").into())
+    Err(anyhow!("No channel selected"))
 }
 
 pub async fn select_role<S>(
@@ -93,8 +103,10 @@ pub async fn select_role<S>(
     msg: &ReplyHandle<'_>,
     title: S,
     description: S,
-) -> Result<Role, BotError>where
-S: Into<String> + Send + 'static {
+) -> Result<Role, BotError>
+where
+    S: Into<String> + Send + 'static,
+{
     let embed = CreateEmbed::default()
         .title(title.into())
         .description(description.into())
@@ -115,13 +127,81 @@ S: Into<String> + Send + 'static {
         .await
     {
         mci.defer(ctx.http()).await?;
-        match mci.data.kind {
-            RoleSelect { values } => {
-                let role = ctx.guild().unwrap().roles.get(&values[0]).unwrap().clone();
-                return Ok(role);
-            }
-            _ => {}
-        }
+        if let RoleSelect { values } = mci.data.kind {
+            let guild = ctx.guild().unwrap();
+            let role = guild.roles.get(&values[0]).unwrap().clone();
+            return Ok(role);
+        }    
     }
-    Err(anyhow!("No role selected").into())
+    Err(anyhow!("No role selected"))
+}
+
+pub async fn select_options<T: Selectable>(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    title: impl Into<String> + Send + 'static,
+    description: impl Into<String> + Send + 'static,
+    items: &[T]
+) -> Result<String, BotError> {
+    let embed = CreateEmbed::default()
+        .title(title.into())
+        .description(description.into())
+        .color(Colour::GOLD);
+
+    let options = items
+        .iter()
+        .map(|t| CreateSelectMenuOption::new(t.label(), t.value()))
+        .collect();
+    let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
+        "option",
+        CreateSelectMenuKind::String { options },
+    ))];
+    let builder = CreateReply::default().embed(embed).components(component);
+    msg.edit(*ctx, builder).await?;
+    while let Some(mci) = ComponentInteractionCollector::new(ctx)
+        .author_id(ctx.author().id)
+        .channel_id(ctx.channel_id())
+        .timeout(std::time::Duration::from_secs(120))
+        .filter(move |mci| mci.data.custom_id == "option")
+        .await
+    {
+        mci.defer(ctx.http()).await?;
+        if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } = mci.data.kind {
+            return Ok(values[0].clone());
+        }        
+    }
+    Err(anyhow!("No option selected"))
+}
+
+pub async fn modal<T: poise::modal::Modal>(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+) -> Result<T, BotError> {
+    let builder = {
+        let components = vec![serenity::CreateActionRow::Buttons(vec![
+            serenity::CreateButton::new("open_modal")
+                .label("Open modal")
+                .style(poise::serenity_prelude::ButtonStyle::Success),
+        ])];
+
+        poise::CreateReply::default()
+            .content("Click the button below to open the modal")
+            .components(components)
+    };
+
+    msg.edit(*ctx, builder).await?;
+
+    if let Some(mci) = serenity::ComponentInteractionCollector::new(ctx.serenity_context())
+        .timeout(std::time::Duration::from_secs(120))
+        .filter(move |mci| mci.data.custom_id == "open_modal")
+        .await
+    {
+        let response = poise::execute_modal_on_component_interaction::<T>(
+            ctx, mci, None, None,
+        )
+        .await?
+        .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?;
+        return Ok(response);
+    }
+    Err(anyhow!("No name entered"))
 }
