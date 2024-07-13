@@ -663,7 +663,7 @@ async fn user_display_registration(
                     "confirm_register" => {
                         user.brawlers = json!(player.brawlers);
                         user.player_name = player.name;
-                        user.icon = player.icon.id;
+                        user.icon = player.icon.id as i32;
                         user.trophies = player.trophies as i32;
                         user.discord_name = ctx.author().name.clone();
                         user.discord_id = user_id.clone();

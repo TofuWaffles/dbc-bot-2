@@ -875,9 +875,9 @@ impl Database for PgDatabase {
             event.mode as Mode,
             event.map,
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(query.id)
     }
 
     async fn set_wins_required(

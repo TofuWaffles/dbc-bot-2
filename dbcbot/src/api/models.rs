@@ -1,5 +1,6 @@
-use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
+
+use crate::database::models::Event;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -7,7 +8,7 @@ pub struct PlayerProfile {
     pub tag: String,
     pub name: String,
     pub club: Option<Club>,
-    pub icon: HashMap<String, u32>,
+    pub icon: Icon,
     pub trophies: u32,
     #[serde(rename = "3vs3Victories")]
     pub three_vs_three_victories: u32,
@@ -16,6 +17,11 @@ pub struct PlayerProfile {
     pub exp_level: u32,
     pub exp_points: u32,
     pub highest_trophies: u32,
+    pub brawlers: Vec<Brawler>
+}
+#[derive(Debug, Serialize, Deserialize)]
+struct Icon{
+    pub id: u32
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -34,6 +40,8 @@ pub struct BattleLog {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleLogItem {
+    pub battle_time: String,
+    pub event: Event,
     pub battle: Battle,
 }
 
@@ -65,8 +73,6 @@ pub struct BrawlerList {
 pub struct Brawler {
     id: i32,
     name: String,
-    star_powers: Vec<StarPower>,
-    gadgets: Vec<Gadget>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

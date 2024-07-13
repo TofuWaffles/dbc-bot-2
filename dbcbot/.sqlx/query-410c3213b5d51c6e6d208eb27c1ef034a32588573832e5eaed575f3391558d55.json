@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, tournament_role_id\n            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, tournament_role_id, wins_required\n            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -64,6 +64,11 @@
         "ordinal": 9,
         "name": "tournament_role_id",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "wins_required",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -82,8 +87,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "1d394d0aad635ba72c509f14b47d58470decd382721e3a529570ae9757f4ad67"
+  "hash": "410c3213b5d51c6e6d208eb27c1ef034a32588573832e5eaed575f3391558d55"
 }

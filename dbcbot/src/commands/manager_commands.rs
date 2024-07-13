@@ -96,9 +96,10 @@ async fn start_tournament_slash(
     ctx: BotContext<'_>,
     tournament_id: i32,
     map: Option<String>,
+    win_required: Option<i32>,
 ) -> Result<(), BotError> {
     let map = map.unwrap_or(String::default());
-    start_tournament(ctx, tournament_id, map).await
+    start_tournament(ctx, tournament_id, map, win_required).await
 }
 
 async fn set_config(
@@ -331,7 +332,7 @@ async fn start_tournament(
         .set_rounds(tournament_id, rounds_count)
         .await?;
 
-    ctx.data().database.set_map(&tournament_id, &map).await?;
+    ctx.data().database.set_map(tournament_id, &map).await?;
 
     ctx.send(CreateReply::default()
              .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
