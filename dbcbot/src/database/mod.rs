@@ -77,7 +77,6 @@ pub trait Database {
         &self,
         guild_id: &str,
         name: &str,
-        tournament_id: Option<&i32>,
     ) -> Result<i32, Self::Error>;
 
     /// Updates the status of a tournament.
@@ -377,12 +376,10 @@ impl Database for PgDatabase {
         &self,
         guild_id: &str,
         name: &str,
-        tournament_id: Option<&i32>,
     ) -> Result<i32, Self::Error> {
         let timestamp_time = chrono::offset::Utc::now().timestamp();
 
-        let tournament_id = match tournament_id {
-            None => {
+        let tournament_id =  
                 sqlx::query!(
                     r#"
             INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, wins_required)
@@ -395,26 +392,7 @@ impl Database for PgDatabase {
                 )
                 .fetch_one(&self.pool)
                 .await?
-                .tournament_id
-            }
-            Some(custom_id) => {
-                sqlx::query!(
-                    r#"
-            INSERT INTO tournaments (guild_id, name, created_at, tournament_id, rounds, current_round, wins_required)
-            VALUES ($1, $2, $3, $4, 0, 0, 2)
-            ON CONFLICT (tournament_id) DO NOTHING
-            "#,
-                    guild_id,
-                    name,
-                    timestamp_time,
-                    custom_id
-                )
-                .execute(&self.pool)
-                .await?;
-
-                *custom_id
-            }
-        };
+                .tournament_id;
 
         Ok(tournament_id)
     }

@@ -127,7 +127,7 @@ async fn create_tournament(ctx: BotContext<'_>, name: String) -> Result<(), BotE
     let new_tournament_id = ctx
         .data()
         .database
-        .create_tournament(&guild_id, &name, None)
+        .create_tournament(&guild_id, &name)
         .await?;
 
     ctx.send(
@@ -339,15 +339,11 @@ pub(self) async fn generate_matches_new_tournament(
 #[cfg(test)]
 mod tests {
     use super::generate_matches_new_tournament;
-    use crate::database::{
-        models::{PlayerType, User},
-        Database, PgDatabase,
-    };
+    use crate::database::
+        models::{PlayerType, User};
 
     #[tokio::test]
     async fn creates_two_matches() {
-        let db = PgDatabase::connect().await.unwrap();
-
         let mut users = Vec::new();
 
         users.push(User {
@@ -367,22 +363,7 @@ mod tests {
             player_tag: 3.to_string(),
         });
 
-        db.create_tournament("0", "test", Some(&-1)).await.unwrap();
-
-        println!("{:?}", users);
-
-        for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
-        }
-
         let matches = generate_matches_new_tournament(users, &-1).await.unwrap();
-
-        db.delete_tournament(&-1).await.unwrap();
-
-        println!("{:?}", matches);
 
         assert_eq!(matches.len(), 2);
         assert!(matches[0].player_1_type == PlayerType::Player);
@@ -393,8 +374,6 @@ mod tests {
 
     #[tokio::test]
     async fn creates_two_matches_with_one_bye() {
-        let db = PgDatabase::connect().await.unwrap();
-
         let mut users = Vec::new();
 
         users.push(User {
@@ -410,20 +389,7 @@ mod tests {
             player_tag: 2.to_string(),
         });
 
-        db.create_tournament("0", "test", Some(&-2)).await.unwrap();
-
-        for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-1, &user.discord_id).await.unwrap();
-        }
-
         let matches = generate_matches_new_tournament(users, &-2).await.unwrap();
-
-        db.delete_tournament(&-2).await.unwrap();
-
-        println!("{:?}", matches);
 
         assert_eq!(matches.len(), 2);
         assert!(matches[0].player_1_type == PlayerType::Player);
@@ -434,8 +400,6 @@ mod tests {
 
     #[tokio::test]
     async fn creates_four_matches_with_two_byes() {
-        let db = PgDatabase::connect().await.unwrap();
-
         let mut users = Vec::new();
 
         users.push(User {
@@ -463,20 +427,7 @@ mod tests {
             player_tag: 5.to_string(),
         });
 
-        db.create_tournament("0", "test", Some(&-3)).await.unwrap();
-
-        for user in &users {
-            db.create_user(&user.discord_id, &user.player_tag)
-                .await
-                .unwrap();
-            db.enter_tournament(&-3, &user.discord_id).await.unwrap();
-        }
-
         let matches = generate_matches_new_tournament(users, &-3).await.unwrap();
-
-        db.delete_tournament(&-3).await.unwrap();
-
-        println!("{:?}", matches);
 
         assert_eq!(matches.len(), 4);
         assert!(matches[0].player_1_type == PlayerType::Player);
