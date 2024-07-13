@@ -149,9 +149,9 @@ impl Match {
     }
 
     pub fn get_player_number(&self, discord_id: &str) -> Option<PlayerNumber> {
-        if discord_id == &self.discord_id_1.clone().unwrap_or_default() {
+        if discord_id == self.discord_id_1.clone().unwrap_or_default() {
             return Some(PlayerNumber::Player1);
-        } else if discord_id == &self.discord_id_2.clone().unwrap_or_default() {
+        } else if discord_id == self.discord_id_2.clone().unwrap_or_default() {
             return Some(PlayerNumber::Player2);
         }
         None

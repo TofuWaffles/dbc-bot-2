@@ -1,5 +1,5 @@
 use crate::{
-    database::{models::Selectable, Database},
+    database::{models::Selectable},
     BotContext, BotError,
 };
 use anyhow::anyhow;
@@ -90,15 +90,12 @@ where
         .await
     {
         mci.defer(ctx.http()).await?;
-        match mci.data.kind {
-            ChannelSelect { values } => {
-                let channel = values[0].to_channel(ctx.http()).await?;
-                return Ok(channel);
-            }
-            _ => {}
-        }
+        if let ChannelSelect { values } = mci.data.kind {
+            let channel = values[0].to_channel(ctx.http()).await?;
+            return Ok(channel);
+        }        
     }
-    Err(anyhow!("No channel selected").into())
+    Err(anyhow!("No channel selected"))
 }
 
 pub async fn select_role<S>(
@@ -130,15 +127,13 @@ where
         .await
     {
         mci.defer(ctx.http()).await?;
-        match mci.data.kind {
-            RoleSelect { values } => {
-                let role = ctx.guild().unwrap().roles.get(&values[0]).unwrap().clone();
-                return Ok(role);
-            }
-            _ => {}
-        }
+        if let RoleSelect { values } = mci.data.kind {
+            let guild = ctx.guild().unwrap();
+            let role = guild.roles.get(&values[0]).unwrap().clone();
+            return Ok(role);
+        }    
     }
-    Err(anyhow!("No role selected").into())
+    Err(anyhow!("No role selected"))
 }
 
 pub async fn select_options<T: Selectable>(
@@ -146,7 +141,7 @@ pub async fn select_options<T: Selectable>(
     msg: &ReplyHandle<'_>,
     title: impl Into<String> + Send + 'static,
     description: impl Into<String> + Send + 'static,
-    items: &Vec<T>,
+    items: &[T]
 ) -> Result<String, BotError> {
     let embed = CreateEmbed::default()
         .title(title.into())
@@ -159,7 +154,7 @@ pub async fn select_options<T: Selectable>(
         .collect();
     let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
         "option",
-        CreateSelectMenuKind::String { options: options },
+        CreateSelectMenuKind::String { options },
     ))];
     let builder = CreateReply::default().embed(embed).components(component);
     msg.edit(*ctx, builder).await?;
@@ -171,14 +166,11 @@ pub async fn select_options<T: Selectable>(
         .await
     {
         mci.defer(ctx.http()).await?;
-        match mci.data.kind {
-            poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } => {
-                return Ok(values[0].clone());
-            }
-            _ => {}
-        }
+        if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } = mci.data.kind {
+            return Ok(values[0].clone());
+        }        
     }
-    Err(anyhow!("No option selected").into())
+    Err(anyhow!("No option selected"))
 }
 
 pub async fn modal<T: poise::modal::Modal>(
@@ -211,5 +203,5 @@ pub async fn modal<T: poise::modal::Modal>(
         .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?;
         return Ok(response);
     }
-    Err(anyhow!("No name entered").into())
+    Err(anyhow!("No name entered"))
 }

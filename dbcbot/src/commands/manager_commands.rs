@@ -1,5 +1,5 @@
 use crate::database::models::Tournament;
-use crate::utils::discord::{modal, prompt, select_channel, select_options, select_role, splash};
+use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
 use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
@@ -91,7 +91,7 @@ async fn start_tournament_slash(
     map: Option<String>,
     win_required: Option<i32>,
 ) -> Result<(), BotError> {
-    let map = map.unwrap_or(String::default());
+    let map = map.unwrap_or_default();
     start_tournament(ctx, tournament_id, map, win_required).await
 }
 
@@ -407,7 +407,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         .components(components)
         .reply(true);
     let msg = ctx.send(builder).await?;
-    if let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
+    while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
         .author_id(ctx.author().id)
         .channel_id(ctx.channel_id())
         .timeout(std::time::Duration::from_secs(120))
@@ -519,7 +519,7 @@ Log channel: <#{log}>.
                 _ => {}
             }
         }
-        Err(anyhow!("No response from user").into())
+        Err(anyhow!("No response from user"))
     }
     preset(ctx, msg).await?;
     let (m, a, l) = loop{

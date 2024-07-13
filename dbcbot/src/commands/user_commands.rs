@@ -14,17 +14,16 @@ use serde_json::json;
 use tracing::{info, instrument};
 
 use crate::{
-    api::{ApiResult, GameApi},
-    commands::checks::{is_config_set, is_tournament_paused},
-    database::{
+    api::{ApiResult, GameApi}, commands::checks::{is_config_set, is_tournament_paused}, database::{
         models::{
             PlayerNumber::{Player1, Player2},
             PlayerType, Tournament, TournamentStatus, User,
         },
         Database,
-    },
-    utils::{discord::{modal, prompt}, shorthand::BotContextExt},
-    BotContext, BotData, BotError,
+    }, log::Log, utils::{
+        discord::{modal, prompt},
+        shorthand::BotContextExt,
+    }, BotContext, BotData, BotError
 };
 
 use super::CommandsContainer;
@@ -57,14 +56,17 @@ const USER_CMD_TIMEOUT: u64 = 120000;
 async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     // info!("User {} has entered the menu", ctx.author().name);
     ctx.defer_ephemeral().await?;
-    let user = ctx.get_player_from_discord_id(ctx.author().to_owned()).await?;
+    let user = ctx
+        .get_player_from_discord_id(ctx.author().to_owned())
+        .await?;
     let msg = prompt(
-        &ctx, 
+        &ctx,
         None,
         "Loading menu...",
         "Please wait while we load the menu.",
-        None
-    ).await?;
+        None,
+    )
+    .await?;
 
     let interaction_collector = msg
         .clone()
@@ -102,7 +104,6 @@ async fn user_display_menu(
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
-
     let mut player_active_tournaments = ctx
         .data()
         .database
@@ -170,11 +171,11 @@ async fn user_display_menu(
         )
         .await?;
     } else {
-        panic!(
+        return Err(anyhow!(
             "User {} with ID {} has enetered more than one active tournament",
             ctx.author().name,
             ctx.author().id,
-        );
+        ));
     }
 
     if let Some(interaction) = &interaction_collector.next().await {
@@ -501,6 +502,7 @@ async fn user_display_tournaments(
     }
 
     while let Some(interaction) = &interaction_collector.next().await {
+        interaction.defer(ctx.http()).await?;
         match interaction_ids.iter().position(|id| id == interaction.data.custom_id.as_str()) {
             Some(tournament_number) => {
                 interaction.create_response(ctx, CreateInteractionResponse::Acknowledge).await?;
@@ -516,7 +518,6 @@ async fn user_display_tournaments(
             None => continue,
         };
     }
-
     Ok(())
 }
 
@@ -552,6 +553,7 @@ async fn user_display_registration(
     let mut player_tag: String = Default::default();
 
     if let Some(interaction) = interaction_collector.next().await {
+        interaction.defer(ctx.http()).await?;
         match interaction.data.custom_id.as_str() {
             "player_profile_registration" => {
                 player_tag = modal::<ProfileRegistrationModal>(&ctx, &msg)
@@ -573,27 +575,30 @@ async fn user_display_registration(
     }
 
     let user_id = ctx.author().id.to_string();
-    if ctx
-        .data()
-        .database
-        .get_player_by_player_tag(&user.player_tag)
-        .await?
-        .is_some()
-    {
-        msg.edit(ctx, CreateReply::default().content("This game account is currently registered with another user. Please register with another game account.").components(vec![]).ephemeral(true)).await?;
-
+    if ctx.get_player_from_tag(&user.player_tag).await?.is_some() {
+        prompt(
+        &ctx,
+        msg,
+        "Registration Error",
+        "This game account is currently registered with another user. Please register with another game account.",
+        None).await?;
+        Log::log(
+            ctx,
+            "Attempted registration failure",
+            format!("{} is attempted to be registered!", user.player_tag),
+            crate::log::State::FAILURE,
+            crate::log::Model::PLAYER
+        ).await?;
         return Ok(());
     }
 
-    msg.edit(
-        ctx,
-        CreateReply::default()
-            .content("Getting your game account details, please wait...")
-            .components(vec![])
-            .ephemeral(true),
-    )
-    .await?;
-
+    let msg = prompt(
+        &ctx, 
+        msg,
+        "Getting your game account",
+        "Please wait while we fetch your game account details.",
+        None,
+    ).await?;
     let api_result = ctx.data().game_api.get_player(&user.player_tag).await?;
     match api_result {
         ApiResult::Ok(player) => {
@@ -639,18 +644,16 @@ async fn user_display_registration(
             )
             .await?;
 
-            if let Some(interaction) = &interaction_collector.next().await {
+            while let Some(interaction) = &interaction_collector.next().await {
                 match interaction.data.custom_id.as_str() {
                     "confirm_register" => {
+                        interaction.defer(ctx.http()).await?;
                         user.brawlers = json!(player.brawlers);
-                        user.player_name = player.name;
-                        user.icon = player.icon.id as i32;
-                        user.trophies = player.trophies as i32;
+                        user.player_name = player.name.clone();
+                        user.icon = player.icon.id;
+                        user.trophies = player.trophies;
                         user.discord_name = ctx.author().name.clone();
                         user.discord_id = user_id.clone();
-                        interaction
-                            .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                            .await?;
                         ctx.data().database.create_user(&user).await?;
                         msg.edit(
                             ctx,
@@ -660,11 +663,16 @@ async fn user_display_registration(
                                 .components(vec![]),
                         )
                         .await?;
+                        Log::log(
+                            ctx,
+                            "Registration success!",
+                            format!("Tag {} registered by <@{}>`{}`", user.player_tag, user_id, user_id),
+                            crate::log::State::SUCCESS,
+                            crate::log::Model::PLAYER
+                        ).await?;
                     }
                     "cancel_register" => {
-                        interaction
-                            .create_response(ctx, CreateInteractionResponse::Acknowledge)
-                            .await?;
+                        interaction.defer(ctx.http()).await?;
                         msg.edit(
                             ctx,
                             CreateReply::default()
@@ -674,27 +682,45 @@ async fn user_display_registration(
                         )
                         .await?;
                     }
-                    _ => {}
+                    _ => {
+                        continue;
+                    }
                 }
             }
         }
         ApiResult::NotFound => {
-            ctx.send(
-                CreateReply::default()
-                    .content("A profile with that tag was not found. Please ensure that you have entered the correct tag.")
-                    .ephemeral(true),
-            )
-            .await?;
+            prompt(
+                &ctx,
+                msg,
+                "Player Not Found",
+                "The player tag you entered was not found. Please try again.",
+                None,
+            ).await?;
+            Log::log(
+                ctx,
+                "Player",
+                format!("Player tag {} not found", user.player_tag),
+                crate::log::State::FAILURE,
+                crate::log::Model::PLAYER
+            ).await?;
+            
         }
         ApiResult::Maintenance => {
-            ctx.send(
-                CreateReply::default()
-                    .content("The Brawl Stars API is currently undergoing maintenance. Please try again later.")
-                    .ephemeral(true),
-            )
-            .await?;
+            prompt(
+                &ctx,
+                msg,
+                "Maintenance",
+                "The Brawl Stars API is currently undergoing maintenance. Please try again later.",
+                None,
+            ).await?;
+            Log::log(
+                ctx,
+                "API",
+                "Brawl Stars API is currently undergoing maintenance",
+                crate::log::State::FAILURE,
+                crate::log::Model::API
+            ).await?;
         }
     }
-
     Ok(())
 }
