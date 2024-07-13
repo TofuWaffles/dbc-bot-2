@@ -441,14 +441,15 @@ impl Database for PgDatabase {
             Some(custom_id) => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, tournament_id, rounds, current_round)
-            VALUES ($1, $2, $3, $4, 0, 0)
+            INSERT INTO tournaments (guild_id, name, created_at, tournament_id, rounds, current_round, tournament_role_id)
+            VALUES ($1, $2, $3, $4, 0, 0, $5)
             ON CONFLICT (tournament_id) DO NOTHING
             "#,
                     guild_id,
                     name,
                     timestamp_time,
-                    custom_id
+                    custom_id,
+                    role_id
                 )
                 .execute(&self.pool)
                 .await?;
@@ -505,7 +506,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id
             FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
@@ -521,7 +522,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id
             FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')
             "#,
             guild_id
@@ -540,7 +541,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required, tournaments.tournament_role_id
             FROM tournaments
             INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
             WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2

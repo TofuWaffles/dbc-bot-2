@@ -20,7 +20,7 @@ pub struct PlayerProfile {
     pub brawlers: Vec<Brawler>
 }
 #[derive(Debug, Serialize, Deserialize)]
-struct Icon{
+pub struct Icon{
     pub id: u32
 }
 
