@@ -12,8 +12,7 @@ use crate::{
         models::{Match, PlayerNumber, TournamentStatus},
         Database,
     },
-    log::discord_log_info,
-    BotContext, BotData, BotError,
+    log, BotContext, BotData, BotError,
 };
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
@@ -186,23 +185,27 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result
             .ephemeral(true),
     )
     .await?;
-
-    discord_log_info(
+    let description = format!(
+        r#"
+The map for the tournament has been set to **{}**.
+Tournament ID: {}.
+Tournament name: {}.
+Map: {}
+Set by {}."#,
+        map,
+        tournament_id,
+        tournament.name,
+        map,
+        ctx.author().name
+    );
+    log::Log::log(
         ctx,
-        &format!("A new map has been set for tournament {}", tournament.name),
-        vec![
-            (
-                "Tournament ID",
-                &tournament.tournament_id.to_string(),
-                false,
-            ),
-            ("Tournament name", &tournament.name, false),
-            ("Map", &map, false),
-            ("Set by", &ctx.author().name, false),
-        ],
+        "Map set successfully!",
+        description,
+        log::State::SUCCESS,
+        log::Model::TOURNAMENT,
     )
     .await?;
-
     Ok(())
 }
 
@@ -463,27 +466,25 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
             .ephemeral(true),
     )
     .await?;
-
-    discord_log_info(
+    let description = format!(
+        r#"Player <@{player_id}> was disqualified from the tournament.
+Match ID: {match_id}.
+Tournament ID: {tournament_id}.
+Tournament name: {tournament_name}.
+Disqualified by: {disqualified_by}."#,
+        player_id = player.id,
+        match_id = bracket.match_id,
+        tournament_id = tournament.tournament_id,
+        tournament_name = tournament.name,
+        disqualified_by = ctx.author().name
+    );
+    log::Log::log(
         ctx,
-        &format!(
-            "Player <@{}> was disqualified from tournament {}",
-            player.id, tournament.tournament_id
-        ),
-        vec![
-            ("Disqualified player", &format!("<@{}>", player.id), false),
-            ("Match ID", &bracket.match_id, false),
-            (
-                "Tournament ID",
-                &tournament.tournament_id.to_string(),
-                false,
-            ),
-            ("Tournament name", &tournament.name, false),
-            ("Disqualified by", &ctx.author().name, false),
-        ],
-    )
-    .await?;
-
+        "Player disqualified!",
+        description,
+        log::State::SUCCESS,
+        log::Model::MARSHAL,
+    ).await?;
     Ok(())
 }
 
@@ -575,27 +576,26 @@ async fn next_round(
             .ephemeral(true),
     )
     .await?;
-
-    discord_log_info(
+    let description = format!(
+        r#"The tournament has advanced to round {}.
+Tournament ID: {}.
+Tournament name: {}.
+Number of matches: {}.
+Advanced by: {}."#,
+        round,
+        tournament.tournament_id,
+        tournament.name,
+        new_brackets_count,
+        ctx.author().name
+    );
+    log::Log::log(
         ctx,
-        &format!(
-            "Tournament {} has advanced to round {}.",
-            tournament.name, round
-        ),
-        vec![
-            (
-                "Tournament ID",
-                &tournament.tournament_id.to_string(),
-                false,
-            ),
-            ("Tournament name", &tournament.name, false),
-            ("New round", &round.to_string(), false),
-            ("Number of matches", &new_brackets_count.to_string(), false),
-            ("Advanced by", &ctx.author().name, false),
-        ],
+        "Tournament advanced!",
+        description,
+        log::State::SUCCESS,
+        log::Model::MARSHAL,
     )
     .await?;
-
     Ok(())
 }
 

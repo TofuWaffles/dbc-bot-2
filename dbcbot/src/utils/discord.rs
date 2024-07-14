@@ -1,7 +1,4 @@
-use crate::{
-    database::{models::Selectable},
-    BotContext, BotError,
-};
+use crate::{database::models::Selectable, BotContext, BotError};
 use anyhow::anyhow;
 use poise::{
     serenity_prelude::{
@@ -93,7 +90,7 @@ where
         if let ChannelSelect { values } = mci.data.kind {
             let channel = values[0].to_channel(ctx.http()).await?;
             return Ok(channel);
-        }        
+        }
     }
     Err(anyhow!("No channel selected"))
 }
@@ -131,7 +128,7 @@ where
             let guild = ctx.guild().unwrap();
             let role = guild.roles.get(&values[0]).unwrap().clone();
             return Ok(role);
-        }    
+        }
     }
     Err(anyhow!("No role selected"))
 }
@@ -141,7 +138,7 @@ pub async fn select_options<T: Selectable>(
     msg: &ReplyHandle<'_>,
     title: impl Into<String> + Send + 'static,
     description: impl Into<String> + Send + 'static,
-    items: &[T]
+    items: &[T],
 ) -> Result<String, BotError> {
     let embed = CreateEmbed::default()
         .title(title.into())
@@ -166,9 +163,11 @@ pub async fn select_options<T: Selectable>(
         .await
     {
         mci.defer(ctx.http()).await?;
-        if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } = mci.data.kind {
+        if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } =
+            mci.data.kind
+        {
             return Ok(values[0].clone());
-        }        
+        }
     }
     Err(anyhow!("No option selected"))
 }
@@ -176,6 +175,7 @@ pub async fn select_options<T: Selectable>(
 pub async fn modal<T: poise::modal::Modal>(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
+    embed: CreateEmbed,
 ) -> Result<T, BotError> {
     let builder = {
         let components = vec![serenity::CreateActionRow::Buttons(vec![
@@ -185,7 +185,7 @@ pub async fn modal<T: poise::modal::Modal>(
         ])];
 
         poise::CreateReply::default()
-            .content("Click the button below to open the modal")
+            .embed(embed)
             .components(components)
     };
 
