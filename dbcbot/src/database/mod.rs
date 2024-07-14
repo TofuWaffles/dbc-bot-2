@@ -90,6 +90,7 @@ pub trait Database {
         role_id: String,
         announcement_channel_id: &str,
         notification_channel_id: &str,
+        wins_required: i32
     ) -> Result<i32, Self::Error>;
 
     /// Updates the status of a tournament.
@@ -418,6 +419,7 @@ impl Database for PgDatabase {
         role_id: String,
         announcement_channel_id: &str,
         notification_channel_id: &str,
+        wins_required: i32
     ) -> Result<i32, Self::Error> {
         let timestamp_time = chrono::offset::Utc::now().timestamp();
 
@@ -425,8 +427,8 @@ impl Database for PgDatabase {
             None => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id)
-            VALUES ($1, $2, $3, 0, 0, $4, $5, $6)
+            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)
+            VALUES ($1, $2, $3, 0, 0, $4, $5, $6, $7)
             RETURNING tournament_id
             "#,
                     guild_id,
@@ -434,7 +436,8 @@ impl Database for PgDatabase {
                     timestamp_time,
                     role_id,
                     announcement_channel_id,
-                    notification_channel_id
+                    notification_channel_id,
+                    wins_required
                 )
                 .fetch_one(&self.pool)
                 .await?

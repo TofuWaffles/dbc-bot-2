@@ -14,16 +14,21 @@ use serde_json::json;
 use tracing::{info, instrument};
 
 use crate::{
-    api::{ApiResult, GameApi}, commands::checks::{is_config_set, is_tournament_paused}, database::{
+    api::{ApiResult, GameApi},
+    commands::checks::{is_config_set, is_tournament_paused},
+    database::{
         models::{
             PlayerNumber::{Player1, Player2},
             PlayerType, Tournament, TournamentStatus, User,
         },
         Database,
-    }, log::Log, utils::{
+    },
+    log::Log,
+    utils::{
         discord::{modal, prompt},
         shorthand::BotContextExt,
-    }, BotContext, BotData, BotError
+    },
+    BotContext, BotData, BotError,
 };
 
 use super::CommandsContainer;
@@ -76,24 +81,21 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         .timeout(Duration::from_millis(USER_CMD_TIMEOUT))
         .stream();
 
-    match user {
+    return match user {
         Some(_) => {
-            user_display_menu(ctx, msg, interaction_collector).await?;
+            user_display_menu(ctx, msg, interaction_collector).await
         }
         None => {
-            msg.edit(
-                ctx,
-                CreateReply::default()
-                    .content("Loading registration page...")
-                    .components(vec![])
-                    .ephemeral(true),
+            let msg = ctx.prompt(
+                msg,
+                "Registration Page Menu",
+                "Loading registration page...",
+                None,
             )
             .await?;
-            user_display_registration(ctx, msg, interaction_collector).await?;
+            user_display_registration(ctx, msg, interaction_collector).await
         }
     };
-
-    Ok(())
 }
 
 /// Display the main menu to the registered user.
@@ -362,7 +364,7 @@ async fn user_display_match(
         }
     };
 
-    if let Some(interaction) = &interaction_collector.next().await {
+    while let Some(interaction) = &interaction_collector.next().await {
         if interaction.data.custom_id.as_str() == "match_menu_ready" {
             interaction
                 .create_response(ctx, CreateInteractionResponse::Acknowledge)
@@ -397,7 +399,10 @@ async fn user_display_match(
             let notification_message = match player_number {
                 Player1 => {
                     if bracket.player_2_ready {
-                        format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
+                        format!(
+                            r#"<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the "Submit" button when you have done so. Best of luck!"#,
+                            player_1_id, player_2_id
+                        )
                     } else {
                         format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_2_id, player_1_id)
                     }
@@ -416,6 +421,8 @@ async fn user_display_match(
             notification_channel
                 .send_message(ctx, CreateMessage::default().content(notification_message))
                 .await?;
+        } else {
+            continue;
         }
     }
     Ok(())
@@ -556,7 +563,12 @@ async fn user_display_registration(
         interaction.defer(ctx.http()).await?;
         match interaction.data.custom_id.as_str() {
             "player_profile_registration" => {
-                player_tag = modal::<ProfileRegistrationModal>(&ctx, &msg)
+                let embed = CreateEmbed::new()
+                .title("Profile Registration")
+                .description("Please enter your in-game player tag (without the #)")
+                .image("https://i.imgur.com/1GsKczI.mp4")
+                .color(0x0000FF);
+                player_tag = modal::<ProfileRegistrationModal>(&ctx, &msg, embed)
                     .await?
                     .player_tag
                     .to_uppercase();
@@ -587,18 +599,20 @@ async fn user_display_registration(
             "Attempted registration failure",
             format!("{} is attempted to be registered!", user.player_tag),
             crate::log::State::FAILURE,
-            crate::log::Model::PLAYER
-        ).await?;
+            crate::log::Model::PLAYER,
+        )
+        .await?;
         return Ok(());
     }
 
     let msg = prompt(
-        &ctx, 
+        &ctx,
         msg,
         "Getting your game account",
         "Please wait while we fetch your game account details.",
         None,
-    ).await?;
+    )
+    .await?;
     let api_result = ctx.data().game_api.get_player(&user.player_tag).await?;
     match api_result {
         ApiResult::Ok(player) => {
@@ -666,10 +680,11 @@ async fn user_display_registration(
                         Log::log(
                             ctx,
                             "Registration success!",
-                            format!("Tag {} registered by <@{}>`{}`", user.player_tag, user_id, user_id),
+                            format!("Tag {} registered!", user.player_tag),
                             crate::log::State::SUCCESS,
-                            crate::log::Model::PLAYER
-                        ).await?;
+                            crate::log::Model::PLAYER,
+                        )
+                        .await?;
                     }
                     "cancel_register" => {
                         interaction.defer(ctx.http()).await?;
@@ -695,15 +710,16 @@ async fn user_display_registration(
                 "Player Not Found",
                 "The player tag you entered was not found. Please try again.",
                 None,
-            ).await?;
+            )
+            .await?;
             Log::log(
                 ctx,
                 "Player",
                 format!("Player tag {} not found", user.player_tag),
                 crate::log::State::FAILURE,
-                crate::log::Model::PLAYER
-            ).await?;
-            
+                crate::log::Model::PLAYER,
+            )
+            .await?;
         }
         ApiResult::Maintenance => {
             prompt(
@@ -712,14 +728,16 @@ async fn user_display_registration(
                 "Maintenance",
                 "The Brawl Stars API is currently undergoing maintenance. Please try again later.",
                 None,
-            ).await?;
+            )
+            .await?;
             Log::log(
                 ctx,
                 "API",
                 "Brawl Stars API is currently undergoing maintenance",
                 crate::log::State::FAILURE,
-                crate::log::Model::API
-            ).await?;
+                crate::log::Model::API,
+            )
+            .await?;
         }
     }
     Ok(())

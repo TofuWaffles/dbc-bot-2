@@ -1,9 +1,8 @@
-use std::{default, f32::consts::E, str::FromStr, time::SystemTime};
+use std::{str::FromStr, time::SystemTime};
 
 use anyhow::anyhow;
-use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateEmbedFooter, CreateMessage};
+use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use strum::Display;
-use tracing::info;
 
 use crate::{database::Database, utils::shorthand::BotContextExt, BotContext, BotError};
 
@@ -56,7 +55,6 @@ impl Log {
                 ))?
                 .log_channel_id,
         )?;
-
         Ok(log_channel)
     }
     fn author(ctx: &BotContext<'_>, model: Model) -> CreateEmbedAuthor{
@@ -66,7 +64,7 @@ impl Log {
             Model::API => (model.to_string(), String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9LWGU0ekxmSENqVlJTM2tmV0VzSy5wbmcifQ:supercell:SmOqSjpbIjqKqwrmZ2RWpEbwvBi1ERlMIp4Oe9fGI0g?width=2400")),
             Model::GUILD => (model.to_string(), Default::default()),
             Model::CHANNEL => (model.to_string(), Default::default()),
-            Model::TOURNAMENT => (model.to_string(), Default::default()),
+            Model::TOURNAMENT => (model.to_string(), String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9aY3Zxakt5TG91TDJVeU1BbkFCQi5wbmcifQ:supercell:FleTjqgzhQpseN715yWB6FF2EvJeI-8JtnalU_Db5Nc?width=2400")),
             Model::SYSTEM =>  (model.to_string(), Default::default()),
             Model::DEFAULT =>  (model.to_string(), Default::default()),
         };
@@ -75,10 +73,10 @@ impl Log {
 
     fn thumbnail(state: State) -> String{
         match state{
-            State::FAILURE => Default::default(),
-            State::SUCCESS => Default::default(),
-            State::INFO => Default::default(),
-            State::WARNING => Default::default(),
+            State::FAILURE => String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9mbkhRWjhzQmtkNUFkY2tzZTdTai5wbmcifQ:supercell:mCcCEDMJI8puCKKc2K9bBURE4tZem68vd5aMETOFjjw?width=2400"),
+            State::SUCCESS => String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9iZUduOFpWaWpZYTduUXFKOEtDbi5wbmcifQ:supercell:QVmY9TjwRiZ77-CWw_lkKnpMrFbNbjHBZwalfHQ3KnE?width=2400"),
+            State::INFO => String::from("https://cdn.discordapp.com/emojis/1187845402163167363.webp?size=4096&quality=lossless"),
+            State::WARNING => String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9IWjFzZkUyNllLUW9hRWhlTlgyTi5wbmcifQ:supercell:CeCBNWeUn35mJJYWe4g5BMg9_gWf1l1D35idcw0RGXI?width=2400"),
         }
     }
 
@@ -93,7 +91,10 @@ impl Log {
         let embed = CreateEmbed::default()
             .author(Self::author(&ctx, model))
             .title(title)
-            .description(format!("**Action**\n{}", description.into()))
+            .description(format!(r#"**Action**:
+{reason}
+**Triggered by**
+<@{id}>-`{id}`"#, reason=description.into(), id=ctx.author().id))
             .timestamp(ctx.now())
             .thumbnail(Self::thumbnail(state))
             .colour(State::SUCCESS as u32);
@@ -105,58 +106,57 @@ impl Log {
 }
 
 
-struct Debug {}
 /// Creates an info log message in the current guild's designated log channel.
-pub async fn discord_log_info(
-    ctx: BotContext<'_>,
-    title: &str,
-    mut fields: Vec<(&str, &str, bool)>,
-) -> Result<(), BotError> {
-    let guild_id = ctx
-        .guild_id()
-        .ok_or(anyhow!(
-            "Error sending info log: Attempted to perform an info log outside of a guild"
-        ))?
-        .to_string();
+// pub async fn discord_log_info(
+//     ctx: BotContext<'_>,
+//     title: &str,
+//     mut fields: Vec<(&str, &str, bool)>,
+// ) -> Result<(), BotError> {
+//     let guild_id = ctx
+//         .guild_id()
+//         .ok_or(anyhow!(
+//             "Error sending info log: Attempted to perform an info log outside of a guild"
+//         ))?
+//         .to_string();
 
-    let log_channel = ChannelId::from_str(
-        &ctx.data()
-            .database
-            .get_config(&guild_id)
-            .await?
-            .ok_or(anyhow!(
-                "Error sending info log: config not found for guild {}",
-                guild_id
-            ))?
-            .log_channel_id,
-    )?;
+//     let log_channel = ChannelId::from_str(
+//         &ctx.data()
+//             .database
+//             .get_config(&guild_id)
+//             .await?
+//             .ok_or(anyhow!(
+//                 "Error sending info log: config not found for guild {}",
+//                 guild_id
+//             ))?
+//             .log_channel_id,
+//     )?;
 
-    info!("ℹ️ {}\n\n{:#?}", title, fields);
+//     info!("ℹ️ {}\n\n{:#?}", title, fields);
 
-    let now_string = format!(
-        "<t:{}:F>",
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-    );
+//     let now_string = format!(
+//         "<t:{}:F>",
+//         SystemTime::now()
+//             .duration_since(SystemTime::UNIX_EPOCH)
+//             .unwrap_or_default()
+//             .as_secs()
+//     );
 
-    fields.push(("Happened at", &now_string, false));
+//     fields.push(("Happened at", &now_string, false));
 
-    log_channel
-        .send_message(
-            ctx,
-            CreateMessage::default().content("").embed(
-                CreateEmbed::new()
-                    .title(format!("ℹ️ {}", title))
-                    .fields(fields)
-                    .color(Color::BLURPLE),
-            ),
-        )
-        .await?;
+//     log_channel
+//         .send_message(
+//             ctx,
+//             CreateMessage::default().content("").embed(
+//                 CreateEmbed::new()
+//                     .title(format!("ℹ️ {}", title))
+//                     .fields(fields)
+//                     .color(Color::BLURPLE),
+//             ),
+//         )
+//         .await?;
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 /// Creates an error log message in the current guild's designated log channel.
 pub async fn discord_log_error(
