@@ -3,4 +3,4 @@
 .env
 /dbcbot/*.excalidraw
 .idea
-.log
+/dbcbot/debug.log
