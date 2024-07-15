@@ -1,6 +1,12 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-use crate::{database::{self, models::{BattleResult,  Mode}}, utils::time::BDateTime};
+use crate::{
+    database::{
+        self,
+        models::{BattleResult, Mode},
+    },
+    utils::time::BDateTime,
+};
 pub trait Convert<T> {
     fn convert(&self) -> T;
 }
@@ -19,11 +25,11 @@ pub struct PlayerProfile {
     pub exp_level: i32,
     pub exp_points: i32,
     pub highest_trophies: i32,
-    pub brawlers: Vec<Brawler>
+    pub brawlers: Vec<Brawler>,
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Icon{
-    pub id: i32
+pub struct Icon {
+    pub id: i32,
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -118,7 +124,7 @@ pub struct BrawlerList {
     pub paging: (),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Brawler {
     id: i32,
@@ -138,4 +144,3 @@ pub struct Gadget {
     id: i32,
     name: String,
 }
-

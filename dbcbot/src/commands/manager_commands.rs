@@ -117,14 +117,15 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                msg,
-                "Invalid announcement channel",
-                "Please enter a valid server channel to set this announcement channel",
-                serenity::Colour::RED,
+                &msg,
+                CreateEmbed::new()
+                    .title("Invalid announcement channel")
+                    .description("Please enter a valid server channel to set this announcement channel.")
+                    .color(Colour::RED),
+                None
             )
             .await?;
-            Log::log(
-                ctx,
+            ctx.log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid announcement channel selected: {}", id),
                 log::State::FAILURE,
@@ -140,14 +141,15 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                msg,
-                "Invalid log channel",
-                "Please enter a valid server channel to set this log channel",
-                serenity::Colour::RED,
+                &msg,
+                CreateEmbed::new()
+                    .title("Invalid log channel")
+                    .description("Please enter a valid server channel to set this log channel.")
+                    .color(Colour::RED),
+                None
             )
             .await?;
-            Log::log(
-                ctx,
+            ctx.log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid log channel selected: {}", id),
                 log::State::FAILURE,
@@ -173,10 +175,12 @@ async fn set_config(
         )
         .await?;
     ctx.prompt(
-        msg,
-        "Configuration set successfully!",
-        "Run this command again if you want to change the configuration.",
-        None,
+        &msg,
+        CreateEmbed::new()
+            .title("Configuration set successfully!")
+            .description("Run this command again if you want to change the configuration.")
+            .color(Colour::DARK_GREEN),
+       None,
     )
     .await?;
 
@@ -184,8 +188,7 @@ async fn set_config(
         "Set the configuration for guild {}",
         ctx.guild_id().unwrap().to_string()
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "General configuration set!",
         "The setting is set successfully!",
         log::State::SUCCESS,
@@ -237,8 +240,7 @@ Tournament name: {}
     "#,
         new_tournament_id, name
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "Tournament created successfully!",
         description,
         log::State::SUCCESS,
@@ -380,8 +382,7 @@ Started by: {}
         wins_required,
         ctx.author().name
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "Tournament started successfully!",
         description,
         log::State::SUCCESS,
@@ -616,12 +617,11 @@ async fn step_by_step_create_tournament(
             .title("Tournament Confirmation")
             .description(format!(
                 r#"Please confirm the following tournament:
-Tournament name: {}
-Role: <@&{role}>,
-Announcement channel: <#{ann}>,
-Notification channel: <#{not}>.
-Role: <@&{role}>,
-Wins required: {win}.
+- **Tournament name:** {}
+- **Role:** <@&{role}>,
+- **Announcement channel:** <#{ann}>,
+- **Notification channel:** <#{not}>.
+- **Wins required:** {win}.
 "#,
                 m.name,
                 role = r.id.get(),

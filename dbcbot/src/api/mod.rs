@@ -2,7 +2,7 @@ use crate::BotError;
 use anyhow::anyhow;
 use reqwest::{Client, Response, StatusCode};
 
-mod models;
+pub mod models;
 
 use models::{BattleLog, PlayerProfile};
 use serde::de::DeserializeOwned;
@@ -55,7 +55,11 @@ where
             StatusCode::OK => Ok(ApiResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(ApiResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(ApiResult::Maintenance),
-            _ => Err(anyhow!("Request failed with status code: {}\n\nResponse details: {:#?}", response.status(), response)),
+            _ => Err(anyhow!(
+                "Request failed with status code: {}\n\nResponse details: {:#?}",
+                response.status(),
+                response
+            )),
         }
     }
 }
@@ -110,7 +114,11 @@ impl GameApi for BrawlStarsApi {
     async fn get_player(&self, player_tag: &str) -> Result<ApiResult<PlayerProfile>, Self::Error> {
         let response = self
             .client
-            .get(&self.endpoint.append_path(&format!("players/%23{}", player_tag)))
+            .get(
+                &self
+                    .endpoint
+                    .append_path(&format!("players/%23{}", player_tag)),
+            )
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
@@ -122,7 +130,11 @@ impl GameApi for BrawlStarsApi {
     async fn get_battle_log(&self, player_tag: &str) -> Result<ApiResult<BattleLog>, Self::Error> {
         let response = self
             .client
-            .get(&self.endpoint.append_path(&format!("players/%23{}/battlelog", player_tag)))
+            .get(
+                &self
+                    .endpoint
+                    .append_path(&format!("players/%23{}/battlelog", player_tag)),
+            )
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;

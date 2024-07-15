@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM tournament_players\n            WHERE tournament_id = $1 AND discord_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8ea8f497bb0595c547b5b00178105885c8ba92ae8e62cd085c90361642064e82"
+}
