@@ -13,6 +13,7 @@ use poise::{
 };
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
+    /// Amount of time in milliseconds before message interactions (usually buttons) expire for user
     const USER_CMD_TIMEOUT: u64;
     async fn create_interaction_collector(
         &self,
@@ -236,6 +237,6 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 }
             }
         }
-        Err(anyhow!("User did not respond in time").into())
+        Err(anyhow!("User did not respond in time"))
     }
 }

@@ -3,7 +3,7 @@ use futures::Stream;
 use poise::{
     serenity_prelude::{
         futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow,
-        CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
+        CreateButton, CreateEmbed, CreateMessage,
     },
     CreateReply, Modal, ReplyHandle,
 };
@@ -42,10 +42,6 @@ impl CommandsContainer for UserCommands {
         vec![menu()]
     }
 }
-
-/// Amount of time in milliseconds before message interactions (usually buttons) expire for user
-/// commands
-const USER_CMD_TIMEOUT: u64 = 120000;
 
 /// All-in-one command for all your tournament needs.
 #[poise::command(
@@ -114,7 +110,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .style(ButtonStyle::Danger),
         ];
         ctx.prompt(
-            &msg,
+            msg,
             CreateEmbed::new().title("Main Menu").description("Welcome to the menu! You have not joined a tournament yet. Click on the Tournaments button to join one now!").color(Color::BLUE),
             buttons
         ).await?;
@@ -155,7 +151,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .label("Profile")
                 .style(ButtonStyle::Primary),
         ];
-        ctx.prompt(&msg, embed, buttons).await?;
+        ctx.prompt(msg, embed, buttons).await?;
     } else {
         return Err(anyhow!(
             "User {} with ID {} has enetered more than one active tournament",
@@ -163,13 +159,13 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             ctx.author().id,
         ));
     }
-    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 interaction.defer(ctx.http()).await?;
                 ctx.prompt(
-                    &msg,
+                    msg,
                     CreateEmbed::new()
                         .title("Tournaments")
                         .description("Loading tournaments...")
@@ -177,20 +173,20 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     None,
                 )
                 .await?;
-                return user_display_tournaments(&ctx, &msg).await;
+                return user_display_tournaments(ctx, msg).await;
             }
             "deregister" => {
                 interaction.defer(ctx.http()).await?;
-                return deregister(&ctx, &msg).await;
+                return deregister(ctx, msg).await;
             }
             "profile" => {
                 interaction.defer(ctx.http()).await?;
-                return display_user_profile(&ctx, &msg).await;
+                return display_user_profile(ctx, msg).await;
             }
             "menu_match" => {
                 interaction.defer(ctx.http()).await?;
                 ctx.prompt(
-                    &msg,
+                    msg,
                     CreateEmbed::new()
                         .title("Match Information")
                         .description("Loading your match...")
@@ -199,11 +195,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 )
                 .await?;
 
-                return user_display_match(&ctx, &msg, player_active_tournaments.remove(0)).await;
+                return user_display_match(ctx, msg, player_active_tournaments.remove(0)).await;
             }
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
-                leave_tournament(&ctx, &msg).await?;
+                leave_tournament(ctx, msg).await?;
             }
             _ => {
                 continue;
@@ -347,12 +343,12 @@ async fn user_display_match(
             ).await;
         }
     };
-    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         if interaction.data.custom_id.as_str() == "match_menu_ready" {
             interaction.defer(ctx.http()).await?;
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Ready Confirmation")
                     .description("You have set yourself to ready. A notification has been sent to your opponent to let them know.\n\nBe sure to play your matches and hit the \"Submit\" button when you're done.")
@@ -444,8 +440,8 @@ async fn user_display_tournaments(
 
     let selected_tournament = if !tournaments.is_empty() {
         select_options(
-            &ctx,
-            &msg,
+            ctx,
+            msg,
             "Tournament Enrollment",
             "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.",
             &tournaments
@@ -459,7 +455,7 @@ async fn user_display_tournaments(
             .unwrap()
             .announcement_channel_id;
         ctx.prompt(
-            &msg,
+            msg,
             CreateEmbed::new()
                 .title("Tournament Enrollment")
                 .description(format!("There are no tournaments currently available. Be sure to check out <#{}> for any new tournaments on the horizon!", announcement_channel_id))
@@ -490,7 +486,7 @@ async fn user_display_tournaments(
             )
             .await?;
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Tournament Enrollment")
                     .description("You have successfully joined the tournament! Good luck!")
@@ -513,7 +509,7 @@ async fn user_display_tournaments(
             )
             .await?;
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Tournament Enrollment")
                     .description("You have already joined this tournament. Please wait for the tournament to start.")
@@ -538,7 +534,7 @@ async fn user_display_registration(
         .label("Register")
         .style(ButtonStyle::Primary)];
     ctx.prompt(
-        &msg,
+        msg,
         CreateEmbed::new()
             .title("Registration Page")
             .description("Welcome to the registration page! Please click the button below to register your in-game profile.")
@@ -564,7 +560,7 @@ async fn user_display_registration(
                 .description("Please enter your in-game player tag (without the #) The tutorial below would help you find your player tag (wait patiently for the gif to load)")
                 .image("https://i.imgur.com/bejTDlO.gif")
                 .color(0x0000FF);
-                let mut player_tag = modal::<ProfileRegistrationModal>(&ctx, &msg, embed)
+                let mut player_tag = modal::<ProfileRegistrationModal>(ctx, msg, embed)
                     .await?
                     .player_tag
                     .to_uppercase();
@@ -649,7 +645,7 @@ async fn user_display_registration(
                     user.discord_name = ctx.author().name.clone();
                     user.discord_id = user_id.clone();
                     ctx.data().database.create_user(&user).await?;
-                    ctx.prompt(&msg,
+                    ctx.prompt(msg,
                             CreateEmbed::new()
                                 .title("Registration Success!")
                                 .description("Your profile has been successfully registered! Please run this command again to access Player menu!"),
@@ -664,7 +660,7 @@ async fn user_display_registration(
                 }
                 false => {
                     ctx.prompt(
-                        &msg,
+                        msg,
                         CreateEmbed::new()
                             .title("Registration Cancelled")
                             .description("You have cancelled the registration process. Please run this command again to register your profile.")
@@ -693,7 +689,7 @@ async fn user_display_registration(
         }
         ApiResult::Maintenance => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Maintenance")
                     .description("The Brawl Stars API is currently undergoing maintenance. Please try again later."),
@@ -720,7 +716,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         Some(player) => ctx.data().database.get_user_by_player(player).await?,
         None => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Profile Not Found")
                     .description("You have not registered your profile yet. Please run the /menu command to register your profile."), None).await?;
@@ -737,7 +733,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
     let user = match user {
         None => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Profile Not Found")
                     .description("You have not registered your profile yet. Please run the /menu command to register your profile."),
@@ -776,7 +772,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
             .timestamp(ctx.created_at())
             .color(0x0000FF)
     };
-    ctx.prompt(&msg, embed, None).await?;
+    ctx.prompt(msg, embed, None).await?;
     Ok(())
 }
 
@@ -799,7 +795,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
         }
         false => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                 .title("Deregistration (Cancelled)")
                 .description("You have canceled deregistering your profile. This means you are still registered."),
@@ -819,11 +815,11 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
         .await?;
     if tournaments.is_empty() {
         ctx.prompt(
-            &msg,
+            msg,
             CreateEmbed::new()
                 .title("Leaving a tournament")
                 .description("You are not in any tournament."),
-    None,
+            None,
         )
         .await?;
         return Ok(());
@@ -856,17 +852,17 @@ Tournament name: {}"#,
                 .exit_tournament(&selected_tournament.tournament_id, &discord_id)
                 .await?;
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Leaving a tournament")
                     .description("You have successfully left the tournament."),
-        None,
+                None,
             )
             .await?;
         }
         false => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Leaving a tournament (Cancelled)")
                     .description("You have canceled leaving the tournament. This means you are still in the tournament."),
