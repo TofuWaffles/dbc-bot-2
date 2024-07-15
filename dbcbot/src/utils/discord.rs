@@ -10,37 +10,6 @@ use poise::{
     CreateReply, ReplyHandle,
 };
 
-pub async fn prompt<'a, S>(
-    ctx: &BotContext<'a>,
-    msg: impl Into<Option<ReplyHandle<'a>>>,
-    title: S,
-    description: S,
-    color: impl Into<Option<Colour>>,
-) -> Result<ReplyHandle<'a>, BotError>
-where
-    S: Into<String> + Send + 'static,
-{
-    let embed = CreateEmbed::default()
-        .title(title.into())
-        .description(description.into())
-        .colour(color.into().unwrap_or(Colour::BLUE));
-
-    let components = vec![];
-    let builder = CreateReply::default()
-        .components(components)
-        .embed(embed)
-        .ephemeral(true);
-
-    let msg = match msg.into() {
-        Some(msg) => {
-            msg.edit(*ctx, builder).await?;
-            msg
-        }
-        None => ctx.send(builder).await?,
-    };
-    Ok(msg)
-}
-
 pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
         .title("Loading next step...")
@@ -149,10 +118,10 @@ pub async fn select_options<T: Selectable>(
         .iter()
         .map(|t| CreateSelectMenuOption::new(t.label(), t.value()))
         .collect();
-    let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
-        "option",
-        CreateSelectMenuKind::String { options },
-    ))];
+    let component = vec![CreateActionRow::SelectMenu(
+        CreateSelectMenu::new("option", CreateSelectMenuKind::String { options })
+            .disabled(items.is_empty()),
+    )];
     let builder = CreateReply::default().embed(embed).components(component);
     msg.edit(*ctx, builder).await?;
     while let Some(mci) = ComponentInteractionCollector::new(ctx)

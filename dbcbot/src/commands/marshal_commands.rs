@@ -12,7 +12,8 @@ use crate::{
         models::{Match, PlayerNumber, TournamentStatus},
         Database,
     },
-    log, BotContext, BotData, BotError,
+    log::{self, Log},
+    BotContext, BotData, BotError,
 };
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
@@ -198,8 +199,7 @@ Set by {}."#,
         map,
         ctx.author().name
     );
-    log::Log::log(
-        ctx,
+    ctx.log(
         "Map set successfully!",
         description,
         log::State::SUCCESS,
@@ -478,13 +478,13 @@ Disqualified by: {disqualified_by}."#,
         tournament_name = tournament.name,
         disqualified_by = ctx.author().name
     );
-    log::Log::log(
-        ctx,
+    ctx.log(
         "Player disqualified!",
         description,
         log::State::SUCCESS,
         log::Model::MARSHAL,
-    ).await?;
+    )
+    .await?;
     Ok(())
 }
 
@@ -588,8 +588,7 @@ Advanced by: {}."#,
         new_brackets_count,
         ctx.author().name
     );
-    log::Log::log(
-        ctx,
+    ctx.log(
         "Tournament advanced!",
         description,
         log::State::SUCCESS,

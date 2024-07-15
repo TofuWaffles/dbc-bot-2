@@ -6,7 +6,6 @@ use strum::Display;
 
 use crate::{database::Database, utils::shorthand::BotContextExt, BotContext, BotError};
 
-
 pub enum State {
     SUCCESS = Color::DARK_GREEN.0 as isize,
     FAILURE = Color::RED.0 as isize,
@@ -14,7 +13,7 @@ pub enum State {
     WARNING = Color::GOLD.0 as isize,
 }
 #[derive(Debug, Clone, Copy, Default, Display)]
-pub enum Model{
+pub enum Model {
     #[strum(to_string = "Player")]
     PLAYER,
     #[strum(to_string = "Database")]
@@ -32,20 +31,33 @@ pub enum Model{
     #[strum(to_string = "System")]
     SYSTEM,
     #[default]
-    DEFAULT
+    DEFAULT,
 }
 
-pub struct Log {}
-
-impl Log {
-    async fn get_log_channel(ctx: BotContext<'_>) -> Result<ChannelId, BotError> {
-        let guild_id = ctx
+pub trait Log {
+    async fn get_log_channel(&self) -> Result<ChannelId, BotError>;
+    fn get_author_img(&self, model: &Model) -> CreateEmbedAuthor;
+    fn thumbnail(&self, state: &State) -> String;
+    async fn log(
+        &self,
+        title: impl Into<String>,
+        description: impl Into<String>,
+        state: State,
+        model: Model,
+    ) -> Result<(), BotError>;
+}
+impl Log for BotContext<'_> {
+    async fn get_log_channel(&self) -> Result<ChannelId, BotError> {
+        let guild_id = self
             .guild_id()
-            .ok_or(anyhow!("Error getting log channel: Attempted to get log channel outside of a guild"))?
+            .ok_or(anyhow!(
+                "Error getting log channel: Attempted to get log channel outside of a guild"
+            ))?
             .to_string();
 
         let log_channel = ChannelId::from_str(
-            &ctx.data()
+            &self
+                .data()
                 .database
                 .get_config(&guild_id)
                 .await?
@@ -57,9 +69,9 @@ impl Log {
         )?;
         Ok(log_channel)
     }
-    fn author(ctx: &BotContext<'_>, model: Model) -> CreateEmbedAuthor{
+    fn get_author_img(&self, model: &Model) -> CreateEmbedAuthor {
         let (name, icon_url) = match model{
-            Model::PLAYER | Model::MARSHAL => (ctx.author().name.clone(), ctx.author().avatar_url().unwrap_or_default()),
+            Model::PLAYER | Model::MARSHAL => (self.author().name.clone(), self.author().avatar_url().unwrap_or_default()),
             Model::DATABASE => (model.to_string(), String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC93MmtCcnlHZk05eHdYbWtCZWpCaC5wbmcifQ:supercell:62YMWTV9LI8syf1HAJnKJTMkUEZR1-yXNqrxVHTHrB4?width=2400")),
             Model::API => (model.to_string(), String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9LWGU0ekxmSENqVlJTM2tmV0VzSy5wbmcifQ:supercell:SmOqSjpbIjqKqwrmZ2RWpEbwvBi1ERlMIp4Oe9fGI0g?width=2400")),
             Model::GUILD => (model.to_string(), Default::default()),
@@ -71,7 +83,7 @@ impl Log {
         CreateEmbedAuthor::new(name).icon_url(icon_url)
     }
 
-    fn thumbnail(state: State) -> String{
+    fn thumbnail(&self, state: &State) -> String {
         match state{
             State::FAILURE => String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9mbkhRWjhzQmtkNUFkY2tzZTdTai5wbmcifQ:supercell:mCcCEDMJI8puCKKc2K9bBURE4tZem68vd5aMETOFjjw?width=2400"),
             State::SUCCESS => String::from("https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9iZUduOFpWaWpZYTduUXFKOEtDbi5wbmcifQ:supercell:QVmY9TjwRiZ77-CWw_lkKnpMrFbNbjHBZwalfHQ3KnE?width=2400"),
@@ -80,31 +92,33 @@ impl Log {
         }
     }
 
-    pub async fn log(
-        ctx: BotContext<'_>,
+    async fn log(
+        &self,
         title: impl Into<String>,
         description: impl Into<String>,
         state: State,
         model: Model,
-    ) -> Result<(), BotError>  
-    {   
+    ) -> Result<(), BotError> {
         let embed = CreateEmbed::default()
-            .author(Self::author(&ctx, model))
+            .author(self.get_author_img(&model))
             .title(title)
-            .description(format!(r#"**Action**:
+            .description(format!(
+                r#"**Action**:
 {reason}
 **Triggered by**
-<@{id}>-`{id}`"#, reason=description.into(), id=ctx.author().id))
-            .timestamp(ctx.now())
-            .thumbnail(Self::thumbnail(state))
-            .colour(State::SUCCESS as u32);
+<@{id}>-`{id}`"#,
+                reason = description.into(),
+                id = self.author().id
+            ))
+            .timestamp(self.now())
+            .thumbnail(self.thumbnail(&state))
+            .colour(state as u32);
         let builder = CreateMessage::default().embed(embed);
-        let channel = Self::get_log_channel(ctx).await?;
-        channel.send_message(ctx, builder).await?;
+        let channel = self.get_log_channel().await?;
+        channel.send_message(self, builder).await?;
         Ok(())
     }
 }
-
 
 /// Creates an info log message in the current guild's designated log channel.
 // pub async fn discord_log_info(

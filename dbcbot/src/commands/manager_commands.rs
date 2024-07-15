@@ -117,14 +117,17 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                msg,
-                "Invalid announcement channel",
-                "Please enter a valid server channel to set this announcement channel",
-                serenity::Colour::RED,
+                &msg,
+                CreateEmbed::new()
+                    .title("Invalid announcement channel")
+                    .description(
+                        "Please enter a valid server channel to set this announcement channel.",
+                    )
+                    .color(Colour::RED),
+                None,
             )
             .await?;
-            Log::log(
-                ctx,
+            ctx.log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid announcement channel selected: {}", id),
                 log::State::FAILURE,
@@ -140,14 +143,15 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                msg,
-                "Invalid log channel",
-                "Please enter a valid server channel to set this log channel",
-                serenity::Colour::RED,
+                &msg,
+                CreateEmbed::new()
+                    .title("Invalid log channel")
+                    .description("Please enter a valid server channel to set this log channel.")
+                    .color(Colour::RED),
+                None,
             )
             .await?;
-            Log::log(
-                ctx,
+            ctx.log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid log channel selected: {}", id),
                 log::State::FAILURE,
@@ -173,9 +177,11 @@ async fn set_config(
         )
         .await?;
     ctx.prompt(
-        msg,
-        "Configuration set successfully!",
-        "Run this command again if you want to change the configuration.",
+        &msg,
+        CreateEmbed::new()
+            .title("Configuration set successfully!")
+            .description("Run this command again if you want to change the configuration.")
+            .color(Colour::DARK_GREEN),
         None,
     )
     .await?;
@@ -184,8 +190,7 @@ async fn set_config(
         "Set the configuration for guild {}",
         ctx.guild_id().unwrap().to_string()
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "General configuration set!",
         "The setting is set successfully!",
         log::State::SUCCESS,
@@ -237,8 +242,7 @@ Tournament name: {}
     "#,
         new_tournament_id, name
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "Tournament created successfully!",
         description,
         log::State::SUCCESS,
@@ -380,8 +384,7 @@ Started by: {}
         wins_required,
         ctx.author().name
     );
-    Log::log(
-        ctx,
+    ctx.log(
         "Tournament started successfully!",
         description,
         log::State::SUCCESS,
@@ -473,7 +476,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
                 return step_by_step_start_tournament(&ctx, &msg).await;
             }
             _ => {
-                unreachable!();
+                continue;
             }
         }
     }
@@ -519,14 +522,8 @@ Log channel: <#{log}>.
         }
         Ok(())
     }
-    async fn confirm(
-        ctx: &BotContext<'_>,
-        msg: &ReplyHandle<'_>,
-        m: &Role,
-        a: &Channel,
-        l: &Channel,
-    ) -> Result<bool, BotError> {
-        let embed = CreateEmbed::default()
+    let embed = |m: &Role, a: &Channel, l: &Channel| {
+        CreateEmbed::default()
             .title("Configuration Confirmation")
             .description(format!(
                 r#"Please confirm the following configuration:
@@ -538,35 +535,8 @@ Log channel: <#{log}>.
                 ann = a.id().get(),
                 log = l.id().get()
             ))
-            .color(Colour::GOLD);
-        let components = vec![CreateActionRow::Buttons(vec![
-            CreateButton::new("confirm")
-                .style(serenity::ButtonStyle::Primary)
-                .label("Confirm"),
-            CreateButton::new("cancel")
-                .style(serenity::ButtonStyle::Danger)
-                .label("Cancel"),
-        ])];
-        let builder = CreateReply::default()
-            .embed(embed)
-            .components(components)
-            .ephemeral(true);
-        msg.edit(*ctx, builder).await?;
-        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
-            .author_id(ctx.author().id)
-            .channel_id(ctx.channel_id())
-            .timeout(std::time::Duration::from_secs(120))
-            .await
-        {
-            mci.defer(ctx.http()).await?;
-            match mci.data.custom_id.as_str() {
-                "confirm" => return Ok(true),
-                "cancel" => return Ok(false),
-                _ => {}
-            }
-        }
-        Err(anyhow!("No response from user"))
-    }
+            .color(Colour::GOLD)
+    };
     preset(ctx, msg).await?;
     let (m, a, l) = loop {
         let marshal_role = select_role(
@@ -592,7 +562,13 @@ Log channel: <#{log}>.
             "Please select the channel where the bot will log all the actions it takes.",
         )
         .await?;
-        if confirm(ctx, msg, &marshal_role, &announcement_channel, &log_channel).await? {
+        if ctx
+            .confirmation(
+                msg,
+                embed(&marshal_role, &announcement_channel, &log_channel),
+            )
+            .await?
+        {
             break (marshal_role, announcement_channel, log_channel);
         }
     };
@@ -604,65 +580,6 @@ async fn step_by_step_create_tournament(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
 ) -> Result<(), BotError> {
-    async fn confirm(
-        ctx: &BotContext<'_>,
-        msg: &ReplyHandle<'_>,
-        m: &TournamentName,
-        a: &Channel,
-        n: &Channel,
-        r: &Role,
-    ) -> Result<bool, BotError> {
-        let embed = CreateEmbed::default()
-            .title("Tournament Confirmation")
-            .description(format!(
-                r#"Please confirm the following tournament:
-Tournament name: {}
-Role: <@&{role}>,
-Announcement channel: <#{ann}>,
-Notification channel: <#{not}>.
-Role: <@&{role}>,
-Wins required: {win}.
-"#,
-                m.name,
-                role = r.id.get(),
-                ann = a.id().get(),
-                not = n.id().get(),
-                win = m
-                    .wins_required
-                    .as_ref()
-                    .map(|w| w.parse::<i32>().unwrap_or(3).max(1))
-                    .unwrap_or(3)
-            ))
-            .color(Colour::GOLD);
-        let components = vec![CreateActionRow::Buttons(vec![
-            CreateButton::new("confirm")
-                .style(serenity::ButtonStyle::Primary)
-                .label("Confirm"),
-            CreateButton::new("cancel")
-                .style(serenity::ButtonStyle::Danger)
-                .label("Cancel"),
-        ])];
-        let builder = CreateReply::default()
-            .embed(embed)
-            .components(components)
-            .ephemeral(true);
-        msg.edit(*ctx, builder).await?;
-        while let Some(mci) = serenity::ComponentInteractionCollector::new(ctx)
-            .author_id(ctx.author().id)
-            .channel_id(ctx.channel_id())
-            .timeout(std::time::Duration::from_secs(120))
-            .await
-        {
-            mci.defer(ctx.http()).await?;
-            match mci.data.custom_id.as_str() {
-                "confirm" => return Ok(true),
-                "cancel" => return Ok(false),
-                _ => {}
-            }
-        }
-        Err(anyhow!("No response from user"))
-    }
-
     #[derive(Debug, Modal)]
     #[name = "Tournament Name"]
     struct TournamentName {
@@ -676,11 +593,34 @@ Wins required: {win}.
         #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
         wins_required: Option<String>,
     }
-    let embed = CreateEmbed::new()
-        .title("Creating a new tournament")
-        .description("Please provide the name of the tournament.");
+    let embed = |m: &TournamentName, r: &Role, a: &Channel, n: &Channel| {
+        CreateEmbed::default()
+            .title("Tournament Confirmation")
+            .description(format!(
+                r#"Please confirm the following tournament:
+- **Tournament name:** {}
+- **Role:** <@&{role}>,
+- **Announcement channel:** <#{ann}>,
+- **Notification channel:** <#{not}>.
+- **Wins required:** {win}.
+"#,
+                m.name,
+                role = r.id.get(),
+                ann = a.id().get(),
+                not = n.id().get(),
+                win = m
+                    .wins_required
+                    .as_ref()
+                    .map(|w| w.parse::<i32>().unwrap_or(3).max(1))
+                    .unwrap_or(3)
+            ))
+            .color(Colour::GOLD)
+    };
     let (m, a, n, r) = loop {
-        let modal = modal::<TournamentName>(ctx, msg, embed.clone()).await?;
+        let m_embed = CreateEmbed::new()
+            .title("Creating a new tournament")
+            .description("Please provide the name of the tournament.");
+        let modal = modal::<TournamentName>(ctx, msg, m_embed.clone()).await?;
         let announcement_channel = select_channel(
             ctx,
             msg,
@@ -697,15 +637,12 @@ Wins required: {win}.
             "Please select the role for the tournament.",
         )
         .await?;
-        if confirm(
-            ctx,
-            msg,
-            &modal,
-            &announcement_channel,
-            &notification_channel,
-            &role,
-        )
-        .await?
+        if ctx
+            .confirmation(
+                msg,
+                embed(&modal, &role, &announcement_channel, &notification_channel),
+            )
+            .await?
         {
             break (modal, announcement_channel, notification_channel, role);
         }

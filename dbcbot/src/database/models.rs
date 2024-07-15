@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-pub trait Selectable{
+use crate::api::models::Brawler;
+
+pub trait Selectable {
     fn label(&self) -> String;
     fn value(&self) -> String;
 }
@@ -25,13 +27,13 @@ pub struct GuildConfig {
 #[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display, Default)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
-    #[strum(to_string = "Open for registration")]
+    #[strum(to_string = "Open")]
     Pending,
     #[strum(to_string = "In progress")]
     Started,
     #[strum(to_string = "Paused")]
     Paused,
-    #[strum(to_string = "Inactive/Completed")]
+    #[strum(to_string = "Inactive ")]
     #[default]
     Inactive,
 }
@@ -81,6 +83,9 @@ impl User {
             discord_id: self.discord_id.clone(),
             player_tag: self.player_tag.clone(),
         }
+    }
+    pub fn get_brawlers(&self) -> Vec<Brawler> {
+        serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
 }
 

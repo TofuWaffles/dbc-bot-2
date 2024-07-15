@@ -11,8 +11,7 @@ use models::Tournament;
 use sqlx::PgPool;
 
 use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, TournamentStatus,
-    User,
+    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, TournamentStatus, User,
 };
 
 /// Models for the database.
@@ -66,6 +65,9 @@ pub trait Database {
     /// Adds a user to the database.
     async fn create_user(&self, user: &User) -> Result<(), Self::Error>;
 
+    /// Deletes a user from the database.
+    async fn delete_user(&self, discord_id: &str) -> Result<(), Self::Error>;
+
     /// Retrieves a user from the database with a given Discord ID.
     async fn get_player_by_discord_id(
         &self,
@@ -90,7 +92,7 @@ pub trait Database {
         role_id: String,
         announcement_channel_id: &str,
         notification_channel_id: &str,
-        wins_required: i32
+        wins_required: i32,
     ) -> Result<i32, Self::Error>;
 
     /// Updates the status of a tournament.
@@ -141,6 +143,19 @@ pub trait Database {
         tournament_id: i32,
         discord_id: &str,
     ) -> Result<(), Self::Error>;
+
+    /// Exits a user from a tournament.
+    async fn exit_tournament(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error>;
+
+    /// Get an active tournament of a player by their discord id.
+    async fn get_active_tournaments_from_player(
+        &self,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error>;
 
     /// Sets the number of wins required to win each round of the tournament.
     async fn set_wins_required(
@@ -279,7 +294,7 @@ impl Database for PgDatabase {
         guild_id: &str,
         marshal_role_id: &str,
         log_channel_id: &str,
-        announcement_channel_id: &str
+        announcement_channel_id: &str,
     ) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
@@ -345,12 +360,26 @@ impl Database for PgDatabase {
                 player_tag = $2
             "#,
             user.discord_id,
-            user.player_tag,
             user.discord_name,
+            user.player_tag,
             user.player_name,
             user.icon,
             user.trophies,
             serde_json::to_value(user.brawlers.clone())?
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn delete_user(&self, discord_id: &str) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM users
+            WHERE discord_id = $1
+            "#,
+            discord_id
         )
         .execute(&self.pool)
         .await?;
@@ -419,7 +448,7 @@ impl Database for PgDatabase {
         role_id: String,
         announcement_channel_id: &str,
         notification_channel_id: &str,
-        wins_required: i32
+        wins_required: i32,
     ) -> Result<i32, Self::Error> {
         let timestamp_time = chrono::offset::Utc::now().timestamp();
 
@@ -595,6 +624,46 @@ impl Database for PgDatabase {
         .await?;
 
         Ok(())
+    }
+
+    async fn exit_tournament(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM tournament_players
+            WHERE tournament_id = $1 AND discord_id = $2
+            "#,
+            tournament_id,
+            discord_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn get_active_tournaments_from_player(
+        &self,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error> {
+        let tournament = sqlx::query_as!(
+            Tournament,
+            r#"
+            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.map, t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id
+            FROM tournaments AS t 
+            JOIN tournament_players AS tp
+            ON tp.tournament_id = t.tournament_id
+            WHERE tp.discord_id = $1
+            AND t.status != 'inactive';
+            "#,
+            discord_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(tournament)
     }
 
     async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error> {
