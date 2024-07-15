@@ -474,7 +474,7 @@ async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
                 return step_by_step_start_tournament(&ctx, &msg).await;
             }
             _ => {
-                unreachable!();
+                continue;
             }
         }
     }
