@@ -210,7 +210,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             "submit" => {
                 interaction.defer(ctx.http()).await?;
                 let game_match = ctx.data().database.get_match_by_player(player_active_tournaments[0].tournament_id, &ctx.author().to_string()).await?;
-                return submit(ctx, msg, &game_match.unwrap()).await;
+                return submit(ctx, msg, &player_active_tournaments[0], &game_match.unwrap()).await;
             }
             _ => {
                 continue;
@@ -949,6 +949,7 @@ Tournament name: {}"#,
 async fn submit(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
+    tournament: &Tournament,
     game_match: &Match,
 ) -> Result<(), BotError> {
     async fn filter(
@@ -1096,12 +1097,6 @@ async fn submit(
         .guild_id()
         .ok_or(anyhow!("Guild ID not found"))?
         .to_string();
-    let tournament = ctx
-        .data()
-        .database
-        .get_tournament(&guild_id, game_match.tournament_id)
-        .await?
-        .ok_or(anyhow!("Tournament not found"))?;
     let battles = filter(ctx, logs, &tournament, &game_match).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
