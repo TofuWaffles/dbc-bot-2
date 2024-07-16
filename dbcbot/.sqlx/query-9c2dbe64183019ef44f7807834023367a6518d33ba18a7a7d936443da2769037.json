@@ -37,7 +37,8 @@
                 "brawl_ball5v5",
                 "gem_grab5v5",
                 "bounty5v5",
-                "knockout5v5"
+                "knockout5v5",
+                "unknown"
               ]
             }
           }

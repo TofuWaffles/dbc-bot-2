@@ -10,13 +10,15 @@ use poise::{
 use prettytable::{row, Table};
 use serde_json::json;
 use tracing::{info, instrument};
+use tracing_subscriber::fmt::format;
 
 use crate::{
-    api::{ApiResult, GameApi},
+    api::{self, models::BattleLogItem, ApiResult, GameApi},
     commands::checks::{is_config_set, is_tournament_paused},
     database::{
         models::{
-            PlayerNumber::{Player1, Player2},
+            BattleResult, BattleType, Match, Player,
+            PlayerNumber::{self, Player1, Player2},
             PlayerType, Tournament, TournamentStatus, User,
         },
         Database,
@@ -25,6 +27,7 @@ use crate::{
     utils::{
         discord::{modal, select_options},
         shorthand::BotContextExt,
+        time::BDateTime,
     },
     BotContext, BotData, BotError,
 };
@@ -56,7 +59,7 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     // info!("User {} has entered the menu", ctx.author().name);
     ctx.defer_ephemeral().await?;
     let user = ctx
-        .get_player_from_discord_id(ctx.author().to_owned())
+        .get_player_from_discord_id(ctx.author().id.to_string())
         .await?;
     let embed = CreateEmbed::new()
         .title("Menu")
@@ -150,6 +153,9 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             CreateButton::new("profile")
                 .label("Profile")
                 .style(ButtonStyle::Primary),
+            CreateButton::new("submit")
+                .label("Submit")
+                .style(ButtonStyle::Primary)
         ];
         ctx.prompt(msg, embed, buttons).await?;
     } else {
@@ -199,7 +205,12 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             }
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
-                leave_tournament(ctx, msg).await?;
+                return leave_tournament(ctx, msg).await;
+            },
+            "submit" => {
+                interaction.defer(ctx.http()).await?;
+                let game_match = ctx.data().database.get_match_by_player(player_active_tournaments[0].tournament_id, &ctx.author().to_string()).await?;
+                return submit(ctx, msg, &player_active_tournaments[0], &game_match.unwrap()).await;
             }
             _ => {
                 continue;
@@ -228,6 +239,49 @@ async fn user_display_match(
     let bracket = match bracket_opt {
         Some(ref bracket) => {
             let reply;
+            // let embed = match (bracket.player_1_type, bracket.player_2_type) {
+            //     (PlayerType::Dummy, _) | (_, PlayerType::Dummy) => {
+            //         ctx.data()
+            //             .database
+            //             .set_winner(
+            //                 &bracket.match_id,
+            //                 bracket
+            //                     .get_player_number(&ctx.author().id.to_string())
+            //                     .ok_or(anyhow!(
+            //                         "Player <@{}> is not in this match {}",
+            //                         ctx.author().id.to_string(),
+            //                         bracket.match_id
+            //                     ))?,
+            //             )
+            //             .await?;
+            //         CreateEmbed::new()
+            //             .title("Match Information.")
+            //             .description("You have no opponents for the current round. See you in the next round, partner!")
+            //             .fields(vec![
+            //                 ("Tournament", tournament.name, true),
+            //                 ("Match ID", bracket.match_id.to_owned(), true),
+            //                 ("Round", bracket.round.to_string(), true),
+            //             ])
+            //     }
+            //     (PlayerType::Pending, _) | (_, PlayerType::Pending) => CreateEmbed::new()
+            //         .title("Match Information.")
+            //         .description("Your opponent has yet to be determined. Please be patient.")
+            //         .fields(vec![
+            //             ("Tournament", tournament.name, true),
+            //             ("Match ID", bracket.match_id.to_owned(), true),
+            //             ("Round", bracket.round.to_string(), true),
+            //         ]),
+            //     (PlayerType::Player, _) | (_,PlayerType::Player) => {
+            //         CreateEmbed::new()
+            //                 .title("Match Information.")
+            //                 .description("Your opponent has yet to be determined. Please be patient.")
+            //                 .fields(vec![
+            //                     ("Tournament", tournament.name, true),
+            //                     ("Match ID", bracket.match_id.to_owned(), true),
+            //                     ("Round", bracket.round.to_string(), true),
+            //                 ])
+            //     },
+            // };
             if bracket.player_1_type == PlayerType::Dummy
                 || bracket.player_2_type == PlayerType::Dummy
             {
@@ -439,13 +493,32 @@ async fn user_display_tournaments(
     }
 
     let selected_tournament = if !tournaments.is_empty() {
-        select_options(
-            ctx,
-            msg,
-            "Tournament Enrollment",
-            "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.",
-            &tournaments
-        ).await?
+        loop {
+            let selected = select_options(
+                ctx,
+                msg,
+                "Tournament Enrollment",
+                "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.",
+                &tournaments
+            ).await?;
+            let name = tournaments
+                .iter()
+                .find(|t| t.tournament_id == selected.parse::<i32>().unwrap())
+                .unwrap()
+                .name
+                .clone();
+            let description = format!(
+                r#"Please confirm that you want to participate in the following tournament
+{}"#,
+                name
+            );
+            let embed = CreateEmbed::new()
+                .title("Tournament Enrollment")
+                .description(description);
+            if ctx.confirmation(msg, embed).await? {
+                break selected;
+            }
+        }
     } else {
         let announcement_channel_id = ctx
             .data()
@@ -710,7 +783,7 @@ async fn user_display_registration(
 
 async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let user = match ctx
-        .get_player_from_discord_id(ctx.author().to_owned())
+        .get_player_from_discord_id(ctx.author().id.to_string())
         .await?
     {
         Some(player) => ctx.data().database.get_user_by_player(player).await?,
@@ -870,5 +943,214 @@ Tournament name: {}"#,
             ).await?;
         }
     }
+    Ok(())
+}
+
+async fn submit(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    tournament: &Tournament,
+    game_match: &Match,
+) -> Result<(), BotError> {
+    async fn filter(
+        ctx: &BotContext<'_>,
+        logs: Vec<BattleLogItem>,
+        tournament: &Tournament,
+        game_match: &Match,
+    ) -> Result<Vec<BattleLogItem>, BotError> {
+        let compare_tag = |s1: &str, s2: &str| {
+            s1.chars()
+                .zip(s2.chars())
+                .all(|(c1, c2)| c1 == c2 || (c1 == 'O' && c2 == '0') || (c1 == '0' && c2 == 'O'))
+                && s1.len() == s2.len()
+        };
+        let p1 = ctx
+            .get_player_from_discord_id(game_match.discord_id_1.clone().unwrap())
+            .await?
+            .unwrap();
+        let p2 = ctx
+            .get_player_from_discord_id(game_match.discord_id_2.clone().unwrap())
+            .await?
+            .unwrap();
+        let mut whitelist = vec![];
+        for log in logs {
+            if log.unix() < tournament.created_at {
+                // If the log is older than the tournament, skip it
+                continue;
+            }
+            if log.battle.mode != tournament.mode || log.event.mode != tournament.mode {
+                continue;
+            }
+            if log.battle.battle_type.to_lowercase()
+                == BattleType::friendly.to_string().to_lowercase()
+            {
+                continue;
+            }
+            if !(compare_tag(&log.battle.teams[0][0].tag, &p1.player_tag)
+                && compare_tag(&log.battle.teams[1][0].tag, &p2.player_tag)
+                || compare_tag(&log.battle.teams[0][0].tag, &p2.player_tag)
+                    && compare_tag(&log.battle.teams[1][0].tag, &p1.player_tag))
+            {
+                continue;
+            }
+
+            whitelist.push(log);
+        }
+        Ok(whitelist)
+    }
+    /// Analyse the battle logs to determine the winner of the match
+    /// Returns true if player 1 wins, false if player 2 wins, and None if no conclusion can be made
+    async fn analyse(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<bool> {
+        let mut conclusion: Option<bool> = None; //true = player 1, false = player 2, None = no conclusion
+        let mut victory = 0;
+        let mut defeat = 0;
+        let results = battles
+            .iter()
+            .map(|b| b.battle.result)
+            .collect::<Vec<BattleResult>>();
+        for result in results {
+            match result {
+                BattleResult::victory => victory += 1,
+                BattleResult::defeat => defeat += 1,
+                _ => {}
+            }
+            if defeat == tournament.wins_required && victory < tournament.wins_required {
+                conclusion = Some(false);
+                break;
+            } else if victory >= tournament.wins_required {
+                conclusion = Some(true);
+                break;
+            }
+        }
+        conclusion
+    }
+    async fn handle_not_enough_matches(
+        ctx: &BotContext<'_>,
+        msg: &ReplyHandle<'_>,
+    ) -> Result<(), BotError> {
+        ctx.prompt(
+            msg,
+            CreateEmbed::new()
+                .title("Insufficient Matches")
+                .description("You have not played enough matches to submit. You need to play at least 3 matches to submit."),
+            None,
+        )
+        .await?;
+        ctx.log(
+            "Insufficient Matches",
+            format!(
+                "User {} has not played enough matches to submit",
+                ctx.author().name
+            ),
+            crate::log::State::FAILURE,
+            crate::log::Model::PLAYER,
+        )
+        .await?;
+        Ok(())
+    }
+    let caller = ctx.author().id.to_string();
+    let caller_tag = ctx
+        .get_player_from_discord_id(None)
+        .await?
+        .ok_or(anyhow!("User not found in the database"))?
+        .player_tag;
+    let logs = match ctx.data().game_api.get_battle_log(&caller_tag).await? {
+        ApiResult::Ok(response) => response.items,
+        ApiResult::NotFound => {
+            ctx.prompt(
+                msg,
+                CreateEmbed::new()
+                    .title("Player Not Found")
+                    .description("The player tag you entered was not found. Please try again."),
+                None,
+            )
+            .await?;
+            ctx.log(
+                "Player",
+                format!("Player tag {} not found", caller_tag),
+                crate::log::State::FAILURE,
+                crate::log::Model::PLAYER,
+            )
+            .await?;
+            return Ok(());
+        }
+        ApiResult::Maintenance => {
+            ctx.prompt(
+                msg,
+                CreateEmbed::new()
+                    .title("Maintenance")
+                    .description("The Brawl Stars API is currently undergoing maintenance. Please try again later."),
+               None,
+            )
+            .await?;
+            ctx.log(
+                "API",
+                "Brawl Stars API is currently undergoing maintenance",
+                crate::log::State::FAILURE,
+                crate::log::Model::API,
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    let guild_id = ctx
+        .guild_id()
+        .ok_or(anyhow!("Guild ID not found"))?
+        .to_string();
+    let battles = filter(ctx, logs, &tournament, &game_match).await?;
+    if battles.len() < tournament.wins_required as usize {
+        return handle_not_enough_matches(ctx, msg).await;
+    }
+    let winner = analyse(&tournament, battles).await;
+    let (caller, opposite) = match game_match.discord_id_1.clone().unwrap() == caller {
+        true => (Player1, Player2),
+        false => (Player2, Player1),
+    };
+    let channel = ChannelId::new(tournament.notification_channel_id.parse()?);
+    let target = match winner {
+        None => return handle_not_enough_matches(ctx, msg).await,
+        Some(true) => {
+            ctx.data()
+                .database
+                .set_winner(&game_match.match_id, caller)
+                .await?;
+            ctx.get_user_by_discord_id(None).await?.unwrap()
+        }
+        Some(false) => {
+            ctx.data()
+                .database
+                .set_winner(&game_match.match_id, opposite)
+                .await?;
+            ctx.get_user_by_discord_id(game_match.discord_id_2.clone())
+                .await?
+                .unwrap()
+        }
+    };
+    let embed = CreateEmbed::new()
+        .title("Match submission!")
+        .description(format!(
+            "Congratulations! <@{}> passes Round {}",
+            target.discord_id, tournament.current_round
+        ))
+        .thumbnail(format!(
+            "https://cdn-old.brawlify.com/profile/{}.png",
+            target.icon
+        ))
+        .author(ctx.get_author_img(&log::Model::PLAYER));
+    channel
+        .send_message(ctx.http(), CreateMessage::new().embed(embed))
+        .await?;
+    ctx.log(
+        "Match submission",
+        format!(
+            "User {} has submitted their match {}",
+            ctx.author().name,
+            game_match.match_id
+        ),
+        log::State::SUCCESS,
+        log::Model::PLAYER,
+    )
+    .await?;
+
     Ok(())
 }

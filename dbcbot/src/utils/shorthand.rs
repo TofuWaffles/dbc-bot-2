@@ -7,7 +7,7 @@ use futures::{Stream, StreamExt};
 use poise::ReplyHandle;
 use poise::{
     serenity_prelude::{
-        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed, User,
+        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed
     },
     CreateReply,
 };
@@ -68,7 +68,7 @@ pub trait BotContextExt<'a> {
     /// Returns a `BotError` if there is an issue with fetching the player from the database.
     async fn get_player_from_discord_id(
         &self,
-        user: impl Into<Option<User>>,
+        discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::Player>, BotError>;
 
     /// Get a player from a tag.
@@ -82,6 +82,19 @@ pub trait BotContextExt<'a> {
         &self,
         tag: &str,
     ) -> Result<Option<crate::database::models::Player>, BotError>;
+
+    /// Get a user from a discord id.
+    /// # Arguments
+    /// * `discord_id` - The tag of the player to fetch.
+    /// # Returns
+    /// Returns a `Result` containing an optional `User` object wrapped in an `Option`, which if there exists a player with the given tag, will be `Some(User)`. If no player exists with the given tag, `None` will be returned.
+    /// # Errors
+    /// Returns a `BotError` if there is an issue with fetching the player from the database.
+    async fn get_user_by_discord_id(
+        &self,
+        discord_id: impl Into<Option<String>> + Clone
+    ) -> Result<Option<crate::database::models::User>, BotError>;
+    /// 
     async fn get_current_round(&self, tournament_id: i32) -> Result<i32, BotError>;
 
     /// Prompt the user with a confirmation message.
@@ -132,7 +145,10 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         embed: CreateEmbed,
         buttons: impl Into<Option<Vec<CreateButton>>>,
     ) -> Result<(), BotError> {
-        let components = vec![CreateActionRow::Buttons(buttons.into().unwrap_or(vec![]))];
+        let components = match buttons.into(){
+            Some(buttons) => vec![CreateActionRow::Buttons(buttons)],
+            _ => vec![],
+        };
         let builder = CreateReply::default()
             .components(components)
             .embed(embed)
@@ -153,16 +169,27 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     }
     async fn get_player_from_discord_id(
         &self,
-        user: impl Into<Option<User>>,
+        discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::Player>, BotError> {
-        let id = match user.into() {
-            Some(user) => user.id.to_string(),
+        let id = match discord_id.into() {
+            Some(id) => id,
             None => self.author().id.to_string(),
         };
         let player = self.data().database.get_player_by_discord_id(&id).await?;
         Ok(player)
     }
 
+    async fn get_user_by_discord_id(
+            &self,
+            discord_id: impl Into<Option<String>> + Clone
+        ) -> Result<Option<crate::database::models::User>, BotError> {
+        let id = match discord_id.into() {
+            Some(id) => id,
+            None => self.author().id.to_string(),
+        };
+        let user = self.data().database.get_user_by_discord_id(&id).await?;
+        Ok(user)
+    }
     async fn get_player_from_tag(
         &self,
         tag: &str,

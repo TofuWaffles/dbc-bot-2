@@ -1,4 +1,4 @@
-use crate::database::models::Tournament;
+use crate::database::models::{Mode, Tournament};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
 use crate::utils::shorthand::BotContextExt;
@@ -69,6 +69,7 @@ async fn set_config_slash(
 async fn create_tournament_slash(
     ctx: BotContext<'_>,
     #[description = "Tournament name"] name: String,
+    #[description = "Mode for the tournament"] mode: Mode,
     #[description = "Role for the tournament"] role: serenity::Role,
     #[description = "Announcement channel for the tournament"] announcement: serenity::Channel,
     #[description = "Notification channel for the tournament"] notification: serenity::Channel,
@@ -77,7 +78,7 @@ async fn create_tournament_slash(
     >,
 ) -> Result<(), BotError> {
     let wins_required = wins_required.unwrap_or(3).max(1);
-    create_tournament(ctx, name, role, announcement, notification, wins_required).await
+    create_tournament(ctx, name, mode, role, announcement, notification, wins_required).await
 }
 
 /// Start a tournament.
@@ -96,7 +97,14 @@ async fn start_tournament_slash(
     win_required: Option<i32>,
 ) -> Result<(), BotError> {
     let map = map.unwrap_or_default();
-    start_tournament(ctx, tournament_id, map, win_required).await
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Starting the tournament...")
+                .ephemeral(true),
+        )
+        .await?;
+    start_tournament(ctx, &msg, tournament_id, map, win_required).await
 }
 
 async fn set_config(
@@ -205,6 +213,7 @@ async fn set_config(
 async fn create_tournament(
     ctx: BotContext<'_>,
     name: String,
+    mode: Mode,
     role: serenity::Role,
     announcement_channel: serenity::Channel,
     notification_channel: serenity::Channel,
@@ -218,6 +227,7 @@ async fn create_tournament(
         .create_tournament(
             &guild_id,
             &name,
+            &mode,
             None,
             role_id,
             &announcement_channel.id().to_string(),
@@ -259,8 +269,9 @@ Tournament name: {}
 
 async fn start_tournament(
     ctx: BotContext<'_>,
+    msg: &ReplyHandle<'_>,
     tournament_id: i32,
-    map: String,
+    map:impl Into<Option<String>> + Clone,
     wins_required: Option<i32>,
 ) -> Result<(), BotError> {
     let wins_required = match wins_required {
@@ -285,12 +296,14 @@ async fn start_tournament(
     {
         Some(tournament) => tournament,
         None => {
-            ctx.send(
-                CreateReply::default()
-                    .content("Tournament not found")
-                    .ephemeral(true),
-            )
-            .await?;
+            ctx.prompt(
+                msg,
+                CreateEmbed::default()
+                    .title("Tournament not found")
+                    .description("The tournament with the given ID was not found.")
+                    .color(Colour::RED),
+                None,
+            ).await?;
             return Ok(());
         }
     };
@@ -298,15 +311,16 @@ async fn start_tournament(
     match tournament.status {
         TournamentStatus::Pending => (),
         _ => {
-            ctx.send(
-                CreateReply::default()
-                    .content(format!(
-                        "Tournament with ID {} either has already started or has already ended.",
-                        tournament_id
-                    ))
-                    .ephemeral(true),
-            )
-            .await?;
+            ctx.prompt(
+                msg,
+                CreateEmbed::default()
+                    .title("Tournament already started or ended")
+                    .description(
+                        "The tournament has already started or ended. You can't start it again.",
+                    )
+                    .color(Colour::RED),
+                None,
+            ).await?;
             return Ok(());
         }
     }
@@ -360,14 +374,20 @@ async fn start_tournament(
         .database
         .set_rounds(tournament_id, rounds_count)
         .await?;
-
-    ctx.data().database.set_map(tournament_id, &map).await?;
-
-    ctx.send(CreateReply::default()
-             .content(format!("Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}", tournament_id, matches_count))
-             .ephemeral(true)
-        )
-        .await?;
+    if map.clone().into().is_some() {
+        ctx.data().database.set_map(tournament_id, &map.into().unwrap()).await?;
+    }
+    ctx.prompt(
+        msg,
+        CreateEmbed::default()
+            .title("Tournament started!")
+            .description(format!(
+                "Successfully started tournament with ID {}.\n\nTotal number of matches in the first round (including byes): {}",
+                tournament_id, matches_count
+            ))
+            .color(Colour::DARK_GREEN),
+        None,
+    ).await?;
     let description = format!(
         r#"
 Tournament ID: {}
@@ -616,11 +636,19 @@ async fn step_by_step_create_tournament(
             ))
             .color(Colour::GOLD)
     };
-    let (m, a, n, r) = loop {
+    let (m, mode, a, n, r) = loop {
         let m_embed = CreateEmbed::new()
             .title("Creating a new tournament")
             .description("Please provide the name of the tournament.");
         let modal = modal::<TournamentName>(ctx, msg, m_embed.clone()).await?;
+        let mode = select_options::<Mode>(
+            ctx,
+            msg,
+            "Select Mode",
+            "Please select the mode for the tournament.",
+            &Mode::all()
+        ).await?;
+        splash(ctx, msg).await?;
         let announcement_channel = select_channel(
             ctx,
             msg,
@@ -644,7 +672,7 @@ async fn step_by_step_create_tournament(
             )
             .await?
         {
-            break (modal, announcement_channel, notification_channel, role);
+            break (modal, mode, announcement_channel, notification_channel, role);
         }
     };
     let name = m.name;
@@ -652,7 +680,7 @@ async fn step_by_step_create_tournament(
         .wins_required
         .map(|x| x.parse::<i32>().unwrap_or(3).max(1))
         .unwrap_or(3);
-    create_tournament(*ctx, name, r, a, n, wins_required).await
+    create_tournament(*ctx, name, Mode::from_string(mode), r, a, n, wins_required).await
 }
 
 async fn step_by_step_start_tournament(
@@ -693,7 +721,7 @@ async fn step_by_step_start_tournament(
     let wins_required = collector
         .wins_required
         .map(|x| x.parse::<i32>().unwrap_or(3).max(1));
-    start_tournament(*ctx, id, map, wins_required).await
+    start_tournament(*ctx, msg, id, map, wins_required).await
 }
 /// Test for the match generation for new tournaments.
 #[cfg(test)]
@@ -702,7 +730,7 @@ mod tests {
 
     use super::generate_matches_new_tournament;
     use crate::database::{
-        models::{Player, PlayerType, User},
+        models::{Mode, Player, PlayerType, User},
         Database, PgDatabase,
     };
 
@@ -726,6 +754,7 @@ mod tests {
         db.create_tournament(
             "0",
             "test",
+            &Mode::unknown,
             -1,
             Role::default().id.to_string(),
             &channel_id,
@@ -769,6 +798,7 @@ mod tests {
         db.create_tournament(
             "0",
             "test",
+            &Mode::unknown,
             -2,
             Role::default().id.to_string(),
             &channel_id,
@@ -808,6 +838,7 @@ mod tests {
         db.create_tournament(
             "0",
             "test",
+            &Mode::unknown,
             -3,
             Role::default().id.to_string(),
             &channel_id,
