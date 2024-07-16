@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1\n            ORDER BY created_at DESC\n            ",
+  "query": "\n            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as \"status: _\", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.mode as \"mode:_\", tournaments.map, tournaments.wins_required, tournaments.tournament_role_id, tournaments.announcement_channel_id, tournaments.notification_channel_id\n            FROM tournaments\n            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id\n            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2\n            ",
   "describe": {
     "columns": [
       {
@@ -57,32 +57,68 @@
       },
       {
         "ordinal": 8,
+        "name": "mode:_",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 9,
         "name": "map",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "wins_required",
         "type_info": "Int4"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "tournament_role_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "announcement_channel_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "notification_channel_id",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -95,6 +131,7 @@
       false,
       false,
       true,
+      false,
       true,
       false,
       false,
@@ -102,5 +139,5 @@
       false
     ]
   },
-  "hash": "5ae222fdbe637ce804be2df7e5a7e1ab1f81787195fba9e47f394ccb5ee05a68"
+  "hash": "e467d9e2fb029f06c3b240e8bb4e0388384c89e9515cc25bf801b609819a8e98"
 }

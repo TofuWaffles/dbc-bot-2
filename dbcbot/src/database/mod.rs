@@ -83,11 +83,15 @@ pub trait Database {
     /// Retrieves a user from the database with a given player.
     async fn get_user_by_player(&self, player: Player) -> Result<Option<User>, Self::Error>;
 
+    /// Retrieves a user from the database with a given discord id.
+    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
+
     /// Creates a tournament in the database, returning the tournament id.
     async fn create_tournament(
         &self,
         guild_id: &str,
         name: &str,
+        mode: &Mode,
         tournament_id: impl Into<Option<i32>>,
         role_id: String,
         announcement_channel_id: &str,
@@ -422,6 +426,23 @@ impl Database for PgDatabase {
         Ok(user)
     }
 
+    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+           SELECT *
+            FROM users 
+            WHERE discord_id = $1 
+            LIMIT 1
+            "#,
+            discord_id,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(user)
+    }
+
+
     async fn get_player_by_player_tag(
         &self,
         player_tag: &str,
@@ -444,6 +465,7 @@ impl Database for PgDatabase {
         &self,
         guild_id: &str,
         name: &str,
+        mode: &Mode,
         tournament_id: impl Into<Option<i32>>,
         role_id: String,
         announcement_channel_id: &str,
@@ -456,12 +478,13 @@ impl Database for PgDatabase {
             None => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)
-            VALUES ($1, $2, $3, 0, 0, $4, $5, $6, $7)
+            INSERT INTO tournaments (guild_id, name, mode, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)
+            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)
             RETURNING tournament_id
             "#,
                     guild_id,
                     name,
+                    *mode as Mode,
                     timestamp_time,
                     role_id,
                     announcement_channel_id,
@@ -475,12 +498,13 @@ impl Database for PgDatabase {
             Some(custom_id) => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, created_at, tournament_id, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id)
-            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7)
+            INSERT INTO tournaments (guild_id, name, mode, created_at, tournament_id, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id)
+            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)
             ON CONFLICT (tournament_id) DO NOTHING
             "#,
                     guild_id,
                     name,
+                    *mode as Mode,
                     timestamp_time,
                     custom_id,
                     role_id,
@@ -524,7 +548,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, tournament_role_id, wins_required, announcement_channel_id, notification_channel_id
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, mode as "mode:_", map, tournament_role_id, wins_required, announcement_channel_id, notification_channel_id
             FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
             ORDER BY created_at DESC
             LIMIT 1
@@ -542,7 +566,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, mode as "mode: _", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
             FROM tournaments WHERE guild_id = $1
             ORDER BY created_at DESC
             "#,
@@ -558,7 +582,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
+            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, mode as "mode:_", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
             FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')
             "#,
             guild_id
@@ -577,7 +601,7 @@ impl Database for PgDatabase {
         let tournaments = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required, tournaments.tournament_role_id, tournaments.announcement_channel_id, tournaments.notification_channel_id
+            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.mode as "mode:_", tournaments.map, tournaments.wins_required, tournaments.tournament_role_id, tournaments.announcement_channel_id, tournaments.notification_channel_id
             FROM tournaments
             INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
             WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
@@ -651,7 +675,7 @@ impl Database for PgDatabase {
         let tournament = sqlx::query_as!(
             Tournament,
             r#"
-            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.map, t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id
+            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.map, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id
             FROM tournaments AS t 
             JOIN tournament_players AS tp
             ON tp.tournament_id = t.tournament_id

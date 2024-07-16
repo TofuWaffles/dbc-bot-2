@@ -1,16 +1,18 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO events (mode, map)\n            VALUES ($1, $2)\n            RETURNING id\n            ",
+  "query": "\n            INSERT INTO tournaments (guild_id, name, mode, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)\n            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)\n            RETURNING tournament_id\n            ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
-        "type_info": "Int8"
+        "name": "tournament_id",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Varchar",
+        "Varchar",
         {
           "Custom": {
             "name": "mode",
@@ -42,12 +44,16 @@
             }
           }
         },
-        "Text"
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Int4"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "65694d7f2453dc98168c7a04f58b2f3e82bb9f9df0a9884bfc2c0a09e071d822"
+  "hash": "7bf40ba76fc7f189aa3b68c26d9a504d4b35f656a0e9536a6701e7e39780c9f4"
 }

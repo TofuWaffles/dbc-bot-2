@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::api::models::Brawler;
 
@@ -50,6 +50,7 @@ pub struct Tournament {
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
     pub tournament_role_id: String,
+    pub mode: Mode,
     pub map: Option<String>,
     pub wins_required: i32,
     pub announcement_channel_id: String,
@@ -249,57 +250,142 @@ pub struct Event {
 
 #[allow(non_camel_case_types)]
 #[derive(
-    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
+    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display, poise::ChoiceParameter, EnumIter
 )]
 #[sqlx(type_name = "mode", rename_all = "camelCase")]
 pub enum Mode {
+    #[name = "Brawl Ball"]
     #[strum(to_string = "Brawl Ball")]
     brawlBall,
+    #[name = "Gem Grab"]
     #[strum(to_string = "Gem Grab")]
     gemGrab,
+    #[name = "Heist"]
     #[strum(to_string = "Heist")]
     heist,
+    #[name = "Bounty"]
     #[strum(to_string = "Bounty")]
     bounty,
+    #[name = "Siege"]
     #[strum(to_string = "Siege")]
     siege,
+    #[name = "Solo Showdown"]
     #[strum(to_string = "Solo Showdown")]
     soloShowdown,
+    #[name = "Duo Showdown"]
     #[strum(to_string = "Duo Showdown")]
     duoShowdown,
+    #[name = "Hot Zone"]
     #[strum(to_string = "Hot Zone")]
     hotZone,
+    #[name = "Knockout"]
     #[strum(to_string = "Knockout")]
     knockout,
+    #[name = "Takedown"]
     #[strum(to_string = "Takedown")]
     takedown,
+    #[name = "Lone Star"]
     #[strum(to_string = "Lone Star")]
     loneStar,
+    #[name = "Big Game"]
     #[strum(to_string = "Big Game")]
     bigGame,
+    #[name = "Robo Rumble"]
     #[strum(to_string = "Robo Rumble")]
     roboRumble,
+    #[name = "Boss Fight"]
     #[strum(to_string = "Boss Fight")]
     bossFight,
+    #[name = "Wipeout"]
     #[strum(to_string = "Wipeout")]
     wipeout,
+    #[name = "Duels"]
     #[strum(to_string = "Duels")]
     duels,
+    #[name = "Paint Brawl"]
     #[strum(to_string = "Paint Brawl")]
     paintBrawl,
+    #[name = "Brawl Ball 5v5"]
     #[strum(to_string = "Brawl Ball 5v5")]
     brawlBall5V5,
+    #[name = "Gem Grab 5v5"]
     #[strum(to_string = "Gem Grab 5v5")]
     gemGrab5V5,
+    #[name = "Wipeout 5v5"]
     #[strum(to_string = "Wipeout 5v5")]
     wipeout5V5,
+    #[name = "Knockout 5v5"]
     #[strum(to_string = "Knockout 5v5")]
     knockOut5V5,
+
+    #[name = "Unknown"]
     #[default]
     #[strum(to_string = "Unknown")]
     unknown,
 }
+impl Selectable for Mode{
+    fn label(&self) -> String {
+        self.to_string()
+    }
+    fn value(&self) -> String {
+        match self{
+            Mode::brawlBall => "brawlBall".to_string(),
+            Mode::gemGrab => "gemGrab".to_string(),
+            Mode::heist => "heist".to_string(),
+            Mode::bounty => "bounty".to_string(),
+            Mode::siege => "siege".to_string(),
+            Mode::soloShowdown => "soloShowdown".to_string(),
+            Mode::duoShowdown => "duoShowdown".to_string(),
+            Mode::hotZone => "hotZone".to_string(),
+            Mode::knockout => "knockout".to_string(),
+            Mode::takedown => "takedown".to_string(),
+            Mode::loneStar => "loneStar".to_string(),
+            Mode::bigGame => "bigGame".to_string(),
+            Mode::roboRumble => "roboRumble".to_string(),
+            Mode::bossFight => "bossFight".to_string(),
+            Mode::wipeout => "wipeout".to_string(),
+            Mode::duels => "duels".to_string(),
+            Mode::paintBrawl => "paintBrawl".to_string(),
+            Mode::brawlBall5V5 => "brawlBall5V5".to_string(),
+            Mode::gemGrab5V5 => "gemGrab5V5".to_string(),
+            Mode::wipeout5V5 => "wipeout5V5".to_string(),
+            Mode::knockOut5V5 => "knockOut5V5".to_string(),
+            Mode::unknown => "unknown".to_string(),
+        }
+    }
+}
+impl Mode{
+    pub fn from_string(mode: impl Into<String>) -> Self{
+        match mode.into().as_str(){
+            "brawlBall" | "Brawl Ball" => Self::brawlBall,
+            "gemGrab" => Self::gemGrab,
+            "heist" => Self::heist,
+            "bounty" => Self::bounty,
+            "siege" => Self::siege,
+            "soloShowdown" => Self::soloShowdown,
+            "duoShowdown" => Self::duoShowdown,
+            "hotZone" => Self::hotZone,
+            "knockout" => Self::knockout,
+            "takedown" => Self::takedown,
+            "loneStar" => Self::loneStar,
+            "bigGame" => Self::bigGame,
+            "roboRumble" => Self::roboRumble,
+            "bossFight" => Self::bossFight,
+            "wipeout" => Self::wipeout,
+            "duels" => Self::duels,
+            "paintBrawl" => Self::paintBrawl,
+            "brawlBall5V5" => Self::brawlBall5V5,
+            "gemGrab5V5" => Self::gemGrab5V5,
+            "wipeout5V5" => Self::wipeout5V5,
+            "knockOut5V5" => Self::knockOut5V5,
+            _ => Self::unknown,
+        }
+    }
+    pub fn all() -> Vec<Mode>{
+        Mode::iter().collect()
+    }
 
+}
 #[allow(non_camel_case_types)]
 #[derive(
     Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,

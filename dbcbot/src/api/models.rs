@@ -75,6 +75,12 @@ impl Convert<database::models::Battle> for BattleLogItem {
     }
 }
 
+impl BattleLogItem{
+    pub fn unix(&self) -> i64{
+        BDateTime::from_str(&self.battle_time).map_or_else(|_| 0, |f| f.datetime)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {

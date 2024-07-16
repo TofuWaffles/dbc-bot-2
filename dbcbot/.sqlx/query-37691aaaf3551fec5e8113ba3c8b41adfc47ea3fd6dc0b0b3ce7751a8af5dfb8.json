@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT t.tournament_id, t.guild_id, t.name, t.status as \"status: _\", t.rounds, t.current_round, t.created_at, t.start_time, t.map, t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id\n            FROM tournaments AS t \n            JOIN tournament_players AS tp\n            ON tp.tournament_id = t.tournament_id\n            WHERE tp.discord_id = $1\n            AND t.status != 'inactive';\n            ",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, mode as \"mode:_\", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')\n            ",
   "describe": {
     "columns": [
       {
@@ -62,21 +62,56 @@
       },
       {
         "ordinal": 9,
+        "name": "mode:_",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "wins_required",
         "type_info": "Int4"
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "tournament_role_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "announcement_channel_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "notification_channel_id",
         "type_info": "Varchar"
       }
@@ -99,8 +134,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "ea38fa35229beec135ec9143ccaa4836603f7eabe737762644c6767271d183e0"
+  "hash": "37691aaaf3551fec5e8113ba3c8b41adfc47ea3fd6dc0b0b3ce7751a8af5dfb8"
 }

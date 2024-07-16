@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as \"status: _\", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.map, tournaments.wins_required, tournaments.tournament_role_id, tournaments.announcement_channel_id, tournaments.notification_channel_id\n            FROM tournaments\n            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id\n            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2\n            ",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, mode as \"mode:_\", map, tournament_role_id, wins_required, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2\n            ORDER BY created_at DESC\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -57,13 +57,43 @@
       },
       {
         "ordinal": 8,
-        "name": "map",
-        "type_info": "Varchar"
+        "name": "mode:_",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
       },
       {
         "ordinal": 9,
-        "name": "wins_required",
-        "type_info": "Int4"
+        "name": "map",
+        "type_info": "Varchar"
       },
       {
         "ordinal": 10,
@@ -72,11 +102,16 @@
       },
       {
         "ordinal": 11,
+        "name": "wins_required",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
         "name": "announcement_channel_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "notification_channel_id",
         "type_info": "Varchar"
       }
@@ -84,7 +119,7 @@
     "parameters": {
       "Left": [
         "Text",
-        "Text"
+        "Int4"
       ]
     },
     "nullable": [
@@ -96,6 +131,7 @@
       false,
       false,
       true,
+      false,
       true,
       false,
       false,
@@ -103,5 +139,5 @@
       false
     ]
   },
-  "hash": "191e0a7ac6c2e9c6960e147974946d65aec2104b256470becaa16e658e50eee3"
+  "hash": "71387ec6e23f93bc9e39da332e3605a98041783f323d17e715ef61f6428c4e08"
 }
