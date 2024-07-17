@@ -42,7 +42,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![menu()]
+        vec![menu(), credit()]
     }
 }
 
@@ -1152,5 +1152,22 @@ async fn submit(
     )
     .await?;
 
+    Ok(())
+}
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_config_set",
+    check = "is_tournament_paused"
+)]
+#[instrument]
+async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
+    let msg = ctx
+        .send(CreateReply::default().embed(CreateEmbed::new().title("Credit").description("Loading credit...")).reply(true).ephemeral(true))
+        .await?;
+    let description = "";
+
+    ctx.prompt(&msg, CreateEmbed::new().title("Credit").description(description), None).await?;
     Ok(())
 }
