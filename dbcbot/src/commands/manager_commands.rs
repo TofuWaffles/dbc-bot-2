@@ -771,8 +771,8 @@ mod tests {
             db.enter_tournament(-1, &user.discord_id).await.unwrap();
         }
         let players = users
-            .iter()
-            .map(|user| user.to_player())
+            .into_iter()
+            .map(|user| user.into())
             .collect::<Vec<Player>>();
 
         let matches = generate_matches_new_tournament(players, -1).await.unwrap();
@@ -813,8 +813,8 @@ mod tests {
             db.enter_tournament(-1, &user.discord_id).await.unwrap();
         }
         let players = users
-            .iter()
-            .map(|user| user.to_player())
+            .into_iter()
+            .map(|user| user.into())
             .collect::<Vec<Player>>();
         let matches = generate_matches_new_tournament(players, -2).await.unwrap();
 
@@ -852,8 +852,8 @@ mod tests {
             db.enter_tournament(-3, &user.discord_id).await.unwrap();
         }
         let players = users
-            .iter()
-            .map(|user| user.to_player())
+            .into_iter()
+            .map(|user| user.into())
             .collect::<Vec<Player>>();
         let matches = generate_matches_new_tournament(players, -3).await.unwrap();
 

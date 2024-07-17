@@ -78,13 +78,16 @@ pub struct User {
     pub brawlers: sqlx::types::JsonValue,
 }
 
-impl User {
-    pub fn to_player(&self) -> Player {
-        Player {
-            discord_id: self.discord_id.clone(),
-            player_tag: self.player_tag.clone(),
+impl From<User> for Player {
+    fn from(value: User) -> Self {
+        Self {
+            discord_id: value.discord_id.clone(),
+            player_tag: value.player_tag.clone(),
         }
     }
+}
+
+impl User {
     pub fn get_brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }

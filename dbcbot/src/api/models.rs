@@ -7,9 +7,6 @@ use crate::{
     },
     utils::time::BDateTime,
 };
-pub trait Convert<T> {
-    fn convert(&self) -> T;
-}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
@@ -45,12 +42,12 @@ pub struct BattleLog {
     pub items: Vec<BattleLogItem>,
 }
 
-impl Convert<database::models::BattleRecord> for BattleLog {
-    fn convert(&self) -> database::models::BattleRecord {
-        database::models::BattleRecord {
+impl From<BattleLog> for database::models::BattleRecord {
+    fn from(value: BattleLog) -> Self {
+        Self {
             record_id: 0,
             match_id: "".to_string(),
-            battles: self.items.iter().map(|item| item.convert()).collect(),
+            battles: value.items.into_iter().map(|item| database::models::Battle::from(item)).collect(),
         }
     }
 }
@@ -63,14 +60,14 @@ pub struct BattleLogItem {
     pub battle: Battle,
 }
 
-impl Convert<database::models::Battle> for BattleLogItem {
-    fn convert(&self) -> database::models::Battle {
-        database::models::Battle {
+impl From<BattleLogItem> for database::models::Battle {
+    fn from(value: BattleLogItem) -> Self {
+        Self {
             id: 0,
             record_id: 0,
-            battle_time: BDateTime::from_str(&self.battle_time).map_or_else(|_| 0, |f| f.datetime),
-            battle_class: self.battle.convert(),
-            event: self.event.clone(),
+            battle_time: BDateTime::from_str(&value.battle_time).map_or_else(|_| 0, |f| f.datetime),
+            battle_class: value.battle.into(),
+            event: value.event.clone(),
         }
     }
 }
@@ -99,18 +96,18 @@ pub struct Battle {
     pub players: Vec<TeamPlayer>,
 }
 
-impl Convert<database::models::BattleClass> for Battle {
-    fn convert(&self) -> database::models::BattleClass {
-        database::models::BattleClass {
+impl From<Battle> for database::models::BattleClass {
+    fn from(value: Battle) -> Self {
+        Self {
             id: 0,
             battle_id: 0,
-            trophy_change: self.trophy_change,
-            mode: self.mode,
-            battle_type: serde_json::from_str(&self.battle_type)
+            trophy_change: value.trophy_change,
+            mode: value.mode,
+            battle_type: serde_json::from_str(&value.battle_type)
                 .unwrap_or(database::models::BattleType::unknown),
-            result: self.result,
-            duration: self.duration.unwrap_or(0),
-            teams: serde_json::to_value(&self.teams).unwrap_or(serde_json::Value::Null),
+            result: value.result,
+            duration: value.duration.unwrap_or(0),
+            teams: serde_json::to_value(&value.teams).unwrap_or(serde_json::Value::Null),
         }
     }
 }
