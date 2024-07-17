@@ -116,7 +116,7 @@ pub async fn select_options<T: Selectable>(
 
     let options = items
         .iter()
-        .map(|t| CreateSelectMenuOption::new(t.label(), t.value()))
+        .map(|t| CreateSelectMenuOption::new(t.label(), t.identifier()))
         .collect();
     let component = vec![CreateActionRow::SelectMenu(
         CreateSelectMenu::new("option", CreateSelectMenuKind::String { options })

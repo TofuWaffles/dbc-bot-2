@@ -3,9 +3,12 @@ use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::api::models::Brawler;
 
+/// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
+    /// The string from the selection that the user sees.
     fn label(&self) -> String;
-    fn value(&self) -> String;
+    /// The ID value used to uniquely identify the selection.
+    fn identifier(&self) -> String;
 }
 /// The manager role configuration for a guild within the database.
 #[derive(Serialize, Deserialize)]
@@ -61,7 +64,7 @@ impl Selectable for Tournament {
     fn label(&self) -> String {
         self.name.clone()
     }
-    fn value(&self) -> String {
+    fn identifier(&self) -> String {
         self.tournament_id.to_string()
     }
 }
@@ -75,7 +78,8 @@ pub struct User {
     pub player_name: String,
     pub icon: i32,
     pub trophies: i32,
-    pub brawlers: sqlx::types::JsonValue,
+    pub brawlers: sqlx::types::JsonValue,   // For match-level brawler bans. Not currently
+                                            // implemented
 }
 
 impl From<User> for Player {
@@ -330,7 +334,7 @@ impl Selectable for Mode{
     fn label(&self) -> String {
         self.to_string()
     }
-    fn value(&self) -> String {
+    fn identifier(&self) -> String {
         match self{
             Mode::brawlBall => "brawlBall".to_string(),
             Mode::gemGrab => "gemGrab".to_string(),
