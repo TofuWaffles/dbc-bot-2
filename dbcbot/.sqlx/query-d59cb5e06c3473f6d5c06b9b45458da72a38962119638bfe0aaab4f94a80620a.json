@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT tournament_id, guild_id, name, status as \"status: _\", rounds, current_round, created_at, start_time, map, mode as \"mode: _\", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id\n            FROM tournaments WHERE guild_id = $1\n            ORDER BY created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "status: _",
+        "type_info": {
+          "Custom": {
+            "name": "tournament_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "started",
+                "paused",
+                "inactive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "rounds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_time",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "map",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 9,
+        "name": "mode: _",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "wins_required",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "tournament_role_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "announcement_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "notification_channel_id",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d59cb5e06c3473f6d5c06b9b45458da72a38962119638bfe0aaab4f94a80620a"
+}
