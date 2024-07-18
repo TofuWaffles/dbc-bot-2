@@ -59,7 +59,14 @@ async fn set_config_slash(
     announcement_channel: serenity::Channel,
     #[description = "This channel logs activities"] log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
-    set_config(ctx, marshal_role, announcement_channel, log_channel).await
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Setting the configuration...")
+                .ephemeral(true),
+        )
+        .await?;
+    set_config(ctx, &msg, marshal_role, announcement_channel, log_channel).await
 }
 
 /// Create a new tournament.
@@ -78,7 +85,14 @@ async fn create_tournament_slash(
     >,
 ) -> Result<(), BotError> {
     let wins_required = wins_required.unwrap_or(3).max(1);
-    create_tournament(ctx, name, mode, role, announcement, notification, wins_required).await
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Creating a new tournament...")
+                .ephemeral(true),
+        )
+        .await?;
+    create_tournament(ctx, &msg, name, mode, role, announcement, notification, wins_required).await
 }
 
 /// Start a tournament.
@@ -109,17 +123,11 @@ async fn start_tournament_slash(
 
 async fn set_config(
     ctx: BotContext<'_>,
+    msg: &ReplyHandle<'_>,
     marshal_role: serenity::Role,
     announcement_channel: serenity::Channel,
     log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
-    let msg = ctx
-        .send(
-            CreateReply::default()
-                .content("Setting the configuration...")
-                .ephemeral(true),
-        )
-        .await?;
     let id = announcement_channel.id().to_string();
     let announcement_channel_id = match announcement_channel.guild() {
         Some(guild) => guild.id.to_string(),
@@ -212,6 +220,7 @@ async fn set_config(
 /// Create a new tournament.
 async fn create_tournament(
     ctx: BotContext<'_>,
+    msg: &ReplyHandle<'_>,
     name: String,
     mode: Mode,
     role: serenity::Role,
@@ -235,16 +244,7 @@ async fn create_tournament(
             wins_required,
         )
         .await?;
-
-    ctx.send(
-        CreateReply::default()
-            .content(format!(
-                "Successfully created tournament with id {}",
-                new_tournament_id
-            ))
-            .ephemeral(true),
-    )
-    .await?;
+    ctx.prompt(msg, CreateEmbed::new().title("Successfully create a new tournament").description(format!("Tournament id: {}", new_tournament_id)), None).await?;
     let description = format!(
         r#"
 Tournament ID: {}
@@ -592,7 +592,8 @@ Log channel: <#{log}>.
             break (marshal_role, announcement_channel, log_channel);
         }
     };
-    set_config(*ctx, m, a, l).await?;
+
+    set_config(*ctx, msg, m, a, l).await?;
     Ok(())
 }
 
@@ -680,7 +681,7 @@ async fn step_by_step_create_tournament(
         .wins_required
         .map(|x| x.parse::<i32>().unwrap_or(3).max(1))
         .unwrap_or(3);
-    create_tournament(*ctx, name, Mode::from_string(mode), r, a, n, wins_required).await
+    create_tournament(*ctx, msg, name, Mode::from_string(mode), r, a, n, wins_required).await
 }
 
 async fn step_by_step_start_tournament(

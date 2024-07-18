@@ -147,3 +147,4 @@ pub struct Gadget {
     id: i32,
     name: String,
 }
+

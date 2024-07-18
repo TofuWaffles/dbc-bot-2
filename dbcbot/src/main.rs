@@ -8,9 +8,7 @@ use database::{Database, PgDatabase};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
-    manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
-    owner_commands::OwnerCommands, test::battle_log, user_commands::UserCommands,
-    CommandsContainer,
+    manager_commands::ManagerCommands, marshal_commands::MarshalCommands, owner_commands::OwnerCommands, test_commands::TestCommands, user_commands::UserCommands, CommandsContainer
 };
 use utils::lru::LRUCache;
 
@@ -101,16 +99,16 @@ async fn run() -> Result<(), BotError> {
     info!("Successfully loaded Brawl Stars Token");
     let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
 
-    let mut commands: Vec<_> = vec![
+    let commands: Vec<_> = vec![
         OwnerCommands::get_all(),
         ManagerCommands::get_all(),
         MarshalCommands::get_all(),
         UserCommands::get_all(),
+        TestCommands::get_all(),
     ]
     .into_iter()
     .flatten()
     .collect();
-    commands.push(battle_log::battle_log());
     commands
         .iter()
         .for_each(|c| println!("Command: {}", c.name));

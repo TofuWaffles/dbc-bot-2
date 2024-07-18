@@ -2,23 +2,21 @@ use anyhow::anyhow;
 use futures::Stream;
 use poise::{
     serenity_prelude::{
-        futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow,
-        CreateButton, CreateEmbed, CreateMessage,
+        futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow, CreateAttachment, CreateButton, CreateEmbed, CreateMessage
     },
     CreateReply, Modal, ReplyHandle,
 };
 use prettytable::{row, Table};
 use serde_json::json;
 use tracing::{info, instrument};
-use tracing_subscriber::fmt::format;
 
 use crate::{
     api::{self, models::BattleLogItem, ApiResult, GameApi},
     commands::checks::{is_config_set, is_tournament_paused},
     database::{
         models::{
-            BattleResult, BattleType, Match, Player,
-            PlayerNumber::{self, Player1, Player2},
+            BattleResult, BattleType, Match,
+            PlayerNumber::{Player1, Player2},
             PlayerType, Tournament, TournamentStatus, User,
         },
         Database,
@@ -27,7 +25,6 @@ use crate::{
     utils::{
         discord::{modal, select_options},
         shorthand::BotContextExt,
-        time::BDateTime,
     },
     BotContext, BotData, BotError,
 };
@@ -358,7 +355,13 @@ async fn user_display_match(
                         }
                     }
                 };
-                reply = CreateReply::default().content("").embed(
+                let image_api = api::ImagesAPI::new()?;
+                let p1 = ctx.get_user_by_discord_id(bracket.discord_id_1.clone().unwrap()).await?.ok_or(anyhow!("Player 1 is not found in the database"))?;
+                let p2 = ctx.get_user_by_discord_id(bracket.discord_id_2.clone().unwrap()).await?.ok_or(anyhow!("Player 2 is not found in the database"))?;
+                let image = image_api.match_image(&p1, &p2).await?;
+                reply = CreateReply::default()
+                    .attachment(CreateAttachment::bytes(image, "Match.png"))
+                    .embed(
                         CreateEmbed::new().title("Match Information.")
                         .description(
                             "Here is all the information for your current match. May the best brawler win!",
@@ -1093,10 +1096,6 @@ async fn submit(
             return Ok(());
         }
     };
-    let guild_id = ctx
-        .guild_id()
-        .ok_or(anyhow!("Guild ID not found"))?
-        .to_string();
     let battles = filter(ctx, logs, &tournament, &game_match).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;

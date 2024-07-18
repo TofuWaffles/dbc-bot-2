@@ -1,28 +1,27 @@
-import io
-from PIL import Image
+from typing import Union
 from pydantic import BaseModel
-from .utils import Asset, Player
+from .model import Background, Component, BaseImage, Player
+import base64 
 
 class RequestProfile(BaseModel):
     player: Player
-    def respond(self) -> bytes:
-        image = Profile(self.player)
-        return image.build()
+    async def respond(self) -> Union[str, Exception]:
+        image = await Profile(self.player)
+        if image.error:
+            return image.error
+        image.preset()
+        image.build()
+        encode = base64.b64encode(image.bytes()).decode("utf-8")
+        return encode
       
-class Profile:
-    asset = Asset()
-    def __init__(self, player: Player) -> None:
-      self.player: Player = player
-      self.bg = self.asset.bg()
-      self.fg = self.asset.fg()
-      self.bg = Image.new('RGBA', self.bg.size)
-      self.bg.paste(im=self.fg, box=(0, 0))
+class Profile(BaseImage):
+    async def __init__(self, player: Player) -> None:
+        await super().__init__()
+        self.player: Player = player
+        self.bg = self.asset.get_image("Player_clean.png")
       
-    def build(self) -> bytes:
-      output = io.BytesIO()
-      self.bg.save(output, format="PNG")
-      output.seek(0)
-      return output.getvalue()
+    def preset(self) -> None:
+        pass
     
     
     
