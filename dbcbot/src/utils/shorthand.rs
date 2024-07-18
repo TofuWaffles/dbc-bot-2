@@ -7,7 +7,7 @@ use futures::{Stream, StreamExt};
 use poise::ReplyHandle;
 use poise::{
     serenity_prelude::{
-        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed
+        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
     },
     CreateReply,
 };
@@ -92,9 +92,9 @@ pub trait BotContextExt<'a> {
     /// Returns a `BotError` if there is an issue with fetching the player from the database.
     async fn get_user_by_discord_id(
         &self,
-        discord_id: impl Into<Option<String>> + Clone
+        discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::User>, BotError>;
-    /// 
+    ///
     async fn get_current_round(&self, tournament_id: i32) -> Result<i32, BotError>;
 
     /// Prompt the user with a confirmation message.
@@ -121,6 +121,8 @@ pub trait BotContextExt<'a> {
     /// # Note
     /// This function is useful for logging timestamps.
     fn now(&self) -> poise::serenity_prelude::model::Timestamp;
+
+    async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
 }
 
 impl<'a> BotContextExt<'a> for BotContext<'a> {
@@ -145,7 +147,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         embed: CreateEmbed,
         buttons: impl Into<Option<Vec<CreateButton>>>,
     ) -> Result<(), BotError> {
-        let components = match buttons.into(){
+        let components = match buttons.into() {
             Some(buttons) => vec![CreateActionRow::Buttons(buttons)],
             _ => vec![],
         };
@@ -180,9 +182,9 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     }
 
     async fn get_user_by_discord_id(
-            &self,
-            discord_id: impl Into<Option<String>> + Clone
-        ) -> Result<Option<crate::database::models::User>, BotError> {
+        &self,
+        discord_id: impl Into<Option<String>> + Clone,
+    ) -> Result<Option<crate::database::models::User>, BotError> {
         let id = match discord_id.into() {
             Some(id) => id,
             None => self.author().id.to_string(),
@@ -254,9 +256,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
                 "confirm" => {
+                    interactions.defer(self.http()).await?;
                     return Ok(true);
                 }
                 "cancel" => {
+                    interactions.defer(self.http()).await?;
                     return Ok(false);
                 }
                 _ => {
@@ -265,5 +269,13 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             }
         }
         Err(anyhow!("User did not respond in time"))
+    }
+
+    async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+        self.prompt(
+            msg,
+            CreateEmbed::new().description("You can dismiss this safely!"),
+            None,
+        ).await
     }
 }
