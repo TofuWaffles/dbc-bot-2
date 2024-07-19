@@ -5,7 +5,7 @@ use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, 
 use strum::Display;
 
 use crate::{database::Database, utils::shorthand::BotContextExt, BotContext, BotError};
-
+#[allow(dead_code)]
 pub enum State {
     SUCCESS = Color::DARK_GREEN.0 as isize,
     FAILURE = Color::RED.0 as isize,
@@ -13,6 +13,7 @@ pub enum State {
     WARNING = Color::GOLD.0 as isize,
 }
 #[derive(Debug, Clone, Copy, Default, Display)]
+#[allow(dead_code)]
 pub enum Model {
     #[strum(to_string = "Player")]
     PLAYER,

@@ -1,12 +1,17 @@
-use crate::BotError;
+use crate::{database, BotError};
 use anyhow::anyhow;
+use base64::{
+    engine::general_purpose,
+    Engine,
+};
 use reqwest::{Client, Response, StatusCode};
 
 pub mod models;
 
 use models::{BattleLog, PlayerProfile};
 use serde::de::DeserializeOwned;
-
+use tracing::debug;
+use tracing_subscriber::field::debug;
 use self::models::Brawler;
 
 /// Describes the API that the bot will use to interact with the game.
@@ -171,5 +176,66 @@ impl GameApi for BrawlStarsApi {
             .await?;
 
         ApiResult::from_response(response).await
+    }
+}
+
+pub struct ImagesAPI {
+    endpoint: String,
+    client: Client,
+}
+impl ImagesAPI {
+    pub fn new() -> Result<Self, BotError> {
+        Ok(Self {
+            endpoint: std::env::var("IMAGES_API")?,
+            client: Client::new(),
+        })
+    }
+
+    pub async fn match_image(
+        self,
+        player1: &database::models::User,
+        player2: &database::models::User,
+    ) -> Result<Vec<u8>, BotError> {
+        let url = format!("{}/image/match", self.endpoint);
+        let response = self
+            .client
+            .get(url)
+            .header("accept", "text/plain")
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "player1": {
+                    "discord_id": player1.discord_id,
+                    "discord_name": player1.discord_name,
+                    "player_tag": player1.player_tag,
+                    "player_name": player1.player_name,
+                    "icon": player1.icon
+                },
+                "player2": {
+                    "discord_id": player2.discord_id,
+                    "discord_name": player2.discord_name,
+                    "player_tag": player2.player_tag,
+                    "player_name": player2.player_name,
+                    "icon": player2.icon
+                }
+            }))
+            .send()
+            .await?;
+        let content = match response.text().await {
+            Ok(content) => {
+                debug!("Successfully got image from API");
+                content
+            },
+            Err(e) => {
+                return Err(anyhow!("Error getting image from API: {}\n{}", e, e.to_string()));
+            }
+        };
+        let bytes = match general_purpose::STANDARD.decode(content.clone()){
+            Ok(bytes) => bytes,
+            Err(e) => {
+                debug!("Error decoding image from API: {}\n{}", e, content);
+                return Err(anyhow!("Error decoding image from API: {}\n```json\n{}```", e, content));
+            }
+        };
+        Ok(bytes)
     }
 }
