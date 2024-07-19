@@ -1,5 +1,10 @@
 use crate::{database, BotError};
+use crate::{database, BotError};
 use anyhow::anyhow;
+use base64::{
+    engine::general_purpose,
+    Engine,
+};
 use base64::{
     engine::general_purpose,
     Engine,
@@ -9,7 +14,7 @@ use reqwest::{Client, Response, StatusCode};
 pub mod models;
 
 use models::{BattleLog, PlayerProfile};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::debug;
 use tracing_subscriber::field::debug;
 use self::models::Brawler;
@@ -180,44 +185,25 @@ impl GameApi for BrawlStarsApi {
 }
 
 pub struct ImagesAPI {
-    endpoint: String,
+    base_url: String,
     client: Client,
 }
+
 impl ImagesAPI {
     pub fn new() -> Result<Self, BotError> {
         Ok(Self {
-            endpoint: std::env::var("IMAGES_API")?,
+            base_url: std::env::var("IMAGES_API")?,
             client: Client::new(),
         })
     }
 
-    pub async fn match_image(
-        self,
-        player1: &database::models::User,
-        player2: &database::models::User,
-    ) -> Result<Vec<u8>, BotError> {
-        let url = format!("{}/image/match", self.endpoint);
+    async fn get<T>(&self, endpoint: impl reqwest::IntoUrl, payload: &T) -> Result<Vec<u8>, BotError> where T: Serialize + ?Sized{
         let response = self
             .client
-            .get(url)
+            .get(endpoint)
             .header("accept", "text/plain")
             .header("Content-Type", "application/json")
-            .json(&serde_json::json!({
-                "player1": {
-                    "discord_id": player1.discord_id,
-                    "discord_name": player1.discord_name,
-                    "player_tag": player1.player_tag,
-                    "player_name": player1.player_name,
-                    "icon": player1.icon
-                },
-                "player2": {
-                    "discord_id": player2.discord_id,
-                    "discord_name": player2.discord_name,
-                    "player_tag": player2.player_tag,
-                    "player_name": player2.player_name,
-                    "icon": player2.icon
-                }
-            }))
+            .json(payload)
             .send()
             .await?;
         let content = match response.text().await {
@@ -238,4 +224,57 @@ impl ImagesAPI {
         };
         Ok(bytes)
     }
+
+    pub async fn match_image(
+        self,
+        player1: &database::models::User,
+        player2: &database::models::User,
+    ) -> Result<Vec<u8>, BotError> {
+        let url = format!("{}/image/match", self.base_url);
+        let payload = &serde_json::json!({
+            "player1": {
+                "discord_id": player1.discord_id,
+                "discord_name": player1.discord_name,
+                "player_tag": player1.player_tag,
+                "player_name": player1.player_name,
+                "icon": player1.icon
+            },
+            "player2": {
+                "discord_id": player2.discord_id,
+                "discord_name": player2.discord_name,
+                "player_tag": player2.player_tag,
+                "player_name": player2.player_name,
+                "icon": player2.icon
+            }
+        });
+        let bytes = self.get(url, payload).await?;
+        Ok(bytes)
+    }
+
+    pub async fn result_image(
+        self,
+        winner: &database::models::User,
+        loser: &database::models::User,
+    ) -> Result<Vec<u8>, BotError> {
+        let url = format!("{}/image/result", self.base_url);
+        let payload = &serde_json::json!({
+            "winner": {
+                "discord_id": winner.discord_id,
+                "discord_name": winner.discord_name,
+                "player_tag": winner.player_tag,
+                "player_name": winner.player_name,
+                "icon": winner.icon
+            },
+            "loser": {
+                "discord_id": loser.discord_id,
+                "discord_name": loser.discord_name,
+                "player_tag": loser.player_tag,
+                "player_name": loser.player_name,
+                "icon": loser.icon
+            }
+        });
+        let bytes = self.get(url, payload).await?;
+        Ok(bytes)
+    }
+
 }

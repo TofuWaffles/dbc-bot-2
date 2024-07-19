@@ -1,9 +1,11 @@
 from fastapi import FastAPI, Response, HTTPException
 from fastapi.responses import PlainTextResponse
 from generation.match import RequestMatch
+from generation.result import RequestResult
 from generation.profile import RequestProfile
 import os
 import uvicorn
+
 app = FastAPI(
     title="Image generation",
     description="This is where you can generate images",
@@ -27,6 +29,12 @@ async def profle(image: RequestProfile):
     print(data)
     return data
 
+@app.get("/image/result", response_class=PlainTextResponse)
+async def result(image: RequestResult):
+    data = await image.respond()
+    if isinstance(data, Exception):
+        raise HTTPException(status_code=500, detail=str(data))
+    return data
 
 if __name__ == "__main__":
     def running_in_docker() -> bool:

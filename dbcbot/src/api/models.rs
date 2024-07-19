@@ -148,3 +148,30 @@ pub struct Gadget {
     name: String,
 }
 
+
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FullBrawler{
+    pub id: i32,
+    pub name: String,
+    pub rarity: Rarity,
+    pub image_url: String,
+    pub description: String,
+}
+impl From<FullBrawler> for Brawler{
+    fn from(value: FullBrawler) -> Self {
+        Self{
+            id: value.id,
+            name: value.name
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Rarity{
+    pub id: i32,
+    pub name: String,
+    pub color: String,
+}
