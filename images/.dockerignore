@@ -1,4 +1,11 @@
+<<<<<<< HEAD
 .gitignore
 pyvenv.cfg
 lib/
 bin/
+=======
+.gitignore
+pyvenv.cfg
+lib/
+bin/
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c

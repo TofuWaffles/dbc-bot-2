@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 dbc-bot/target
 .git
 .gitignore
 .idea
+=======
+dbc-bot/target
+.git
+.gitignore
+.idea
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
 test/

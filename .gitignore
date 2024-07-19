@@ -1,7 +1,16 @@
+<<<<<<< HEAD
 
 /dbcbot/target
 .env
 /dbcbot/*.excalidraw
 .idea
 /dbcbot/debug.log
+=======
+
+/dbcbot/target
+.env
+/dbcbot/*.excalidraw
+.idea
+/dbcbot/debug.log
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
 /test
