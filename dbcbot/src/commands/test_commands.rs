@@ -151,7 +151,7 @@ async fn profile_image(ctx: BotContext<'_>,
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
         .await?
         .get(0)
-        .map_or_else(||"Not yet in a tournament".to_string(), |t| t.tournament_id.to_string());
+        .map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
     let image_api = api::ImagesAPI::new()?;
     let image = match image_api.profile_image(&user, tournament_id).await{
         Ok(image) => image,
