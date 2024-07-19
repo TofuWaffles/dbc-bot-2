@@ -1,23 +1,12 @@
 use crate::{database, BotError};
-use crate::{database, BotError};
 use anyhow::anyhow;
-use base64::{
-    engine::general_purpose,
-    Engine,
-};
-use base64::{
-    engine::general_purpose,
-    Engine,
-};
+use base64::{engine::general_purpose, Engine};
 use reqwest::{Client, Response, StatusCode};
-
 pub mod models;
-
+use self::models::Brawler;
 use models::{BattleLog, PlayerProfile};
 use serde::{de::DeserializeOwned, Serialize};
 use tracing::debug;
-use tracing_subscriber::field::debug;
-use self::models::Brawler;
 
 /// Describes the API that the bot will use to interact with the game.
 ///
@@ -197,7 +186,14 @@ impl ImagesAPI {
         })
     }
 
-    async fn get<T>(&self, endpoint: impl reqwest::IntoUrl, payload: &T) -> Result<Vec<u8>, BotError> where T: Serialize + ?Sized{
+    async fn get<T>(
+        &self,
+        endpoint: impl reqwest::IntoUrl,
+        payload: &T,
+    ) -> Result<Vec<u8>, BotError>
+    where
+        T: Serialize + ?Sized,
+    {
         let response = self
             .client
             .get(endpoint)
@@ -210,16 +206,24 @@ impl ImagesAPI {
             Ok(content) => {
                 debug!("Successfully got image from API");
                 content
-            },
+            }
             Err(e) => {
-                return Err(anyhow!("Error getting image from API: {}\n{}", e, e.to_string()));
+                return Err(anyhow!(
+                    "Error getting image from API: {}\n{}",
+                    e,
+                    e.to_string()
+                ));
             }
         };
-        let bytes = match general_purpose::STANDARD.decode(content.clone()){
+        let bytes = match general_purpose::STANDARD.decode(content.clone()) {
             Ok(bytes) => bytes,
             Err(e) => {
                 debug!("Error decoding image from API: {}\n{}", e, content);
-                return Err(anyhow!("Error decoding image from API: {}\n```json\n{}```", e, content));
+                return Err(anyhow!(
+                    "Error decoding image from API: {}\n```json\n{}```",
+                    e,
+                    content
+                ));
             }
         };
         Ok(bytes)
@@ -277,4 +281,25 @@ impl ImagesAPI {
         Ok(bytes)
     }
 
+    pub async fn profile_image(
+        self,
+        user: &database::models::User,
+        tournament_id: String,
+    ) -> Result<Vec<u8>, BotError> {
+        let url = format!("{}/image/profile", self.base_url);
+        let payload = &serde_json::json!({
+            "player": {
+                "discord_id": user.discord_id,
+                "discord_name": user.discord_name,
+                "player_tag": user.player_tag,
+                "player_name": user.player_name,
+                "icon": user.icon,
+                "trophies": user.trophies,
+                "brawler_count": user.get_brawlers().len(),
+                "tournament_id": tournament_id
+            }
+        });
+        let bytes = self.get(url, payload).await?;
+        Ok(bytes)
+    }
 }

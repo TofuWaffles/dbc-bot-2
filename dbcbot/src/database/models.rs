@@ -95,6 +95,7 @@ impl User {
     pub fn get_brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
+
 }
 
 #[derive(Debug, Serialize, Deserialize)]

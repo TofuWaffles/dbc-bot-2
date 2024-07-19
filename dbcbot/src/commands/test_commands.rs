@@ -1,3 +1,4 @@
+use crate::database::Database;
 use crate::log::{self, Log};
 use crate::utils::shorthand::BotContextExt;
 use crate::{api, BotContext, BotData, BotError};
@@ -13,7 +14,7 @@ impl CommandsContainer for TestCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![battle_log(), match_image(), result_image()]
+        vec![battle_log(), match_image(), result_image(), profile_image()]
     }
 }
 
@@ -23,9 +24,11 @@ use poise::{
   CreateReply,
 };
 use tracing::info;
-
+/// Test command to get the battle log of a player
 #[poise::command(slash_command)]
-async fn battle_log(ctx: BotContext<'_>, tag: String) -> Result<(), BotError> {
+async fn battle_log(
+    ctx: BotContext<'_>, 
+    #[description="Tag of the player"] tag: String) -> Result<(), BotError> {
   ctx.defer().await?;
   let data = ctx.data().game_api.get_battle_log(&tag).await?;
   let logs = match data {
@@ -60,8 +63,13 @@ async fn battle_log(ctx: BotContext<'_>, tag: String) -> Result<(), BotError> {
   Ok(())
 }
 
+/// Test command to generate an image of a match between two players
 #[poise::command(slash_command)]
-async fn match_image(ctx: BotContext<'_>, user1: serenity_prelude::User, user2: serenity_prelude::User) -> Result<(), BotError> {
+async fn match_image(
+    ctx: BotContext<'_>, 
+    #[description="First user (in the left side)"] user1: serenity_prelude::User, 
+    #[description="Second user (in the right side)"] user2: serenity_prelude::User
+    ) -> Result<(), BotError> {
     ctx.defer().await?;
     let p1 = ctx.get_user_by_discord_id(user1.id.to_string()).await?.ok_or(anyhow!("User 1 not found."))?;
     let p2 = ctx.get_user_by_discord_id(user2.id.to_string()).await?.ok_or(anyhow!("User 2 not found."))?;
@@ -92,14 +100,18 @@ async fn match_image(ctx: BotContext<'_>, user1: serenity_prelude::User, user2: 
     ctx.send(reply).await?;
   Ok(())
 }
-/// Generate a result image of a match between two players
+
+/// Test command to generate an image of a match result between two players
 #[poise::command(slash_command)]
-async fn result_image(ctx: BotContext<'_>, winner: serenity_prelude::User, loser: serenity_prelude::User) -> Result<(), BotError> {
+async fn result_image(ctx: BotContext<'_>, 
+    #[description="Winner of a match (in the left side)"] winner: serenity_prelude::User, 
+    #[description="Eliminated player of a match (in the right side)"] loser: serenity_prelude::User
+) -> Result<(), BotError> {
     ctx.defer().await?;
     let p1 = ctx.get_user_by_discord_id(winner.id.to_string()).await?.ok_or(anyhow!("Winner not found."))?;
     let p2 = ctx.get_user_by_discord_id(loser.id.to_string()).await?.ok_or(anyhow!("Loser not found."))?;
     let image_api = api::ImagesAPI::new()?;
-    let image = match image_api.match_image(&p1, &p2).await{
+    let image = match image_api.result_image(&p1, &p2).await{
         Ok(image) => image,
         Err(e) => {
             ctx.send(CreateReply::default().content("Error generating image. Please try again later.")).await?;
@@ -124,4 +136,45 @@ async fn result_image(ctx: BotContext<'_>, winner: serenity_prelude::User, loser
     };
     ctx.send(reply).await?;
   Ok(())
+}
+
+/// Test command to get a player's profile
+#[poise::command(slash_command)]
+async fn profile_image(ctx: BotContext<'_>, 
+    #[description="User to view profile"] user: serenity_prelude::User) -> Result<(), BotError> {
+    ctx.defer().await?;
+    let discord_id = user.id.to_string();
+    let user = ctx.get_user_by_discord_id(discord_id.clone()).await?.ok_or(anyhow!("User not found."))?;
+    let tournament_id = ctx
+        .data()
+        .database
+        .get_active_tournaments_from_player(&ctx.author().id.to_string())
+        .await?
+        .get(0)
+        .map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
+    let image_api = api::ImagesAPI::new()?;
+    let image = match image_api.profile_image(&user, tournament_id).await{
+        Ok(image) => image,
+        Err(e) => {
+            ctx.send(CreateReply::default().content("Error generating image. Please try again later.")).await?;
+            ctx.log("Error generating image", format!("{e}") , log::State::FAILURE, log::Model::API).await?;
+            return Ok(())
+        }
+    };
+    let reply = {
+        let embed = CreateEmbed::new()
+            .title("Match image")
+            .author(ctx.get_author_img(&log::Model::PLAYER))
+            .description("Testing generating images of a match")
+            .color(serenity_prelude::Colour::DARK_GOLD)
+            .fields(vec![
+                ("Player 1", format!("{}\n{}\n{}\n{}", user.discord_name, user.discord_id, user.player_name, user.player_tag), true),
+            ]);
+        CreateReply::default()
+            .reply(true)
+            .embed(embed)
+            .attachment(CreateAttachment::bytes(image, "Test_match_image.png"))
+    };
+    ctx.send(reply).await?;
+    Ok(())
 }

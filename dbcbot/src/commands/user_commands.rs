@@ -826,29 +826,30 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         }
         Some(user) => user,
     };
-    let embed = {
-        CreateEmbed::new()
-            .title(format!("**{} ({})**", user.player_name, user.player_tag))
-            .description("**Here is your profile information that we collected**")
-            .thumbnail(format!(
-                "https://cdn-old.brawlify.com/profile/{}.png",
-                user.icon
-            ))
+    let tournament_id = ctx
+        .data()
+        .database
+        .get_active_tournaments_from_player(&ctx.author().id.to_string())
+        .await?
+        .get(0)
+        .map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
+    let image_api = api::ImagesAPI::new()?;
+    let image = image_api.profile_image(&user, tournament_id.to_string()).await?;
+    let reply = {
+        let embed = CreateEmbed::new()
+            .title("Match image")
+            .author(ctx.get_author_img(&log::Model::PLAYER))
+            .description("Testing generating images of a match")
+            .color(Color::DARK_GOLD)
             .fields(vec![
-                ("Discord Id", &user.discord_id, true),
-                ("Discord name", &user.discord_name, true),
-                ("Player tag", &format!("#{}", user.player_tag), true),
-                ("Trophies", &user.trophies.to_string(), true),
-                (
-                    "Brawler count:",
-                    &user.get_brawlers().len().to_string(),
-                    true,
-                ),
-            ])
-            .timestamp(ctx.created_at())
-            .color(0x0000FF)
+                ("Player 1", format!("{}\n{}\n{}\n{}", user.discord_name, user.discord_id, user.player_name, user.player_tag), true),
+            ]);
+        CreateReply::default()
+            .reply(true)
+            .embed(embed)
+            .attachment(CreateAttachment::bytes(image, "Test_match_image.png"))
     };
-    ctx.prompt(msg, embed, None).await?;
+    msg.edit(*ctx, reply).await?;
     Ok(())
 }
 

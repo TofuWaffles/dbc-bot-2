@@ -1,0 +1,33 @@
+{
+  "name": "Python Dev Container",
+  "dockerFile": "../Dockerfile",
+  "context": "..",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/app,type=bind"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "dbaeumer.vscode-eslint",
+        "charliermarsh.ruff"
+      ]
+    },
+    "settings": {
+      "terminal.integrated.shell.linux": "/bin/ash",
+      "python.pythonPath": "/usr/local/bin/python"
+    }
+  },
+  "postCreateCommand": "pip install -r requirements.txt",
+  "runArgs": [
+    "--init",
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined",
+    "--mount",
+    "type=bind,source=${localWorkspaceFolder},target=/app"
+  ],
+  "remoteUser": "root"
+}
