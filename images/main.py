@@ -26,7 +26,8 @@ async def match(image: RequestMatch):
 @app.get("/image/profile", response_class=PlainTextResponse)
 async def profle(image: RequestProfile):
     data = await image.respond()
-    print(data)
+    if isinstance(data, Exception):
+        raise HTTPException(status_code=500, detail=str(data))
     return data
 
 @app.get("/image/result", response_class=PlainTextResponse)

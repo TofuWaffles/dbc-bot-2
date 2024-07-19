@@ -29,10 +29,10 @@ class Result(BaseImage):
         background = Background(None, None, self.bg, "Result")
         ICON_SIZE = (275, 275)
         icon1 = Component(img=self.pi1.resize(size=ICON_SIZE,resample=Resampling.NEAREST), pos=(175, 175), name="Icon1")
-        icon2 = Component(img=self.pi2.resize(size=ICON_SIZE,resample=Resampling.NEAREST), pos=(830, 175), name="Icon2")
+        icon2 = Component(img=self.pi2.resize(size=ICON_SIZE,resample=Resampling.NEAREST).convert(mode='L'), pos=(830, 175), name="Icon2")
         self.write(text=self.winner.discord_name, textbox_pos=((125, 460), (500, 530)), align="center", color=(255, 255, 255))
         self.write(text=self.loser.discord_name, textbox_pos=((780, 460), (1155, 530)), align="center", color=(255, 255, 255))       
-        self.components = [icon1, icon2]
+        self.components.extend([icon1, icon2])
         self.bg = background
         
     
