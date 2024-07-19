@@ -13,7 +13,7 @@ impl CommandsContainer for TestCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![battle_log(), match_image(), result_image()]
+        vec![battle_log(), match_image()]
     }
 }
 
@@ -65,39 +65,6 @@ async fn match_image(ctx: BotContext<'_>, user1: serenity_prelude::User, user2: 
     ctx.defer().await?;
     let p1 = ctx.get_user_by_discord_id(user1.id.to_string()).await?.ok_or(anyhow!("User 1 not found."))?;
     let p2 = ctx.get_user_by_discord_id(user2.id.to_string()).await?.ok_or(anyhow!("User 2 not found."))?;
-    let image_api = api::ImagesAPI::new()?;
-    let image = match image_api.match_image(&p1, &p2).await{
-        Ok(image) => image,
-        Err(e) => {
-            ctx.send(CreateReply::default().content("Error generating image. Please try again later.")).await?;
-            ctx.log("Error generating image", format!("{e}") , log::State::FAILURE, log::Model::API).await?;
-            return Ok(())
-        }
-    };
-    let reply = {
-        let embed = CreateEmbed::new()
-            .title("Match image")
-            .author(ctx.get_author_img(&log::Model::PLAYER))
-            .description("Testing generating images of a match")
-            .color(serenity_prelude::Colour::DARK_GOLD)
-            .fields(vec![
-                ("Player 1", format!("{}\n{}\n{}\n{}", p1.discord_name, p1.discord_id, p1.player_name, p1.player_tag), true),
-                ("Player 2", format!("{}\n{}\n{}\n{}", p2.discord_name, p2.discord_id, p2.player_name, p2.player_tag), true),
-            ]);
-        CreateReply::default()
-            .reply(true)
-            .embed(embed)
-            .attachment(CreateAttachment::bytes(image, "Test_match_image.png"))
-    };
-    ctx.send(reply).await?;
-  Ok(())
-}
-/// Generate a result image of a match between two players
-#[poise::command(slash_command)]
-async fn result_image(ctx: BotContext<'_>, winner: serenity_prelude::User, loser: serenity_prelude::User) -> Result<(), BotError> {
-    ctx.defer().await?;
-    let p1 = ctx.get_user_by_discord_id(winner.id.to_string()).await?.ok_or(anyhow!("Winner not found."))?;
-    let p2 = ctx.get_user_by_discord_id(loser.id.to_string()).await?.ok_or(anyhow!("Loser not found."))?;
     let image_api = api::ImagesAPI::new()?;
     let image = match image_api.match_image(&p1, &p2).await{
         Ok(image) => image,

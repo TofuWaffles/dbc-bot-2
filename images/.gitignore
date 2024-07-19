@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -107,6 +108,8 @@ venv.bak/
 *.pyo
 *cfg
 =======
+=======
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -214,4 +217,7 @@ venv.bak/
 *.pyc
 *.pyo
 *cfg
+<<<<<<< HEAD
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
+=======
 >>>>>>> bdb70236c68496a534164a78cf20d5436eba400c

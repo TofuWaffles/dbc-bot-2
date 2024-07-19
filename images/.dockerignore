@@ -1,11 +1,17 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 .gitignore
 pyvenv.cfg
 lib/
 bin/
 =======
+=======
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
 .gitignore
 pyvenv.cfg
 lib/
 bin/
+<<<<<<< HEAD
+>>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
+=======
 >>>>>>> bdb70236c68496a534164a78cf20d5436eba400c
