@@ -149,6 +149,7 @@ pub struct Gadget {
 }
 
 
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FullBrawler{

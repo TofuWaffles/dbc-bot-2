@@ -1,5 +1,10 @@
 use crate::{database, BotError};
+use crate::{database, BotError};
 use anyhow::anyhow;
+use base64::{
+    engine::general_purpose,
+    Engine,
+};
 use base64::{
     engine::general_purpose,
     Engine,
