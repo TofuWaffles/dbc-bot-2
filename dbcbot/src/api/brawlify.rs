@@ -5,6 +5,10 @@ use crate::BotError;
 
 use super::{APIResult, Endpoint};
 
+/// Used to query map data from Brawl Stars.
+///
+/// At the moment, the official Brawl Stars API does not provide map data, which is why Brawlify is
+/// needed.
 #[derive(Debug)]
 pub struct BrawlifyAPI {
     client: Client,
@@ -19,14 +23,20 @@ impl BrawlifyAPI {
         }
     }
 
-    pub async fn get_maps(&self) -> Result<APIResult<()>, BotError> {
-        let response = todo!();
+    pub async fn get_maps(&self) -> Result<APIResult<BrawlMap>, BotError> {
+        let response = self
+            .client
+            .get(self.endpoint.append_path("maps"))
+            .send()
+            .await?;
+
+        Ok(APIResult::from_response(response).await?)
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Map {
+pub struct BrawlMap {
     pub id: i32,
     pub new: bool,
     pub disabled: bool,

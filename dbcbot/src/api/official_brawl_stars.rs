@@ -13,7 +13,10 @@ use anyhow::anyhow;
 
 use super::{APIResult, Endpoint};
 
-/// The Brawl Stars API.
+/// The official Brawl Stars API.
+///
+/// Used for most game-related resource queries. Some resources aren't provided by this API. Check
+/// the Brawlify API to see if it's available there.
 #[derive(Debug)]
 pub struct BrawlStarsAPI {
     /// The API token used to authenticate with the Brawl Stars API. You can get your own from the [Brawl Stars API website](https://developer.brawlstars.com/).
