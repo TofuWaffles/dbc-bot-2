@@ -442,7 +442,6 @@ impl Database for PgDatabase {
         Ok(user)
     }
 
-
     async fn get_player_by_player_tag(
         &self,
         player_tag: &str,

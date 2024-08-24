@@ -276,6 +276,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             msg,
             CreateEmbed::new().description("You can dismiss this safely!"),
             None,
-        ).await
+        )
+        .await
     }
 }

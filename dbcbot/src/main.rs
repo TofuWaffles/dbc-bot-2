@@ -1,18 +1,19 @@
+use api::APIsContainer;
 use std::fs::File;
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
-
-use api::{BrawlStarsApi, GameApi};
 
 use database::{Database, PgDatabase};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
-    manager_commands::ManagerCommands, marshal_commands::MarshalCommands, owner_commands::OwnerCommands, test_commands::TestCommands, user_commands::UserCommands, CommandsContainer
+    manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
+    owner_commands::OwnerCommands, test_commands::TestCommands, user_commands::UserCommands,
+    CommandsContainer,
 };
 use utils::lru::LRUCache;
 
-use crate::log::discord_log_error;
+use crate::{api::official_brawl_stars::BrawlStarsAPI, log::discord_log_error};
 
 /// Utilities for interacting with the game API.
 mod api;
@@ -30,23 +31,22 @@ mod utils;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-#[derive(Default, Debug, Clone)]
-pub struct Data<DB, P> {
+#[derive(Debug)]
+pub struct Data<DB> {
     database: DB,
     cache: Cache,
-    game_api: P,
+    apis: APIsContainer,
 }
 
-impl<DB, P> Data<DB, P>
+impl<DB> Data<DB>
 where
     DB: Database,
-    P: GameApi,
 {
     /// Create a new data struct with a given Database and Game API.
-    fn new(database: DB, game_api: P) -> Self {
+    fn new(database: DB, game_api: APIsContainer) -> Self {
         Self {
             database,
-            game_api,
+            apis: game_api,
             cache: Cache::default(),
         }
     }
@@ -58,7 +58,7 @@ pub struct Cache {
 }
 
 /// Convenience type for the bot's data with generics filled in.
-pub type BotData = Data<PgDatabase, BrawlStarsApi>;
+pub type BotData = Data<PgDatabase>;
 
 /// A thread-safe Error type used by the bot.
 pub type BotError = anyhow::Error;
@@ -85,7 +85,7 @@ async fn run() -> Result<(), BotError> {
     let setup_span = info_span!("bot_setup");
     let _guard = setup_span.enter();
     // Load the .env file only in the development environment (bypassed with the --release flag)
-    // #[cfg(debug_assertions)]
+    #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 
     let discord_token =
@@ -94,12 +94,9 @@ async fn run() -> Result<(), BotError> {
 
     let pg_database = PgDatabase::connect().await?;
     info!("Successfully connected to the database");
-    let brawl_stars_token = std::env::var("BRAWL_STARS_TOKEN")
-        .expect("Expected BRAWL_STARS_TOKEN as an environment variable");
-    info!("Successfully loaded Brawl Stars Token");
-    let brawl_stars_api = BrawlStarsApi::new(&brawl_stars_token);
+    let apis_container = APIsContainer::new();
 
-    let commands: Vec<_> = vec![
+    let commands: Vec<poise::Command<_, _>> = vec![
         OwnerCommands::get_all(),
         ManagerCommands::get_all(),
         MarshalCommands::get_all(),
@@ -109,6 +106,7 @@ async fn run() -> Result<(), BotError> {
     .into_iter()
     .flatten()
     .collect();
+
     commands
         .iter()
         .for_each(|c| println!("Command: {}", c.name));
@@ -190,7 +188,7 @@ async fn run() -> Result<(), BotError> {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                 println!("Ready as {}", ready.user.name);
-                Ok(Data::new(pg_database, brawl_stars_api))
+                Ok(Data::new(pg_database, apis_container))
             })
         })
         .build();

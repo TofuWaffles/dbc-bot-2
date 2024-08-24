@@ -2,7 +2,8 @@ use anyhow::anyhow;
 use futures::Stream;
 use poise::{
     serenity_prelude::{
-        futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow, CreateAttachment, CreateButton, CreateEmbed, CreateMessage
+        futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow,
+        CreateAttachment, CreateButton, CreateEmbed, CreateMessage,
     },
     CreateReply, Modal, ReplyHandle,
 };
@@ -11,7 +12,7 @@ use serde_json::json;
 use tracing::{info, instrument};
 
 use crate::{
-    api::{self, models::BattleLogItem, ApiResult, GameApi},
+    api::{images::ImagesAPI, official_brawl_stars::BattleLogItem, APIResult},
     commands::checks::{is_config_set, is_tournament_paused},
     database::{
         models::{
@@ -152,7 +153,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .style(ButtonStyle::Primary),
             CreateButton::new("submit")
                 .label("Submit")
-                .style(ButtonStyle::Primary)
+                .style(ButtonStyle::Primary),
         ];
         ctx.prompt(msg, embed, buttons).await?;
     } else {
@@ -203,11 +204,24 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
                 return leave_tournament(ctx, msg).await;
-            },
+            }
             "submit" => {
                 interaction.defer(ctx.http()).await?;
-                let game_match = ctx.data().database.get_match_by_player(player_active_tournaments[0].tournament_id, &ctx.author().to_string()).await?;
-                return submit(ctx, msg, &player_active_tournaments[0], &game_match.unwrap()).await;
+                let game_match = ctx
+                    .data()
+                    .database
+                    .get_match_by_player(
+                        player_active_tournaments[0].tournament_id,
+                        &ctx.author().to_string(),
+                    )
+                    .await?;
+                return submit(
+                    ctx,
+                    msg,
+                    &player_active_tournaments[0],
+                    &game_match.unwrap(),
+                )
+                .await;
             }
             _ => {
                 continue;
@@ -355,9 +369,15 @@ async fn user_display_match(
                         }
                     }
                 };
-                let image_api = api::ImagesAPI::new()?;
-                let p1 = ctx.get_user_by_discord_id(bracket.discord_id_1.clone().unwrap()).await?.ok_or(anyhow!("Player 1 is not found in the database"))?;
-                let p2 = ctx.get_user_by_discord_id(bracket.discord_id_2.clone().unwrap()).await?.ok_or(anyhow!("Player 2 is not found in the database"))?;
+                let image_api = ImagesAPI::new();
+                let p1 = ctx
+                    .get_user_by_discord_id(bracket.discord_id_1.clone().unwrap())
+                    .await?
+                    .ok_or(anyhow!("Player 1 is not found in the database"))?;
+                let p2 = ctx
+                    .get_user_by_discord_id(bracket.discord_id_2.clone().unwrap())
+                    .await?
+                    .ok_or(anyhow!("Player 2 is not found in the database"))?;
                 let image = image_api.match_image(&p1, &p2).await?;
                 reply = CreateReply::default()
                     .attachment(CreateAttachment::bytes(image, "Match.png"))
@@ -682,9 +702,14 @@ async fn user_display_registration(
         None,
     )
     .await?;
-    let api_result = ctx.data().game_api.get_player(&user.player_tag).await?;
+    let api_result = ctx
+        .data()
+        .apis
+        .brawl_stars
+        .get_player(&user.player_tag)
+        .await?;
     match api_result {
-        ApiResult::Ok(player) => {
+        APIResult::Ok(player) => {
             let embed = {
                 CreateEmbed::new()
                     .title(format!("**{} ({})**", player.name, player.tag))
@@ -746,7 +771,7 @@ async fn user_display_registration(
                 }
             }
         }
-        ApiResult::NotFound => {
+        APIResult::NotFound => {
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -763,7 +788,7 @@ async fn user_display_registration(
             )
             .await?;
         }
-        ApiResult::Maintenance => {
+        APIResult::Maintenance => {
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -832,18 +857,25 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
         .await?
         .get(0)
-        .map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
-    let image_api = api::ImagesAPI::new()?;
-    let image = image_api.profile_image(&user, tournament_id.to_string()).await?;
+        .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
+    let image_api = ImagesAPI::new();
+    let image = image_api
+        .profile_image(&user, tournament_id.to_string())
+        .await?;
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
             .author(ctx.get_author_img(&log::Model::PLAYER))
             .description("Testing generating images of a match")
             .color(Color::DARK_GOLD)
-            .fields(vec![
-                ("Player 1", format!("{}\n{}\n{}\n{}", user.discord_name, user.discord_id, user.player_name, user.player_tag), true),
-            ]);
+            .fields(vec![(
+                "Player 1",
+                format!(
+                    "{}\n{}\n{}\n{}",
+                    user.discord_name, user.discord_id, user.player_name, user.player_tag
+                ),
+                true,
+            )]);
         CreateReply::default()
             .reply(true)
             .embed(embed)
@@ -1058,9 +1090,15 @@ async fn submit(
         .await?
         .ok_or(anyhow!("User not found in the database"))?
         .player_tag;
-    let logs = match ctx.data().game_api.get_battle_log(&caller_tag).await? {
-        ApiResult::Ok(response) => response.items,
-        ApiResult::NotFound => {
+    let logs = match ctx
+        .data()
+        .apis
+        .brawl_stars
+        .get_battle_log(&caller_tag)
+        .await?
+    {
+        APIResult::Ok(response) => response.items,
+        APIResult::NotFound => {
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -1078,7 +1116,7 @@ async fn submit(
             .await?;
             return Ok(());
         }
-        ApiResult::Maintenance => {
+        APIResult::Maintenance => {
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -1164,10 +1202,24 @@ async fn submit(
 #[instrument]
 async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
     let msg = ctx
-        .send(CreateReply::default().embed(CreateEmbed::new().title("Credit").description("Loading credit...")).reply(true).ephemeral(true))
+        .send(
+            CreateReply::default()
+                .embed(
+                    CreateEmbed::new()
+                        .title("Credit")
+                        .description("Loading credit..."),
+                )
+                .reply(true)
+                .ephemeral(true),
+        )
         .await?;
     let description = "";
 
-    ctx.prompt(&msg, CreateEmbed::new().title("Credit").description(description), None).await?;
+    ctx.prompt(
+        &msg,
+        CreateEmbed::new().title("Credit").description(description),
+        None,
+    )
+    .await?;
     Ok(())
 }

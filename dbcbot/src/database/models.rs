@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 
-use crate::api::models::Brawler;
+use crate::api::official_brawl_stars::Brawler;
 
 /// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
@@ -78,8 +78,8 @@ pub struct User {
     pub player_name: String,
     pub icon: i32,
     pub trophies: i32,
-    pub brawlers: sqlx::types::JsonValue,   // For match-level brawler bans. Not currently
-                                            // implemented
+    pub brawlers: sqlx::types::JsonValue, // For match-level brawler bans. Not currently
+                                          // implemented
 }
 
 impl From<User> for Player {
@@ -95,7 +95,6 @@ impl User {
     pub fn get_brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
-
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -258,7 +257,18 @@ pub struct Event {
 
 #[allow(non_camel_case_types)]
 #[derive(
-    Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display, poise::ChoiceParameter, EnumIter
+    Debug,
+    Default,
+    sqlx::Type,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Display,
+    poise::ChoiceParameter,
+    EnumIter,
 )]
 #[sqlx(type_name = "mode", rename_all = "camelCase")]
 pub enum Mode {
@@ -331,12 +341,12 @@ pub enum Mode {
     #[strum(to_string = "Unknown")]
     unknown,
 }
-impl Selectable for Mode{
+impl Selectable for Mode {
     fn label(&self) -> String {
         self.to_string()
     }
     fn identifier(&self) -> String {
-        match self{
+        match self {
             Mode::brawlBall => "brawlBall".to_string(),
             Mode::gemGrab => "gemGrab".to_string(),
             Mode::heist => "heist".to_string(),
@@ -362,9 +372,9 @@ impl Selectable for Mode{
         }
     }
 }
-impl Mode{
-    pub fn from_string(mode: impl Into<String>) -> Self{
-        match mode.into().as_str(){
+impl Mode {
+    pub fn from_string(mode: impl Into<String>) -> Self {
+        match mode.into().as_str() {
             "brawlBall" | "Brawl Ball" => Self::brawlBall,
             "gemGrab" => Self::gemGrab,
             "heist" => Self::heist,
@@ -389,10 +399,9 @@ impl Mode{
             _ => Self::unknown,
         }
     }
-    pub fn all() -> Vec<Mode>{
+    pub fn all() -> Vec<Mode> {
         Mode::iter().collect()
     }
-
 }
 #[allow(non_camel_case_types)]
 #[derive(

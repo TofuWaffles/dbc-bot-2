@@ -92,7 +92,17 @@ async fn create_tournament_slash(
                 .ephemeral(true),
         )
         .await?;
-    create_tournament(ctx, &msg, name, mode, role, announcement, notification, wins_required).await
+    create_tournament(
+        ctx,
+        &msg,
+        name,
+        mode,
+        role,
+        announcement,
+        notification,
+        wins_required,
+    )
+    .await
 }
 
 /// Start a tournament.
@@ -244,7 +254,14 @@ async fn create_tournament(
             wins_required,
         )
         .await?;
-    ctx.prompt(msg, CreateEmbed::new().title("Successfully create a new tournament").description(format!("Tournament id: {}", new_tournament_id)), None).await?;
+    ctx.prompt(
+        msg,
+        CreateEmbed::new()
+            .title("Successfully create a new tournament")
+            .description(format!("Tournament id: {}", new_tournament_id)),
+        None,
+    )
+    .await?;
     let description = format!(
         r#"
 Tournament ID: {}
@@ -271,7 +288,7 @@ async fn start_tournament(
     ctx: BotContext<'_>,
     msg: &ReplyHandle<'_>,
     tournament_id: i32,
-    map:impl Into<Option<String>> + Clone,
+    map: impl Into<Option<String>> + Clone,
     wins_required: Option<i32>,
 ) -> Result<(), BotError> {
     let wins_required = match wins_required {
@@ -303,7 +320,8 @@ async fn start_tournament(
                     .description("The tournament with the given ID was not found.")
                     .color(Colour::RED),
                 None,
-            ).await?;
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -320,7 +338,8 @@ async fn start_tournament(
                     )
                     .color(Colour::RED),
                 None,
-            ).await?;
+            )
+            .await?;
             return Ok(());
         }
     }
@@ -375,7 +394,10 @@ async fn start_tournament(
         .set_rounds(tournament_id, rounds_count)
         .await?;
     if map.clone().into().is_some() {
-        ctx.data().database.set_map(tournament_id, &map.into().unwrap()).await?;
+        ctx.data()
+            .database
+            .set_map(tournament_id, &map.into().unwrap())
+            .await?;
     }
     ctx.prompt(
         msg,
@@ -647,8 +669,9 @@ async fn step_by_step_create_tournament(
             msg,
             "Select Mode",
             "Please select the mode for the tournament.",
-            &Mode::all()
-        ).await?;
+            &Mode::all(),
+        )
+        .await?;
         splash(ctx, msg).await?;
         let announcement_channel = select_channel(
             ctx,
@@ -673,7 +696,13 @@ async fn step_by_step_create_tournament(
             )
             .await?
         {
-            break (modal, mode, announcement_channel, notification_channel, role);
+            break (
+                modal,
+                mode,
+                announcement_channel,
+                notification_channel,
+                role,
+            );
         }
     };
     let name = m.name;
@@ -681,7 +710,17 @@ async fn step_by_step_create_tournament(
         .wins_required
         .map(|x| x.parse::<i32>().unwrap_or(3).max(1))
         .unwrap_or(3);
-    create_tournament(*ctx, msg, name, Mode::from_string(mode), r, a, n, wins_required).await
+    create_tournament(
+        *ctx,
+        msg,
+        name,
+        Mode::from_string(mode),
+        r,
+        a,
+        n,
+        wins_required,
+    )
+    .await
 }
 
 async fn step_by_step_start_tournament(
