@@ -32,6 +32,16 @@ impl BrawlifyAPI {
 
         Ok(APIResult::from_response(response).await?)
     }
+
+    pub async fn get_modes(&self) -> Result<APIResult<GameMode>, BotError> {
+        let response = self
+            .client
+            .get(self.endpoint.append_path("gamemodes"))
+            .send()
+            .await?;
+
+        Ok(APIResult::from_response(response).await?)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

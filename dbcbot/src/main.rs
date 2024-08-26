@@ -13,7 +13,7 @@ use commands::{
 };
 use utils::lru::LRUCache;
 
-use crate::{api::official_brawl_stars::BrawlStarsAPI, log::discord_log_error};
+use crate::log::discord_log_error;
 
 /// Utilities for interacting with the game API.
 mod api;

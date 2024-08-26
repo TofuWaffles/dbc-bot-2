@@ -986,7 +986,7 @@ async fn submit(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     tournament: &Tournament,
-    game_match: &Match,
+    bracket: &Match,
 ) -> Result<(), BotError> {
     async fn filter(
         ctx: &BotContext<'_>,
@@ -1135,12 +1135,12 @@ async fn submit(
             return Ok(());
         }
     };
-    let battles = filter(ctx, logs, &tournament, &game_match).await?;
+    let battles = filter(ctx, logs, &tournament, &bracket).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }
     let winner = analyse(&tournament, battles).await;
-    let (caller, opposite) = match game_match.discord_id_1.clone().unwrap() == caller {
+    let (caller, opposite) = match bracket.discord_id_1.clone().unwrap() == caller {
         true => (Player1, Player2),
         false => (Player2, Player1),
     };
@@ -1150,20 +1150,25 @@ async fn submit(
         Some(true) => {
             ctx.data()
                 .database
-                .set_winner(&game_match.match_id, caller)
+                .set_winner(&bracket.match_id, caller)
                 .await?;
             ctx.get_user_by_discord_id(None).await?.unwrap()
         }
         Some(false) => {
             ctx.data()
                 .database
-                .set_winner(&game_match.match_id, opposite)
+                .set_winner(&bracket.match_id, opposite)
                 .await?;
-            ctx.get_user_by_discord_id(game_match.discord_id_2.clone())
+            ctx.get_user_by_discord_id(bracket.discord_id_2.clone())
                 .await?
                 .unwrap()
         }
     };
+    // Final round. Announce the winner and finish the tournament
+    if bracket.round == tournament.rounds {
+        finish_tournament(ctx, bracket, &target).await?;
+        return Ok(());
+    }
     let embed = CreateEmbed::new()
         .title("Match submission!")
         .description(format!(
@@ -1183,7 +1188,7 @@ async fn submit(
         format!(
             "User {} has submitted their match {}",
             ctx.author().name,
-            game_match.match_id
+            bracket.match_id
         ),
         log::State::SUCCESS,
         log::Model::PLAYER,
@@ -1192,6 +1197,46 @@ async fn submit(
 
     Ok(())
 }
+
+async fn finish_tournament(
+    ctx: &BotContext<'_>,
+    bracket: &Match,
+    winner: &User,
+) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().unwrap().to_string();
+    let announcement_channel_id = ctx
+        .data()
+        .database
+        .get_config(&guild_id)
+        .await?
+        .unwrap()
+        .announcement_channel_id;
+    let tournament_id = bracket.tournament_id;
+    let tournament = ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, tournament_id)
+        .await?
+        .unwrap();
+
+    ChannelId::new(announcement_channel_id.parse::<u64>()?)
+        .send_message(
+            ctx,
+            CreateMessage::default().content(format!(
+                "Congratulations to <@{}> for winning Tournament {}",
+                winner.discord_id, tournament.name
+            )),
+        )
+        .await?;
+
+    ctx.data()
+        .database
+        .set_tournament_status(tournament_id, TournamentStatus::Inactive)
+        .await?;
+
+    Ok(())
+}
+
 #[poise::command(
     slash_command,
     prefix_command,

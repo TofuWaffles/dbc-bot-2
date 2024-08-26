@@ -28,6 +28,7 @@ impl APIsContainer {
 }
 
 /// Wrapper for the result of an API call.
+#[derive(Debug)]
 pub enum APIResult<M> {
     Ok(M),
     NotFound,
