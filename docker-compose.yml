@@ -48,6 +48,7 @@ services:
     restart: always
     depends_on:
       - postgres
+      - images
 
   images:
     container_name: images-server
