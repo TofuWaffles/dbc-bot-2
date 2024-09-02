@@ -1,4 +1,5 @@
-use crate::database::models::{Mode, Tournament};
+use crate::api::brawlify::GameMode;
+use crate::database::models::{BrawlMap, Mode, Tournament};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
 use crate::utils::shorthand::BotContextExt;
@@ -117,10 +118,9 @@ async fn create_tournament_slash(
 async fn start_tournament_slash(
     ctx: BotContext<'_>,
     tournament_id: i32,
-    map: Option<String>,
     win_required: Option<i32>,
 ) -> Result<(), BotError> {
-    let map = map.unwrap_or_default();
+    let map = BrawlMap::default();
     let msg = ctx
         .send(
             CreateReply::default()
@@ -128,7 +128,7 @@ async fn start_tournament_slash(
                 .ephemeral(true),
         )
         .await?;
-    start_tournament(ctx, &msg, tournament_id, map, win_required).await
+    start_tournament(ctx, &msg, tournament_id, &map, win_required).await
 }
 
 async fn set_config(
@@ -288,7 +288,7 @@ async fn start_tournament(
     ctx: BotContext<'_>,
     msg: &ReplyHandle<'_>,
     tournament_id: i32,
-    map: impl Into<Option<String>> + Clone,
+    map: &BrawlMap,
     wins_required: Option<i32>,
 ) -> Result<(), BotError> {
     let wins_required = match wins_required {
@@ -393,12 +393,7 @@ async fn start_tournament(
         .database
         .set_rounds(tournament_id, rounds_count)
         .await?;
-    if map.clone().into().is_some() {
-        ctx.data()
-            .database
-            .set_map(tournament_id, &map.into().unwrap())
-            .await?;
-    }
+    ctx.data().database.set_map(tournament_id, &map).await?;
     ctx.prompt(
         msg,
         CreateEmbed::default()
@@ -667,8 +662,10 @@ async fn step_by_step_create_tournament(
         let mode = select_options::<Mode>(
             ctx,
             msg,
-            "Select Mode",
-            "Please select the mode for the tournament.",
+            CreateEmbed::default()
+                .title("Select Mode")
+                .description("Please select the mode for the tournament."),
+            None,
             &Mode::all(),
         )
         .await?;
@@ -730,11 +727,6 @@ async fn step_by_step_start_tournament(
     #[derive(Debug, Modal)]
     #[name = "More settings"]
     struct More {
-        #[name = "Name of the map to use for this tournament!"]
-        #[placeholder = "Write the name of the map here or leave it blank for any!"]
-        #[paragraph]
-        name: Option<String>,
-
         #[name = "Number of wins required to win a match"]
         #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
         wins_required: Option<String>,
@@ -747,8 +739,10 @@ async fn step_by_step_start_tournament(
     let id = select_options::<Tournament>(
         ctx,
         msg,
-        "Starting a tournament!",
-        "Select a tournament you want to start",
+        CreateEmbed::default()
+            .title("Start Tournament")
+            .description("Select a tournament you want to start"),
+        None,
         &tournaments,
     )
     .await?;
@@ -757,11 +751,12 @@ async fn step_by_step_start_tournament(
         .title("More setting needed for the tournament")
         .description("Please provide the map and wins requirement for the tournament.");
     let collector = modal::<More>(ctx, msg, embed).await?;
-    let map = collector.name.unwrap_or("".to_string());
+    let mode: GameMode = ctx.mode_selection(msg).await?.into();
+    let map = ctx.map_selection(msg, &mode.into()).await?;
     let wins_required = collector
         .wins_required
         .map(|x| x.parse::<i32>().unwrap_or(3).max(1));
-    start_tournament(*ctx, msg, id, map, wins_required).await
+    start_tournament(*ctx, msg, id, &map.into(), wins_required).await
 }
 /// Test for the match generation for new tournaments.
 #[cfg(test)]

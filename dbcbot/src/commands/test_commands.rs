@@ -1,6 +1,7 @@
 use super::CommandsContainer;
 use crate::api::images::ImagesAPI;
 use crate::api::APIResult;
+use crate::database::models::Mode;
 use crate::database::Database;
 use crate::log::{self, Log};
 use crate::utils::shorthand::BotContextExt;
@@ -15,7 +16,15 @@ impl CommandsContainer for TestCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![battle_log(), match_image(), result_image(), profile_image()]
+        vec![
+            battle_log(),
+            match_image(),
+            result_image(),
+            profile_image(),
+            choose_brawler_command(),
+            choose_map_command(),
+            choose_gamemode_command()
+        ]
     }
 }
 
@@ -24,7 +33,6 @@ use poise::{
     serenity_prelude::{CreateEmbed, CreateEmbedFooter},
     CreateReply,
 };
-use tracing::info;
 /// Test command to get the battle log of a player
 #[poise::command(slash_command)]
 async fn battle_log(
@@ -46,7 +54,7 @@ async fn battle_log(
         }
     };
     let log = &logs.items[0];
-    info!("{:?}", log);
+    println!("{:?}", log);
     let fields = vec![
         ("Mode", log.battle.mode.to_string(), true),
         ("Result", log.battle.result.to_string(), true),
@@ -257,5 +265,61 @@ async fn profile_image(
             .attachment(CreateAttachment::bytes(image, "Test_match_image.png"))
     };
     ctx.send(reply).await?;
+    Ok(())
+}
+
+/// Test command to choose a brawler
+#[poise::command(slash_command)]
+async fn choose_brawler_command(ctx: BotContext<'_>) -> Result<(), BotError> {
+    ctx.defer().await?;
+    let msg = ctx.reply("Choose a brawler").await?;
+    let brawler = ctx.brawler_selection(&msg).await?;
+    ctx.say(format!("You chose {}", brawler.name)).await?;
+    Ok(())
+}
+
+/// Test command to choose a brawler
+#[poise::command(slash_command)]
+async fn choose_map_command(ctx: BotContext<'_>, mode: Mode) -> Result<(), BotError> {
+    ctx.defer().await?;
+    let msg = ctx.reply("Test choosing map").await?;
+    let map = ctx.map_selection(&msg, &mode).await?;
+    let reply = {
+        let embed = CreateEmbed::default()
+            .title(format!("{}", map.name))
+            .description(format!(
+                "Environment: **{}**\nMode: **{}**\nAvailability: **{}**",
+                map.environment.name,
+                map.game_mode.name,
+                ["Yes", "No"][(!map.disabled) as usize]
+            ))
+            .image(map.image_url)
+            .thumbnail(map.game_mode.image_url)
+            .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+        CreateReply::default().embed(embed).components(vec![])
+    };
+    msg.edit(ctx, reply).await?;
+    Ok(())
+}
+
+/// Test command to choose a game mode
+#[poise::command(slash_command)]
+async fn choose_gamemode_command(ctx: BotContext<'_>) -> Result<(), BotError> {
+    ctx.defer().await?;
+    let msg = ctx.reply("Choose a game mode").await?;
+    let mode = ctx.mode_selection(&msg).await?;
+    let reply = {
+        let embed = CreateEmbed::default()
+            .title(format!("{}", mode.name))
+            .description(format!(
+                "Description: **{}**\nAvailability: **{}**",
+                mode.description,
+                ["Yes", "No"][(!mode.disabled) as usize]
+            ))
+            .thumbnail(mode.image_url)
+            .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+        CreateReply::default().embed(embed).components(vec![])
+    };
+    msg.edit(ctx, reply).await?;
     Ok(())
 }

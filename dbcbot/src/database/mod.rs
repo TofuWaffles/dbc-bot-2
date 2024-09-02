@@ -4,6 +4,7 @@ use models::Battle;
 use models::BattleClass;
 use models::BattleResult;
 use models::BattleType;
+use models::BrawlMap;
 use models::Event;
 use models::Mode;
 use models::Player;
@@ -13,6 +14,48 @@ use sqlx::PgPool;
 use self::models::{
     GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, TournamentStatus, User,
 };
+
+struct TournamentToMap {
+    tournament_id: i32,
+    guild_id: String,
+    name: String,
+    status: TournamentStatus,
+    rounds: i32,
+    current_round: i32,
+    created_at: i64,
+    start_time: Option<i64>,
+    mode: Mode,
+    map_id: i32,
+    map_name: String,
+    wins_required: i32,
+    tournament_role_id: String,
+    announcement_channel_id: String,
+    notification_channel_id: String,
+}
+
+impl From<TournamentToMap> for Tournament {
+    fn from(tournament: TournamentToMap) -> Self {
+        Tournament {
+            tournament_id: tournament.tournament_id,
+            guild_id: tournament.guild_id,
+            name: tournament.name,
+            status: tournament.status,
+            rounds: tournament.rounds,
+            current_round: tournament.current_round,
+            created_at: tournament.created_at,
+            start_time: tournament.start_time,
+            mode: tournament.mode,
+            map: BrawlMap {
+                id: tournament.map_id,
+                name: tournament.map_name,
+            },
+            wins_required: tournament.wins_required,
+            tournament_role_id: tournament.tournament_role_id,
+            announcement_channel_id: tournament.announcement_channel_id,
+            notification_channel_id: tournament.notification_channel_id,
+        }
+    }
+}
 
 /// Models for the database.
 ///
@@ -139,7 +182,7 @@ pub trait Database {
     /// Sets the current map for a given tournament.
     ///
     /// All matches must be done in the current map in order for them to be counted.
-    async fn set_map(&self, tournament_id: i32, map: &str) -> Result<(), Self::Error>;
+    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error>;
 
     /// Enters a user into a tournament.
     async fn enter_tournament(
@@ -194,6 +237,8 @@ pub trait Database {
         discord_id_1: Option<&str>,
         discord_id_2: Option<&str>,
     ) -> Result<(), Self::Error>;
+
+    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error>;
 
     async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error>;
 
@@ -519,6 +564,21 @@ impl Database for PgDatabase {
         Ok(tournament_id)
     }
 
+    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            INSERT INTO brawl_maps (id, name)
+            VALUES ($1, $2)
+            ON CONFLICT (name) DO NOTHING
+            "#,
+            map.id,
+            map.name
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn set_tournament_status(
         &self,
         tournament_id: i32,
@@ -545,49 +605,85 @@ impl Database for PgDatabase {
         tournament_id: i32,
     ) -> Result<Option<Tournament>, Self::Error> {
         let tournament = sqlx::query_as!(
-            Tournament,
+            TournamentToMap,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, mode as "mode:_", map, tournament_role_id, wins_required, announcement_channel_id, notification_channel_id
-            FROM tournaments WHERE guild_id = $1 AND tournament_id = $2
-            ORDER BY created_at DESC
-            LIMIT 1
+            SELECT 
+                t.tournament_id, 
+                t.guild_id, 
+                t.name, 
+                t.status as "status:_", 
+                t.rounds, 
+                t.current_round, 
+                t.created_at, 
+                t.start_time, 
+                t.mode as "mode:_", 
+                t.tournament_role_id, 
+                t.wins_required, 
+                t.announcement_channel_id, 
+                t.notification_channel_id, 
+                b.id as "map_id", 
+                b.name as "map_name"
+            FROM 
+                tournaments AS t
+            INNER JOIN 
+                brawl_maps AS b
+            ON 
+                t.map = b.id
+            WHERE 
+                t.guild_id = $1 AND t.tournament_id = $2
+            ORDER BY 
+                t.created_at DESC
+            LIMIT 1;
             "#,
             guild_id,
             tournament_id,
         )
         .fetch_optional(&self.pool)
-        .await?;
+        .await?
+        .map(|t| t.into());
 
         Ok(tournament)
     }
 
     async fn get_all_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error> {
         let tournaments = sqlx::query_as!(
-            Tournament,
+            TournamentToMap,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, mode as "mode: _", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
-            FROM tournaments WHERE guild_id = $1
-            ORDER BY created_at DESC
+            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, bm.id as "map_id", bm.name as "map_name"
+            FROM tournaments t
+            INNER JOIN brawl_maps bm 
+            ON t.map = bm.id
+            WHERE t.guild_id = $1
+            ORDER BY t.created_at DESC
             "#,
             guild_id
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|t| t.into())
+        .collect::<Vec<Tournament>>();
 
         Ok(tournaments)
     }
 
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error> {
         let tournaments = sqlx::query_as!(
-            Tournament,
+            TournamentToMap,
             r#"
-            SELECT tournament_id, guild_id, name, status as "status: _", rounds, current_round, created_at, start_time, map, mode as "mode:_", wins_required, tournament_role_id, announcement_channel_id, notification_channel_id
-            FROM tournaments WHERE guild_id = $1 AND (status != 'inactive')
+            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode:_", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, b.id as "map_id", b.name as "map_name"
+            FROM tournaments AS t
+            INNER JOIN brawl_maps AS b 
+            ON t.map = b.id
+            WHERE t.guild_id = $1 AND t.status != 'inactive'
             "#,
             guild_id
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|t| t.into())
+        .collect::<Vec<Tournament>>();
 
         Ok(tournaments)
     }
@@ -598,19 +694,37 @@ impl Database for PgDatabase {
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error> {
         let tournaments = sqlx::query_as!(
-            Tournament,
+            TournamentToMap,
             r#"
-            SELECT tournaments.tournament_id, tournaments.guild_id, tournaments.name, tournaments.status as "status: _", tournaments.rounds, tournaments.current_round, tournaments.created_at, tournaments.start_time, tournaments.mode as "mode:_", tournaments.map, tournaments.wins_required, tournaments.tournament_role_id, tournaments.announcement_channel_id, tournaments.notification_channel_id
-            FROM tournaments
-            INNER JOIN tournament_players ON tournaments.tournament_id=tournament_players.tournament_id
-            WHERE tournaments.guild_id = $1 AND (tournaments.status = 'pending' OR tournaments.status = 'started') AND tournament_players.discord_id = $2
+            SELECT
+    t.tournament_id,
+    t.guild_id,
+    t.name,
+    t.status AS "status: _",
+    t.rounds,
+    t.current_round,
+    t.created_at,
+    t.start_time,
+    t.mode AS "mode: _",
+    b.id AS "map_id",
+    b.name AS "map_name",
+    t.wins_required,
+    t.tournament_role_id,
+    t.announcement_channel_id,
+    t.notification_channel_id
+FROM tournaments AS t
+INNER JOIN tournament_players AS tp ON t.tournament_id = tp.tournament_id
+INNER JOIN brawl_maps AS b ON t.map = b.id
+WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.discord_id = $2;
             "#,
             guild_id,
             discord_id,
         )
         .fetch_all(&self.pool)
-        .await?;
-
+        .await?
+        .into_iter()
+        .map(|t| t.into())
+        .collect::<Vec<Tournament>>();
         Ok(tournaments)
     }
 
@@ -672,19 +786,24 @@ impl Database for PgDatabase {
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error> {
         let tournament = sqlx::query_as!(
-            Tournament,
+            TournamentToMap,
             r#"
-            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.map, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id
+            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, bm.id as "map_id", bm.name as "map_name"
             FROM tournaments AS t 
             JOIN tournament_players AS tp
             ON tp.tournament_id = t.tournament_id
+            JOIN brawl_maps AS bm
+            ON t.map = bm.id
             WHERE tp.discord_id = $1
             AND t.status != 'inactive';
             "#,
             discord_id
         )
         .fetch_all(&self.pool)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|t| t.into())
+        .collect::<Vec<Tournament>>();
 
         Ok(tournament)
     }
@@ -902,14 +1021,14 @@ impl Database for PgDatabase {
         Ok(brackets)
     }
 
-    async fn set_map(&self, tournament_id: i32, map: &str) -> Result<(), Self::Error> {
+    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
             UPDATE tournaments
             SET map = $1
             WHERE tournament_id = $2
             "#,
-            map,
+            map.id,
             tournament_id
         )
         .execute(&self.pool)
@@ -973,7 +1092,7 @@ impl Database for PgDatabase {
             RETURNING id
             "#,
             event.mode as Mode,
-            event.map,
+            event.map.id,
         )
         .fetch_one(&self.pool)
         .await?;

@@ -1,5 +1,6 @@
 use crate::{database::models::Selectable, BotContext, BotError};
 use anyhow::anyhow;
+use futures::StreamExt;
 use poise::{
     serenity_prelude::{
         self as serenity, Channel, ChannelType, Colour, ComponentInteractionCollector,
@@ -9,6 +10,8 @@ use poise::{
     },
     CreateReply, ReplyHandle,
 };
+
+use super::shorthand::BotContextExt;
 
 pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
@@ -105,37 +108,39 @@ where
 pub async fn select_options<T: Selectable>(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    title: impl Into<String> + Send + 'static,
-    description: impl Into<String> + Send + 'static,
+    embed: CreateEmbed,
+    buttons: impl Into<Option<Vec<CreateActionRow>>>,
     items: &[T],
 ) -> Result<String, BotError> {
-    let embed = CreateEmbed::default()
-        .title(title.into())
-        .description(description.into())
-        .color(Colour::GOLD);
-
     let options = items
         .iter()
         .map(|t| CreateSelectMenuOption::new(t.label(), t.identifier()))
         .collect();
-    let component = vec![CreateActionRow::SelectMenu(
+    let mut buttons: Vec<CreateActionRow> = buttons.into().unwrap_or(vec![]);
+    let mut component = vec![CreateActionRow::SelectMenu(
         CreateSelectMenu::new("option", CreateSelectMenuKind::String { options })
             .disabled(items.is_empty()),
     )];
+    component.append(&mut buttons);
+
     let builder = CreateReply::default().embed(embed).components(component);
     msg.edit(*ctx, builder).await?;
-    while let Some(mci) = ComponentInteractionCollector::new(ctx)
-        .author_id(ctx.author().id)
-        .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(120))
-        .filter(move |mci| mci.data.custom_id == "option")
-        .await
-    {
-        mci.defer(ctx.http()).await?;
-        if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect { values } =
-            mci.data.kind
-        {
-            return Ok(values[0].clone());
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interactions) = &ic.next().await {
+        match interactions.data.custom_id.as_str() {
+            "option" => {
+                interactions.defer(ctx.http()).await?;
+                if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect {
+                    values,
+                } = interactions.clone().data.kind
+                {
+                    return Ok(values[0].clone());
+                }
+            }
+            button @ _ => {
+                interactions.defer(ctx.http()).await?;
+                return Ok(button.to_string());
+            }
         }
     }
     Err(anyhow!("No option selected"))

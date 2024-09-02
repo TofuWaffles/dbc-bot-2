@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     database::{
         self,
-        models::{BattleResult, Mode},
+        models::{BattleResult, Mode, Selectable},
     },
     utils::time::BattleDateTime,
     BotError,
@@ -231,8 +231,18 @@ pub struct BrawlerList {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Brawler {
-    id: i32,
-    name: String,
+    pub id: i32,
+    pub name: String,
+}
+
+impl Selectable for Brawler {
+    fn label(&self) -> String {
+        self.name.clone()
+    }
+
+    fn identifier(&self) -> String {
+        self.id.to_string()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -247,30 +257,4 @@ pub struct StarPower {
 pub struct Gadget {
     id: i32,
     name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FullBrawler {
-    pub id: i32,
-    pub name: String,
-    pub rarity: Rarity,
-    pub image_url: String,
-    pub description: String,
-}
-impl From<FullBrawler> for Brawler {
-    fn from(value: FullBrawler) -> Self {
-        Self {
-            id: value.id,
-            name: value.name,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Rarity {
-    pub id: i32,
-    pub name: String,
-    pub color: String,
 }

@@ -42,7 +42,7 @@
             }
           }
         },
-        "Text"
+        "Int4"
       ]
     },
     "nullable": [
