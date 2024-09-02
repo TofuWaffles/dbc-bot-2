@@ -270,7 +270,7 @@ pub struct Event {
     poise::ChoiceParameter,
     EnumIter,
 )]
-#[sqlx(type_name = "mode", rename_all = "camelCase")]
+#[sqlx(type_name = "mode", rename_all = "snake_case")]
 pub enum Mode {
     #[name = "Brawl Ball"]
     #[strum(to_string = "Brawl Ball")]
