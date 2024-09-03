@@ -1,5 +1,5 @@
 use api::APIsContainer;
-use std::fs::File;
+use std::{fs::File, io};
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
@@ -218,13 +218,11 @@ fn setup_tracing() -> Result<(), BotError> {
         return Ok(());
     }
 
-    let log_file = File::create("debug.log")?;
-
     // Set up tracing with a filter that only logs errors in production
     tracing_subscriber::fmt::fmt()
         .with_span_events(FmtSpan::NONE)
         .with_max_level(LevelFilter::ERROR)
-        .with_writer(log_file)
+        .with_writer(io::stderr)
         .pretty()
         .init();
 
