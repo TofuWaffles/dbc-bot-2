@@ -54,7 +54,7 @@ pub struct Tournament {
     pub status: TournamentStatus,
     pub tournament_role_id: String,
     pub mode: Mode,
-    pub map: Option<String>,
+    pub map: BrawlMap,
     pub wins_required: i32,
     pub announcement_channel_id: String,
     pub notification_channel_id: String,
@@ -250,9 +250,26 @@ pub struct Event {
     pub id: i64,
     #[serde(default)]
     pub mode: Mode,
-    pub map: Option<String>, // Optional because map can be NULL in the database
+    pub map: BrawlMap, // Optional because map can be NULL in the database
     #[serde(default)]
     pub battle_id: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct BrawlMap {
+    #[serde(default)]
+    pub id: i32,
+    #[serde(default)]
+    pub name: String,
+}
+
+impl Default for BrawlMap {
+    fn default() -> Self {
+        BrawlMap {
+            id: 0,
+            name: "Any".to_string(),
+        }
+    }
 }
 
 #[allow(non_camel_case_types)]
@@ -293,6 +310,9 @@ pub enum Mode {
     #[name = "Duo Showdown"]
     #[strum(to_string = "Duo Showdown")]
     duoShowdown,
+    #[name = "Trio Showdown"]
+    #[strum(to_string = "Trio Showdown")]
+    trioShowdown,
     #[name = "Hot Zone"]
     #[strum(to_string = "Hot Zone")]
     hotZone,
@@ -335,7 +355,6 @@ pub enum Mode {
     #[name = "Knockout 5v5"]
     #[strum(to_string = "Knockout 5v5")]
     knockOut5V5,
-
     #[name = "Unknown"]
     #[default]
     #[strum(to_string = "Unknown")]
@@ -354,6 +373,7 @@ impl Selectable for Mode {
             Mode::siege => "siege".to_string(),
             Mode::soloShowdown => "soloShowdown".to_string(),
             Mode::duoShowdown => "duoShowdown".to_string(),
+            Mode::trioShowdown => "trioShowdown".to_string(),
             Mode::hotZone => "hotZone".to_string(),
             Mode::knockout => "knockout".to_string(),
             Mode::takedown => "takedown".to_string(),

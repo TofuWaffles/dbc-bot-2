@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
     tournament_role_id VARCHAR(255) NOT NULL,
     status tournament_status NOT NULL DEFAULT 'pending',
     mode mode NOT NULL DEFAULT 'unknown',
-    map VARCHAR(255),
+    map INT NOT NULL DEFAULT 0,
     wins_required INT NOT NULL,
     announcement_channel_id VARCHAR(255) NOT NULL,
     notification_channel_id VARCHAR(255) NOT NULL

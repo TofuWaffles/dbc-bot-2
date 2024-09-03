@@ -520,9 +520,13 @@ async fn user_display_tournaments(
             let selected = select_options(
                 ctx,
                 msg,
-                "Tournament Enrollment",
-                "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.",
-                &tournaments
+                CreateEmbed::default()
+                    .title("Tournament Enrollment")
+                    .description(
+                        "Here are all the active tournaments in this server.\n\nTo join a tournament, click the button with the number corresponding to the one you wish to join.",
+                    ),
+                    None,
+               &tournaments
             ).await?;
             let name = tournaments
                 .iter()
@@ -936,8 +940,10 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
     let selected_tournament_id = select_options(
         ctx,
         msg,
-        "Leaving a tournament",
-        "Select the tournament you want to leave",
+        CreateEmbed::default()
+            .title("Leaving a tournament")
+            .description("Select the tournament you want to leave"),
+        None,
         &tournaments,
     )
     .await?;

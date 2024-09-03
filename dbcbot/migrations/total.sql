@@ -2,11 +2,9 @@
 CREATE TABLE IF NOT EXISTS config (
     guild_id VARCHAR(255) PRIMARY KEY,
     marshal_role_id VARCHAR(255) NOT NULL,
-    announcement_channel_id VARCHAR(255) NOT NULL,
-    notification_channel_id VARCHAR(255) NOT NULL,
-    log_channel_id VARCHAR(255) NOT NULL
+    log_channel_id VARCHAR(255) NOT NULL,
+    announcement_channel_id VARCHAR(255) NOT NULL
 );
-
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS users (
     discord_id VARCHAR(255) PRIMARY KEY,
@@ -17,7 +15,6 @@ CREATE TABLE IF NOT EXISTS users (
     trophies INT NOT NULL,
     brawlers JSONB NOT NULL
 );
-
 -- Add migration script here
 CREATE TYPE tournament_status AS ENUM ('pending', 'started', 'paused', 'inactive');
 CREATE TYPE mode AS ENUM (
@@ -26,6 +23,14 @@ CREATE TYPE mode AS ENUM (
     'robo_rumble', 'boss_fight', 'wipe_out', 'duels', 'paint_brawl', 
     'brawl_ball5v5', 'gem_grab5v5', 'bounty5v5', 'knockout5v5', 'unknown'
 );
+
+-- Add migration script here
+CREATE TABLE brawl_maps (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL DEFAULT 'Any'
+);
+
+
 CREATE TABLE IF NOT EXISTS tournaments (
     tournament_id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -37,19 +42,17 @@ CREATE TABLE IF NOT EXISTS tournaments (
     tournament_role_id VARCHAR(255) NOT NULL,
     status tournament_status NOT NULL DEFAULT 'pending',
     mode mode NOT NULL DEFAULT 'unknown',
-    map VARCHAR(255),
+    map INT NOT NULL DEFAULT 0,
     wins_required INT NOT NULL,
     announcement_channel_id VARCHAR(255) NOT NULL,
     notification_channel_id VARCHAR(255) NOT NULL
 );
-
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS tournament_players (
     discord_id VARCHAR(255) NOT NULL REFERENCES users(discord_id) ON DELETE CASCADE ON UPDATE CASCADE,
     tournament_id INT NOT NULL REFERENCES tournaments(tournament_id) ON DELETE CASCADE ON UPDATE CASCADE,
     PRIMARY KEY (discord_id, tournament_id)
 );
-
 -- Add migration script here
 CREATE TYPE player_type AS ENUM ('player', 'dummy', 'pending');
 CREATE TYPE player_number AS ENUM ('player_1', 'player_2');
@@ -67,13 +70,11 @@ CREATE TABLE IF NOT EXISTS matches (
     player_2_ready BOOLEAN NOT NULL,
     winner player_number
 );
-
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS manager_roles (
     guild_id VARCHAR(255) NOT NULL PRIMARY KEY,
     manager_role_id VARCHAR(255) NOT NULL
 );
-
 -- Add migration script here
 
 CREATE TABLE IF NOT EXISTS banned_brawlers (
@@ -81,7 +82,6 @@ CREATE TABLE IF NOT EXISTS banned_brawlers (
     brawler VARCHAR(255) NOT NULL,
     PRIMARY KEY (tournament_id, brawler)
 );
-
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS battle_records (
     record_id BIGSERIAL PRIMARY KEY,
@@ -95,8 +95,8 @@ CREATE TABLE IF NOT EXISTS battles (
     battle_time BIGINT NOT NULL,
     FOREIGN KEY (record_id) REFERENCES battle_records(record_id)
 );
-
 -- Add migration script here
+
 CREATE TYPE battle_type AS ENUM (
     'friendly', 'ranked'
 );
@@ -115,14 +115,12 @@ CREATE TABLE IF NOT EXISTS battle_classes (
     teams JSONB NOT NULL,
     FOREIGN KEY (battle_id) REFERENCES battles(id)
 );
-
 -- Add migration script here
 
 CREATE TABLE IF NOT EXISTS events (
     id BIGSERIAL PRIMARY KEY,
     mode mode,
-    map TEXT,
+    map INT,
     battle_id BIGINT,
     FOREIGN KEY (battle_id) REFERENCES battles(id)
 );
-

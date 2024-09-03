@@ -1,0 +1,149 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                t.tournament_id, \n                t.guild_id, \n                t.name, \n                t.status as \"status:_\", \n                t.rounds, \n                t.current_round, \n                t.created_at, \n                t.start_time, \n                t.mode as \"mode:_\", \n                t.tournament_role_id, \n                t.wins_required, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\"\n            FROM \n                tournaments AS t\n            INNER JOIN \n                brawl_maps AS b\n            ON \n                t.map = b.id\n            WHERE \n                t.guild_id = $1 AND t.tournament_id = $2\n            ORDER BY \n                t.created_at DESC\n            LIMIT 1;\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "guild_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "status:_",
+        "type_info": {
+          "Custom": {
+            "name": "tournament_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "started",
+                "paused",
+                "inactive"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "rounds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "current_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "start_time",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "mode:_",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "tournament_role_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 10,
+        "name": "wins_required",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "announcement_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 12,
+        "name": "notification_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "map_name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "72b3bf3aeb185539c1ff77cb5e0858327ab684afd9304597228bd45c48e03629"
+}

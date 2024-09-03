@@ -90,10 +90,10 @@ async fn run() -> Result<(), BotError> {
 
     let discord_token =
         std::env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN as an environment variable");
-    info!("Successfully loaded Discord Token");
+    println!("Successfully loaded Discord Token");
 
     let pg_database = PgDatabase::connect().await?;
-    info!("Successfully connected to the database");
+    println!("Successfully connected to the database");
     let apis_container = APIsContainer::new();
 
     let commands: Vec<poise::Command<_, _>> = vec![
@@ -107,12 +107,13 @@ async fn run() -> Result<(), BotError> {
     .flatten()
     .collect();
 
-    commands
+    let output = commands
         .iter()
-        .for_each(|c| println!("Command: {}", c.name));
-
+        .map(|c| format!("/{}", c.name.clone()))
+        .collect::<Vec<String>>()
+        .join(",");
+    println!("Commands: {}\nAll commands loaded!", output);
     let intents = serenity::GatewayIntents::non_privileged();
-
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
             commands,
@@ -196,7 +197,6 @@ async fn run() -> Result<(), BotError> {
     let mut client = serenity::ClientBuilder::new(discord_token, intents)
         .framework(framework)
         .await?;
-
     client.start().await?;
 
     Ok(())

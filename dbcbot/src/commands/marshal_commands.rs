@@ -9,11 +9,9 @@ use tracing::{instrument, warn};
 
 use crate::{
     database::{
-        models::{Match, PlayerNumber, TournamentStatus},
+        models::{BrawlMap, Match, PlayerNumber, TournamentStatus},
         Database,
-    },
-    log::{self, Log},
-    BotContext, BotData, BotError,
+    }, log::{self, Log}, utils::shorthand::BotContextExt, BotContext, BotData, BotError
 };
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
@@ -152,7 +150,8 @@ async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
 /// Set the map for a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result<(), BotError> {
+async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+    let msg = ctx.send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps..."))).await?;
     let guild_id = ctx.guild_id().unwrap().to_string();
     let tournament = match ctx
         .data()
@@ -174,14 +173,21 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32, map: String) -> Result
             return Ok(());
         }
     };
-
-    ctx.data().database.set_map(tournament_id, &map).await?;
+    let mode = tournament.mode;
+    let map = ctx.map_selection(&msg, &mode).await?;
+    ctx.data()
+        .database
+        .set_map(
+            tournament_id,
+            &map.clone().into(),
+        )
+        .await?;
 
     ctx.send(
         CreateReply::default()
             .content(format!(
                 "Sucessfully set the map of tournament {} to {}",
-                tournament_id, map
+                tournament_id, &map.name
             ))
             .ephemeral(true),
     )
@@ -193,10 +199,10 @@ Tournament ID: {}.
 Tournament name: {}.
 Map: {}
 Set by {}."#,
-        map,
+        map.name,
         tournament_id,
         tournament.name,
-        map,
+        map.name,
         ctx.author().name
     );
     ctx.log(
@@ -494,10 +500,10 @@ Disqualified by: {disqualified_by}."#,
 async fn next_round(
     ctx: BotContext<'_>,
     tournament_id: i32,
-    map: Option<String>,
 ) -> Result<(), BotError> {
+    let msg = ctx.send(CreateReply::default().embed(CreateEmbed::default().description("Running commands..."))).await?;
     let guild_id = ctx.guild_id().unwrap().to_string();
-
+    
     let tournament = match ctx
         .data()
         .database
@@ -519,7 +525,6 @@ async fn next_round(
     if tournament.current_round == tournament.rounds {
         ctx.send(CreateReply::default().content("Unable to advance to the next round. This tournament is currently on its final round.").ephemeral(true)).await?;
     }
-
     let brackets = ctx
         .data()
         .database
@@ -562,9 +567,14 @@ async fn next_round(
     }
 
     ctx.data().database.next_round(tournament_id).await?;
-
-    if let Some(map) = map {
-        ctx.data().database.set_map(tournament_id, &map).await?;
+    
+    if ctx.confirmation(&msg, CreateEmbed::default().description("Do you want to select map for next round?")).await?{
+        let mode = tournament.mode.clone();
+        let map = ctx.map_selection(&msg, &mode).await?;
+        ctx.data()
+            .database
+            .set_map(tournament_id, &(map.into()))
+            .await?;
     }
 
     ctx.send(

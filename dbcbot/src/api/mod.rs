@@ -76,9 +76,7 @@ impl Endpoint {
     /// Refer to the API documentation for the exact path.
     fn append_path(&self, path: &str) -> String {
         let mut full_url = self.url.clone();
-
         full_url.push_str(path);
-
         full_url
     }
 }

@@ -1,18 +1,30 @@
 use crate::{
-    database::{models::GuildConfig, Database},
+    api::{
+        brawlify::{BrawlMap, FullBrawler, FullGameMode, GameMode},
+        official_brawl_stars::Brawler,
+        APIResult,
+    },
+    database::{
+        models::{GuildConfig, Mode},
+        Database,
+    },
     BotContext, BotError,
 };
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-use poise::ReplyHandle;
+
+use super::discord::select_options;
 use poise::{
     serenity_prelude::{
-        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
+        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter,
     },
-    CreateReply,
+    CreateReply, ReplyHandle,
 };
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
+    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError>;
+    async fn map_selection(&self, msg: &ReplyHandle<'_>, mode: &Mode)
+        -> Result<BrawlMap, BotError>;
     /// Amount of time in milliseconds before message interactions (usually buttons) expire for user
     const USER_CMD_TIMEOUT: u64;
     async fn create_interaction_collector(
@@ -123,6 +135,14 @@ pub trait BotContextExt<'a> {
     fn now(&self) -> poise::serenity_prelude::model::Timestamp;
 
     async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
+
+    /// Prompt the user to select a brawler.
+    /// # Arguments
+    /// * `ctx` - The context of the command.
+    /// * `msg` - The message to reply to.
+    /// # Returns
+    /// Returns a `Result` containing a `String` representing the selected brawler.
+    async fn brawler_selection(&self, msg: &ReplyHandle<'_>) -> Result<Brawler, BotError>;
 }
 
 impl<'a> BotContextExt<'a> for BotContext<'a> {
@@ -278,5 +298,234 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             None,
         )
         .await
+    }
+
+    async fn brawler_selection(&self, msg: &ReplyHandle<'_>) -> Result<Brawler, BotError> {
+        const CAPACITY: usize = 25;
+        let brawlers = match self.data().apis.brawlify.get_brawlers().await? {
+            APIResult::Ok(b) => b,
+            APIResult::NotFound => return Err(anyhow!("Brawlers not found")),
+            APIResult::Maintenance => {
+                return Err(anyhow!("Brawlify is currently undergoing maintenance"))
+            }
+        };
+        let reply = {
+            let embed = CreateEmbed::default().description("Select how you would like to sort the brawler list.\n 🅰️: Sort in alphabetical order.\n💎: Sort by rarity");
+            let buttons = CreateActionRow::Buttons(vec![
+                CreateButton::new("0")
+                    .label("🅰️")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new("1")
+                    .label("💎")
+                    .style(ButtonStyle::Primary),
+            ]);
+            CreateReply::default()
+                .embed(embed)
+                .components(vec![buttons])
+        };
+        msg.edit(*self, reply).await?;
+        let (prev, next) = (String::from("prev"), String::from("next"));
+        let buttons = CreateActionRow::Buttons(vec![
+            CreateButton::new(prev.clone())
+                .label("⬅️")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(next.clone())
+                .label("➡️")
+                .style(ButtonStyle::Primary),
+        ]);
+        let mut page_number: usize = 0;
+        let embed = |brawlers: &[FullBrawler]| {
+            CreateEmbed::default()
+            .title("Brawler Selection")
+            .description(format!(
+                "Select a brawler to view more information about them. Use the buttons below to navigate through the list."
+            ))
+            .fields(brawlers.iter().map(|b|{
+                (b.name.clone(),"",true)
+            }).collect::<Vec<(String,&str,bool)>>())
+        };
+        let mut ic = self.create_interaction_collector(msg).await?;
+
+        while let Some(interactions) = &ic.next().await {
+            interactions.defer(self.http()).await?;
+            match interactions.data.custom_id.as_str() {
+                "0" => {
+                    let brawlers: Vec<Vec<FullBrawler>> = brawlers
+                        .sort_by_alphabet()
+                        .chunks(CAPACITY)
+                        .map(|chunk| chunk.to_vec())
+                        .collect();
+                    let mut chunk: &[FullBrawler] = brawlers[page_number].as_ref();
+                    loop {
+                        let selected =
+                            select_options(self, msg, embed(chunk), vec![buttons.clone()], chunk)
+                                .await?;
+                        match selected.as_str() {
+                            "prev" => {
+                                page_number = page_number.checked_sub(1).unwrap_or(0);
+                            }
+                            "next" => {
+                                page_number = (page_number + 1).min(brawlers.len() - 1);
+                            }
+                            identifier @ _ => {
+                                println!("Selected brawler id: {}", identifier);
+                                let brawler = chunk
+                                    .iter()
+                                    .find(|b| (**b).id == identifier.parse::<i32>().unwrap())
+                                    .unwrap()
+                                    .to_owned();
+                                return Ok(brawler.into());
+                            }
+                        }
+
+                        chunk = brawlers[page_number].as_ref();
+                        println!("Updated page number: {}", page_number);
+                    }
+                }
+                "1" => {}
+                _ => unreachable!(),
+            }
+        }
+        Err(anyhow!("User did not respond in time"))
+    }
+
+    async fn map_selection(
+        &self,
+        msg: &ReplyHandle<'_>,
+        mode: &Mode,
+    ) -> Result<BrawlMap, BotError> {
+        let maps = match self.data().apis.brawlify.get_maps().await? {
+            APIResult::Ok(m) => m,
+            APIResult::NotFound => return Err(anyhow!("Maps not found")),
+            APIResult::Maintenance => {
+                return Err(anyhow!("Brawlify is currently undergoing maintenance"))
+            }
+        };
+        let filtered_maps = maps.filter_map_by_mode(mode);
+        let (prev, select, any, next) = (
+            String::from("prev"),
+            String::from("any"),
+            String::from("select"),
+            String::from("next"),
+        );
+        let buttons = CreateActionRow::Buttons(vec![
+            CreateButton::new(prev.clone())
+                .label("⬅️")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(select.clone())
+                .label("Select")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(any.clone())
+                .label("Any")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(next.clone())
+                .label("➡️")
+                .style(ButtonStyle::Primary),
+        ]);
+        let reply = |map: BrawlMap| {
+            let embed = CreateEmbed::default()
+                .title(format!("{}", map.name))
+                .description(format!(
+                    "Environment: ** {}**\nMode: **{}**\nAvailability: **{}**",
+                    map.environment.name, map.game_mode.name, ["Yes", "No"][(!map.disabled) as usize]
+                ))
+                .image(map.image_url)
+                .thumbnail(map.game_mode.image_url)
+                .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+            CreateReply::default()
+                .embed(embed)
+                .components(vec![buttons.clone()])
+        };
+        let mut page_number: usize = 0;
+        msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
+            .await?;
+        let mut ic = self.create_interaction_collector(msg).await?;
+        while let Some(interactions) = &ic.next().await {
+            match interactions.data.custom_id.as_str() {
+                "prev" => {
+                    page_number = page_number.checked_sub(1).unwrap_or(0);
+                }
+                "select" => {
+                    interactions.defer(self.http()).await?;
+                    return Ok(filtered_maps[page_number].clone());
+                },
+                "any" => {
+                    interactions.defer(self.http()).await?;
+                    return Ok(BrawlMap::default());
+                },
+                "next" => {
+                    page_number = (page_number + 1).min(filtered_maps.len() - 1);
+                }
+                _ => unreachable!(),
+            }
+            interactions.defer(self.http()).await?;
+            msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
+                .await?;
+        }
+        Err(anyhow!("User did not respond in time"))
+    }
+
+    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError>{
+        let modes = match self.data().apis.brawlify.get_modes().await? {
+            APIResult::Ok(m) => m,
+            APIResult::NotFound => return Err(anyhow!("Modes not found")),
+            APIResult::Maintenance => {
+                return Err(anyhow!("Brawlify is currently undergoing maintenance"))
+            }
+        };
+        let (prev, select, next) = (
+            String::from("prev"),
+            String::from("select"),
+            String::from("next"),
+        );
+        let buttons = CreateActionRow::Buttons(vec![
+            CreateButton::new(prev.clone())
+                .label("⬅️")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(select.clone())
+                .label("Select")
+                .style(ButtonStyle::Primary),
+            CreateButton::new(next.clone())
+                .label("➡️")
+                .style(ButtonStyle::Primary),
+        ]);
+        let reply = |mode: FullGameMode| {
+            let embed = CreateEmbed::default()
+                .title(format!("{}", mode.name))
+                .description(format!(
+                    "Description: **{}**\nAvailability: **{}**",
+                    mode.description, ["Yes", "No"][(mode.disabled) as usize]
+                ))
+                .thumbnail(mode.image_url)
+                .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+            CreateReply::default()
+                .embed(embed)
+                .components(vec![buttons.clone()])
+        };
+        let mut page_number: usize = 0;
+        let mut selected = modes.list[page_number].to_owned();
+        msg.edit(*self, reply(selected.to_owned()))
+            .await?;
+        let mut ic = self.create_interaction_collector(msg).await?;
+        while let Some(interactions) = &ic.next().await {
+            match interactions.data.custom_id.as_str() {
+                "prev" => {
+                    page_number = page_number.checked_sub(1).unwrap_or(0);
+                }
+                "select" => {
+                    interactions.defer(self.http()).await?;
+                    return Ok(selected.clone());
+                }
+                "next" => {
+                    page_number = (page_number + 1).min(modes.list.len() - 1);
+                }
+                _ => unreachable!(),
+            }
+            interactions.defer(self.http()).await?;
+            selected = modes.list[page_number].to_owned();
+            msg.edit(*self, reply(selected.to_owned()))
+                .await?;
+        }
+        Err(anyhow!("User did not respond in time"))
     }
 }

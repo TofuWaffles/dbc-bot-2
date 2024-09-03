@@ -1,10 +1,11 @@
+import os
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
 from generation.match import RequestMatch
-from generation.result import RequestResult
 from generation.profile import RequestProfile
-import os
-import uvicorn
+from generation.result import RequestResult
 
 app = FastAPI(
     title="Image generation",

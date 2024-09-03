@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO brawl_maps (id, name)\n            VALUES ($1, $2)\n            ON CONFLICT (name) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "70a33653a4fdb3d1dc8be01920d3be0a328fb0e359cd2656c0cc9be948fde9d6"
+}
