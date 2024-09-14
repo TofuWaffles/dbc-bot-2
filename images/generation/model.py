@@ -7,6 +7,93 @@ from PIL import Image, ImageDraw, ImageFont
 from pydantic import BaseModel
 
 
+class Mode:
+    _icon = {
+        "basketBrawl": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC81dWlqV0dnUXFCcHBRV2lCMjY3NS5wbmcifQ:supercell:b0UVYB2iojQNxd8cgfsoq5FdwRFUPr4uG_rPSTNBoUk?width=2400",
+        "bigGame": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9hNXc5NHFMM3NoSml6VnJvd291dC5wbmcifQ:supercell:kegT25IKJXUqJ_zIWQHCjl6fTzyLwoZMjfSLJQZv8L4?width=2400",
+        "bossFight": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9oNVM4TWhzOEZjQXRnM3hRR0pHUC5wbmcifQ:supercell:-ZnZmzd0cEiV8sUoRpms1E18dNy0idZ54bcbWG81FhI?width=2400",
+        "botdrop": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9rZVJUOHdqalZ4VUc3VUtlZjhvai5wbmcifQ:supercell:jIhfS7rjmt4uUkda7OQZNNbOAqVxpMWGW_0HdyS-a0A?width=2400",
+        "bounty": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC82QUR6RUR0ZGJVSzYzZ3NzV3p2ci5wbmcifQ:supercell:hvUWH6mD3onZQhEnVHEFiR0fJoGjtZyxjye3pRTYE3w?width=2400",
+        "brawlBall": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9SM1IyckRRaHBaREhMa0NCejlBUC5wbmcifQ:supercell:WkDBho-g-Ebpc8OT3q-1Y7SSmio4BXPXHTUDI8Z6SKU?width=2400",
+        "brawlBall5v5": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9SM1IyckRRaHBaREhMa0NCejlBUC5wbmcifQ:supercell:WkDBho-g-Ebpc8OT3q-1Y7SSmio4BXPXHTUDI8Z6SKU?width=2400",
+        "drumRoll": "https://static.wikia.nocookie.net/brawlstars/images/3/3e/Drum_Roll.png/",
+        "duels": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9HMnhNUTljaXJRWFJUMlFpQ1VKbS5wbmcifQ:supercell:fZN_Hrzu2rqpc6Yrf0nv3X_FKFxq145Iw6faw7SAeV8?width=2400",
+        "duoShowdown": "https://cdn-old.brawlify.com/gamemode/Duo-Showdown.png",
+        "gemGrab": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9mb2dXOEpvbkVpV2YzTFl0b0NNaS5wbmcifQ:supercell:3MGSQtlWFyaOAbGHmoBpr6FVdLNzQH8fbAOIUiEKODk?width=2400",
+        "gemGrab5v5": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9mb2dXOEpvbkVpV2YzTFl0b0NNaS5wbmcifQ:supercell:3MGSQtlWFyaOAbGHmoBpr6FVdLNzQH8fbAOIUiEKODk?width=2400",
+        "godzillaCitySmash": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9NdGV2ZUhhcUg3UExrZnR3OXU1Ui5wbmcifQ:supercell:drSUFUPZuz30RjD8NuqcDmIkT_07kW-806cGDd6vjC8?width=2400",
+        "heist": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC93MmtCcnlHZk05eHdYbWtCZWpCaC5wbmcifQ:supercell:62YMWTV9LI8syf1HAJnKJTMkUEZR1-yXNqrxVHTHrB4?width=2400",
+        "holdTheTrophy": "https://cdn-old.brawlify.com/gamemode/Hold-The-Trophy.png",
+        "hotZone": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9BVXdaY01mYkJvRWN3Sk5rdUR0ZC5wbmcifQ:supercell:iZg6LAmyaKSEVwstxj2JIAlgOZgpSFMIa0yVmnaoP7Q?width=2400",
+        "hunters": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC80RVp2MWExbWl5R0F2bjNrREFkby5wbmcifQ:supercell:RFw0aCCSi-Ric4jKrRKzyB4NaGAFWHvSQc-LltPtRVE?width=2400",
+        "jellyfishing": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9xUVBXcjE1bWplQmRZeWdvdkNlYi5wbmcifQ:supercell:lzbVb2WRzJeCTOPRnagySsMTlHkSvQU0eSkb7sX2WX0?width=2400",
+        "knockout": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9nOVFZVnp1U1Z4cTM3MlJVWEx0ZS5wbmcifQ:supercell:JeQOURIdLohQGssx9Gm3eWexJD-LMeB47MZYqqp039Q?width=2400",
+        "knockout5v5": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9nOVFZVnp1U1Z4cTM3MlJVWEx0ZS5wbmcifQ:supercell:JeQOURIdLohQGssx9Gm3eWexJD-LMeB47MZYqqp039Q?width=2400",
+        "lastStand": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9kb2V0Y2dBVHY2bWdRRGpWczdINy5wbmcifQ:supercell:Yjx2YMYpXVZyyOXgh0fVh-embjX21h4nSYGZwOTPOX0?width=2400",
+        "lonestar": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9LS2pKbjZwbVI1ekxMelRQMUtBVS5wbmcifQ:supercell:igMxWFKKr71Ib30FbRxR9X4KbesU8s_LD87SptdNOOs?width=2400",
+        "mirrorMatch": "https://cdn-old.brawlify.com/gamemode/Mirror-Match.png",
+        "paintBrawl": "https://static.wikia.nocookie.net/brawlstars/images/2/2d/Paint_Brawl.png",
+        "payload": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9NR3RIV0pnNFJTb0NRZjJRYmlkOC5wbmcifQ:supercell:LQyf1RbrlYUuMCmCQVfhilgxb8COfr_ySz4h3-VWTiI?width=2400",
+        "presentPlunder": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9tQ3FoNzJ4aGVYWHIxQlZNUThvby5wbmcifQ:supercell:JpvyeFrl_1oiiLJNb6Qxc6NU72QpQWoMt9wyESriNXY?width=2400",
+        "pumpkinPlunder": "https://static.wikia.nocookie.net/brawlstars/images/2/2b/Pumpkin_Plunder.png/",
+        "roboRumble": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9vNUZVb3BQTHhOTVN0bkJibTJqUC5wbmcifQ:supercell:QZDhPMLHPbDjLkLc8rFAx281OWxl8dRVrl01B79C0Tc?width=2400",
+        "siege": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9IdHZNc2lERE5zYUhSWm43MVA1ei5wbmcifQ:supercell:Gj3FsZnr_yv6_gOfl__nfzLYHS9X1BkyaGzY1fVe51E?width=2400",
+        "soloShowdown": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9nbkxKdVIxRHlZTE1qUlMzV2pMTC5wbmcifQ:supercell:OfOmUHA0JeavDf4uX8SuyvQBmOq0AwN8aKuXPiM946Q?width=2400",
+        "superCityRampage": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9TZGNkVUNRbldrc3ZaNWJoU0s1cS5wbmcifQ:supercell:CgmWVJFvWm7TCkdvJpGyH2MbDHl9FaxvXg9sL591LQ0?width=2400",
+        "takedown": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9xSmNQYTlITE5jV1l6NTRob3NwdC5wbmcifQ:supercell:i0UcwwmUSutjuFyddNEkT_D1YOwXfsAtqeILkzy95xw?width=2400",
+        "trioShowdown": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9lRWFFOFdwUXRoWGZLaUdGaFd6Qi5wbmcifQ:supercell:sH0_yvkm8pQIXuf8pu-z2NVT2HO10-VuOqdPGiL9DOg?width=2400",
+        "volleyBrawl": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC9GMnNQRVh0M0NmZnlwWnBBRmZvZy5wbmcifQ:supercell:aPmpvqJ_kWVHsjcJUME6ZVPmI_RYEggMSxywBMTuhFY?width=2400",
+        "wipeout": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC8zYkd1MWg2cDNuNjZmeDlyZkJ4Ri5wbmcifQ:supercell:ayUKS371774s5SIUky4GvlgHR-lUcbkt9F1j31SZR44?width=2400",
+        "wipeout5v5": "https://cdn-assets-eu.frontify.com/s3/frontify-enterprise-files-eu/eyJwYXRoIjoic3VwZXJjZWxsXC9maWxlXC8zYkd1MWg2cDNuNjZmeDlyZkJ4Ri5wbmcifQ:supercell:ayUKS371774s5SIUky4GvlgHR-lUcbkt9F1j31SZR44?width=2400",
+    }
+    _name = {
+        "basketBrawl": "Basket Brawl",
+        "bigGame": "Big Game",
+        "bossFight": "Boss Fight",
+        "botdrop": "Bot Drop",
+        "bounty": "Bounty",
+        "brawlBall": "Brawl Ball",
+        "brawlBall5v5": "Brawl Ball 5v5",
+        "drumRoll": "Drum Roll",
+        "duels": "Duels",
+        "duoShowdown": "Duo Showdown",
+        "gemGrab": "Gem Grab",
+        "gemGrab5v5": "Gem Grab 5v5",
+        "godzillaCitySmash": "Godzilla City Smash",
+        "heist": "Heist",
+        "holdTheTrophy": "Hold The Trophy",
+        "hotZone": "Hot Zone",
+        "hunters": "Hunters",
+        "jellyfishing": "Jellyfishing",
+        "knockout": "Knockout",
+        "knockout5v5": "Knockout 5v5",
+        "lastStand": "Last Stand",
+        "lonestar": "Lonestar",
+        "mirrorMatch": "Mirror Match",
+        "paintBrawl": "Paint Brawl",
+        "payload": "Payload",
+        "presentPlunder": "Present Plunder",
+        "pumpkinPlunder": "Pumpkin Plunder",
+        "roboRumble": "Robo Rumble",
+        "siege": "Siege",
+        "soloShowdown": "Solo Showdown",
+        "superCityRampage": "Super City Rampage",
+        "takedown": "Takedown",
+        "trioShowdown": "Trio Showdown",
+        "volleyBrawl": "Volley Brawl",
+        "wipeout": "Wipeout",
+        "wipeout5v5": "Wipeout 5v5",
+    }
+
+    @staticmethod
+    def name(mode: str) -> str:
+        return Mode._name.get(mode, "Unknown")
+
+    @staticmethod
+    def icon(mode: str) -> str:
+        return Mode._icon.get(mode)
+
+
 class Player(BaseModel):
     discord_id: str
     discord_name: str
@@ -14,6 +101,21 @@ class Player(BaseModel):
     player_name: str
     player_name: str
     icon: int
+
+
+class Brawler(BaseModel):
+    name: str
+    id: int
+
+
+class ExtendedPlayer(Player):
+    discord_id: str
+    discord_name: str
+    player_tag: str
+    player_name: str
+    player_name: str
+    icon: int
+    brawler: Brawler
 
 
 class Asset:
@@ -44,12 +146,9 @@ class Asset:
         except Exception as e:
             return None, e
 
-    async def icon(self, id: str) -> Tuple[Optional[Image.Image], Optional[Exception]]:
+    @staticmethod
+    async def icon(id: int | str) -> Tuple[Optional[Image.Image], Optional[Exception]]:
         url = f"https://cdn-old.brawlify.com/profile/{id}.png"
-        # response = requests.get(url)
-        # bytes_ = response.content
-        # image = Image.open(io.BytesIO(bytes_))
-        # return image, None
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
@@ -64,8 +163,29 @@ class Asset:
         finally:
             await client.aclose()
 
+    @staticmethod
+    async def get_mode_icon(
+        mode: str,
+    ) -> Tuple[Optional[Image.Image], Optional[Exception]]:
+        try:
+            url = Mode.icon(mode)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                bytes_ = response.content
+                image = Image.open(io.BytesIO(bytes_))
+                return image, None
+        except KeyError as e:
+            return None, e
+        except httpx.HTTPStatusError as e:
+            return None, e
+        except Exception as e:
+            return None, e
+
 
 class Component:
+    asset: Asset = Asset()
+
     def __init__(self, img: Image.Image, pos: tuple[int, int], name: str = "untitled"):
         """
         A component is a part of the image that can be moved around and resized.
@@ -131,6 +251,88 @@ class Component:
             if extrema[3][0] < 255:
                 return True
         return False
+
+    def _set_font(self, size: int | None) -> None:
+        if size is not None:
+            self.font, self.error = self.asset.font(size)
+        else:
+            self.font, self.error = self.asset.font(30)
+
+    def _revert_font(self) -> None:
+        self.font, self.error = self.asset.font(30)
+
+    def _get_text_size(
+        self,
+        text: str = "",
+        font_size: int = None,
+    ) -> Tuple[int, int]:
+        """
+        Get the width and height of the text.
+
+        Args:
+            text (str): The text to measure.
+            font_size (int): The size of the font.
+
+        Returns:
+            Tuple[int, int]: The width and height of the text.
+        """
+        if font_size is not None:
+            self._set_font(font_size)
+        draw = ImageDraw.Draw(self.img)
+        bbox = draw.textbbox((0, 0), text, font=self.font, stroke_width=1)
+        self._revert_font()
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        return text_width, text_height
+
+    def write(
+        self,
+        text: str = "",
+        font_size: int = None,
+        textbox_pos: Tuple[Tuple[int, int], Tuple[int, int]] | None = None,
+        align: str = "left",
+        color: Tuple[int, int, int] = (0, 0, 0),
+        stroke: str = None,
+    ) -> None:
+        """
+        Write text on an image with specified alignment.
+
+        Args:
+            text (str): The text to write.
+            textbox_pos (Tuple[Tuple[int, int], Tuple[int, int]]): The position of the text box in the format ((x1, y1), (x2, y2)).
+            align (str): The horizontal alignment ('left', 'center', 'right').
+            color (Tuple[int, int, int]): The color of the text in RGB.
+        """
+        draw = ImageDraw.Draw(self.img)
+        textbox_pos = textbox_pos or ((0, 0), (self.img.width, self.img.height))
+        text_width, text_height = self._get_text_size(text=text, font_size=font_size)
+
+        x1, y1 = textbox_pos[0]
+        x2, y2 = textbox_pos[1]
+
+        # Calculate horizontal position
+        match align:
+            case "right":
+                x = x2 - text_width
+            case "center":
+                x = x1 + (x2 - x1 - text_width) // 2
+            case _:
+                x = x1
+
+        # Calculate vertical position for centering
+        y = y1 + (y2 - y1 - text_height) // 2
+        self._set_font(font_size)
+
+        # Draw the text
+        draw.text(
+            xy=(x, y),
+            text=text,
+            font=self.font,
+            fill=color,
+            stroke_width=3 if stroke else 0,
+            stroke_fill=stroke,
+        )
+        self._revert_font()
 
 
 class Background:
@@ -279,4 +481,5 @@ class BaseImage:
             return Exception("Image not built")
         self.final.save(output, format="PNG")
         output.seek(0)
+        return output.getvalue()
         return output.getvalue()

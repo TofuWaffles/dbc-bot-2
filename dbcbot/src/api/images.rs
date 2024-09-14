@@ -2,9 +2,12 @@ use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 use reqwest::Client;
 use serde::Serialize;
+use serde_json::Value;
 use tracing::debug;
 
 use crate::{database, BotError};
+
+use super::official_brawl_stars::Brawler;
 
 #[derive(Debug)]
 pub struct ImagesAPI {
@@ -70,7 +73,7 @@ impl ImagesAPI {
         player2: &database::models::User,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/match", self.base_url);
-        let payload = &serde_json::json!({
+        let payload = serde_json::json!({
             "player1": {
                 "discord_id": player1.discord_id,
                 "discord_name": player1.discord_name,
@@ -86,7 +89,7 @@ impl ImagesAPI {
                 "icon": player2.icon
             }
         });
-        let bytes = self.get(url, payload).await?;
+        let bytes = self.get(url, &payload).await?;
         Ok(bytes)
     }
 
@@ -96,7 +99,7 @@ impl ImagesAPI {
         loser: &database::models::User,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/result", self.base_url);
-        let payload = &serde_json::json!({
+        let payload = serde_json::json!({
             "winner": {
                 "discord_id": winner.discord_id,
                 "discord_name": winner.discord_name,
@@ -112,7 +115,7 @@ impl ImagesAPI {
                 "icon": loser.icon
             }
         });
-        let bytes = self.get(url, payload).await?;
+        let bytes = self.get(url, &payload).await?;
         Ok(bytes)
     }
 
@@ -135,6 +138,21 @@ impl ImagesAPI {
             }
         });
         let bytes = self.get(url, payload).await?;
+        Ok(bytes)
+    }
+
+    pub async fn battle_log(self, record: database::models::BattleRecord, matchid: database::models::Match, )-> Result<Vec<u8>, BotError>{
+        let url = format!("{}/images/battle_log", self.base_url);
+        let data: Vec<Value> = record.battles.into_iter().map(|battle|{
+            let player1 = &battle.battle_class.teams[0][0];
+            let player2 = &battle.battle_class.teams[1][0];
+            serde_json::json!({
+
+            })
+        }).collect();
+        let payloads = serde_json::json!({"battle_logs": data});
+
+        let bytes = self.get(url, &payloads).await?;
         Ok(bytes)
     }
 }

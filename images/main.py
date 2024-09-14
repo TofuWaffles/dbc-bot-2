@@ -1,8 +1,6 @@
-import os
-
-import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import PlainTextResponse
+from generation.battle_log import RequestBattleLog
 from generation.match import RequestMatch
 from generation.profile import RequestProfile
 from generation.result import RequestResult
@@ -42,14 +40,26 @@ async def result(image: RequestResult):
     return data
 
 
-if __name__ == "__main__":
+@app.get("/image/battle_log", response_class=PlainTextResponse)
+async def battle_log(image: RequestBattleLog):
+    data = await image.respond()
+    if isinstance(data, Exception):
+        raise HTTPException(status_code=500, detail=str(data))
+    return data
 
-    def running_in_docker() -> bool:
-        return os.path.exists("/.dockerenv")
 
-    if not running_in_docker():
-        from dotenv import load_dotenv
+# if __name__ == "__main__":
+#     DEFAULT = "127.0.0.1"
+#     DOCKER = "0.0.0.0"
 
-        load_dotenv()
-    PORT: int = int(os.getenv("PORT"))
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+#     def running_in_docker() -> bool:
+#         return os.path.exists("/.dockerenv")
+
+#     runInDocker = running_in_docker()
+#     PORT: int = int(os.getenv("PORT"))
+#     if not runInDocker:
+#         from dotenv import load_dotenv
+
+#         load_dotenv()
+#     else:
+#         uvicorn.run(app, host=DOCKER if runInDocker else DEFAULT, port=PORT)

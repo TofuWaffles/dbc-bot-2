@@ -3,3 +3,4 @@ httpx==0.23.2
 pillow==10.4.0
 python-dotenv==1.0.1
 ruff==0.5.3
+gunicorn==23.0.0
