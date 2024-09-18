@@ -2,7 +2,7 @@ use super::CommandsContainer;
 use crate::api::images::ImagesAPI;
 use crate::api::APIResult;
 use crate::database::models::Mode;
-use crate::database::Database;
+use crate::database::{Database, TournamentDatabase};
 use crate::log::{self, Log};
 use crate::utils::shorthand::BotContextExt;
 use crate::{BotContext, BotData, BotError};
@@ -23,7 +23,7 @@ impl CommandsContainer for TestCommands {
             profile_image(),
             choose_brawler_command(),
             choose_map_command(),
-            choose_gamemode_command()
+            choose_gamemode_command(),
         ]
     }
 }

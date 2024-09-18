@@ -1,61 +1,7 @@
 use crate::info;
 use crate::BotError;
-use models::Battle;
-use models::BattleClass;
-use models::BattleResult;
-use models::BattleType;
-use models::BrawlMap;
-use models::Event;
-use models::Mode;
-use models::Player;
-use models::Tournament;
+use models::*;
 use sqlx::PgPool;
-
-use self::models::{
-    GuildConfig, ManagerRoleConfig, Match, PlayerNumber, PlayerType, TournamentStatus, User,
-};
-
-struct TournamentToMap {
-    tournament_id: i32,
-    guild_id: String,
-    name: String,
-    status: TournamentStatus,
-    rounds: i32,
-    current_round: i32,
-    created_at: i64,
-    start_time: Option<i64>,
-    mode: Mode,
-    map_id: i32,
-    map_name: String,
-    wins_required: i32,
-    tournament_role_id: String,
-    announcement_channel_id: String,
-    notification_channel_id: String,
-}
-
-impl From<TournamentToMap> for Tournament {
-    fn from(tournament: TournamentToMap) -> Self {
-        Tournament {
-            tournament_id: tournament.tournament_id,
-            guild_id: tournament.guild_id,
-            name: tournament.name,
-            status: tournament.status,
-            rounds: tournament.rounds,
-            current_round: tournament.current_round,
-            created_at: tournament.created_at,
-            start_time: tournament.start_time,
-            mode: tournament.mode,
-            map: BrawlMap {
-                id: tournament.map_id,
-                name: tournament.map_name,
-            },
-            wins_required: tournament.wins_required,
-            tournament_role_id: tournament.tournament_role_id,
-            announcement_channel_id: tournament.announcement_channel_id,
-            notification_channel_id: tournament.notification_channel_id,
-        }
-    }
-}
 
 /// Models for the database.
 ///
@@ -73,13 +19,50 @@ pub mod models;
 pub trait Database {
     type Error;
 
-    /// Establishes a connection to the database and returns a handle to it.
-    async fn connect() -> Result<Self, Self::Error>
-    where
-        Self: Sized;
+    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error>;
 
-    async fn migrate(&self) -> Result<(), Self::Error>;
+    async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error>;
 
+    async fn add_battle(&self, battle: Battle) -> Result<i64, Self::Error>;
+
+    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<i64, Self::Error>;
+
+    async fn add_event(&self, event: Event) -> Result<i64, Self::Error>;
+
+    // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error>;
+}
+
+/// The Postgres database used for the DBC tournament system.
+#[derive(Debug)]
+pub struct PgDatabase {
+    pub pool: PgPool,
+}
+
+impl PgDatabase {
+    pub async fn connect() -> Result<Self, BotError> {
+        #[cfg(debug_assertions)]
+        dotenv::dotenv().ok();
+
+        let db_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => {
+                return Err(BotError::msg("DATABASE_URL environment variable not found"));
+            }
+        };
+        let pool = PgPool::connect(db_url.as_str()).await?;
+        info!("Successfully connected to the database.");
+
+        Ok(PgDatabase { pool })
+    }
+
+    pub async fn migrate(&self) -> Result<(), BotError> {
+        sqlx::migrate!("./migrations").run(&self.pool).await?;
+        Ok(())
+    }
+}
+
+pub trait ConfigDatabase {
+    type Error;
     /// Sets the manager role for a guild.
     async fn set_manager_role(
         &self,
@@ -104,218 +87,10 @@ pub trait Database {
 
     /// Retrieves the config of a given guild from the database.
     async fn get_config(&self, guild_id: &str) -> Result<Option<GuildConfig>, Self::Error>;
-
-    /// Adds a user to the database.
-    async fn create_user(&self, user: &User) -> Result<(), Self::Error>;
-
-    /// Deletes a user from the database.
-    async fn delete_user(&self, discord_id: &str) -> Result<(), Self::Error>;
-
-    /// Retrieves a user from the database with a given Discord ID.
-    async fn get_player_by_discord_id(
-        &self,
-        discord_id: &str,
-    ) -> Result<Option<Player>, Self::Error>;
-
-    /// Retrieves a user from the database with a given player tag.
-    async fn get_player_by_player_tag(
-        &self,
-        player_tag: &str,
-    ) -> Result<Option<Player>, Self::Error>;
-
-    /// Retrieves a user from the database with a given player.
-    async fn get_user_by_player(&self, player: Player) -> Result<Option<User>, Self::Error>;
-
-    /// Retrieves a user from the database with a given discord id.
-    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
-
-    /// Creates a tournament in the database, returning the tournament id.
-    async fn create_tournament(
-        &self,
-        guild_id: &str,
-        name: &str,
-        mode: &Mode,
-        tournament_id: impl Into<Option<i32>>,
-        role_id: String,
-        announcement_channel_id: &str,
-        notification_channel_id: &str,
-        wins_required: i32,
-    ) -> Result<i32, Self::Error>;
-
-    /// Updates the status of a tournament.
-    async fn set_tournament_status(
-        &self,
-        tournament_id: i32,
-        new_status: TournamentStatus,
-    ) -> Result<(), Self::Error>;
-
-    /// Retrieves a tournament from the database given a guild id and tournament id.
-    async fn get_tournament(
-        &self,
-        guild_id: &str,
-        tournament_id: i32,
-    ) -> Result<Option<Tournament>, Self::Error>;
-
-    /// Retrieves all tournaments from the database.
-    async fn get_all_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
-
-    /// Retrieves all active tournaments from the database.
-    ///
-    /// This will get all active tournaments that have their status set to either "pending",
-    /// "started", or "paused".
-    async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
-
-    /// Retrieves all active tournaments that the player has currently entered.
-    ///
-    /// Note: in the current design, a player can only be in one active tournament at a time.
-    /// This rule should be enforced at the bot command level.
-    /// This method will still return multiple active tournaments if the player is in multiple active tournaments.
-    async fn get_player_active_tournaments(
-        &self,
-        guild_id: &str,
-        discord_id: &str,
-    ) -> Result<Vec<Tournament>, Self::Error>;
-
-    /// Deletes a tournament from the database.
-    async fn delete_tournament(&self, tournament_id: i32) -> Result<(), Self::Error>;
-
-    /// Sets the current map for a given tournament.
-    ///
-    /// All matches must be done in the current map in order for them to be counted.
-    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error>;
-
-    /// Enters a user into a tournament.
-    async fn enter_tournament(
-        &self,
-        tournament_id: i32,
-        discord_id: &str,
-    ) -> Result<(), Self::Error>;
-
-    /// Exits a user from a tournament.
-    async fn exit_tournament(
-        &self,
-        tournament_id: &i32,
-        discord_id: &str,
-    ) -> Result<(), Self::Error>;
-
-    /// Get an active tournament of a player by their discord id.
-    async fn get_active_tournaments_from_player(
-        &self,
-        discord_id: &str,
-    ) -> Result<Vec<Tournament>, Self::Error>;
-
-    /// Sets the number of wins required to win each round of the tournament.
-    async fn set_wins_required(
-        &self,
-        tournament_id: &i32,
-        wins_required: &i32,
-    ) -> Result<(), Self::Error>;
-
-    /// Gets all players in a tournament.
-    async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error>;
-
-    /// Updates the total number of rounds a tournament has.
-    ///
-    /// Useful for when a tournament starts because the number of rounds can only be determined
-    /// when the number of contestants are known.
-    async fn set_rounds(&self, tournament_id: i32, rounds: i32) -> Result<(), Self::Error>;
-
-    /// Increments the current round of a tournament by 1.
-    ///
-    /// The caller is responsible to check if calls to this method will make a tournament's current
-    /// round exceed its total number of rounds.
-    async fn next_round(&self, tournament_id: i32) -> Result<(), Self::Error>;
-
-    /// Creates a match associated with a tournament.
-    async fn create_match(
-        &self,
-        tournament_id: i32,
-        round: i32,
-        sequence_in_round: i32,
-        player_1_type: PlayerType,
-        player_2_type: PlayerType,
-        discord_id_1: Option<&str>,
-        discord_id_2: Option<&str>,
-    ) -> Result<(), Self::Error>;
-
-    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error>;
-
-    async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error>;
-
-    async fn add_battle(&self, battle: Battle) -> Result<i64, Self::Error>;
-
-    async fn add_battle_class(&self, battle_class: BattleClass) -> Result<i64, Self::Error>;
-
-    async fn add_event(&self, event: Event) -> Result<i64, Self::Error>;
-
-    /// Sets the ready status of a player of a specified match to true.
-    async fn set_ready(
-        &self,
-        match_id: &str,
-        player_number: &PlayerNumber,
-    ) -> Result<(), Self::Error>;
-
-    /// Sets the winner of a match
-    async fn set_winner(
-        &self,
-        match_id: &str,
-        player_number: PlayerNumber,
-    ) -> Result<(), Self::Error>;
-
-    /// Retrieves a match by its id.
-    async fn get_match_by_id(&self, match_id: &str) -> Result<Option<Match>, Self::Error>;
-
-    /// Retrieves a match by the player's discord id.
-    ///
-    /// This will retrive the match with the highest round number that does not yet have a winner.
-    async fn get_match_by_player(
-        &self,
-        tournament_id: i32,
-        discord_id: &str,
-    ) -> Result<Option<Match>, Self::Error>;
-
-    /// Retrieves all matches associated with a tournament.
-    ///
-    /// Pass in a None for the round number to retrieve all matches for the tournament.
-    async fn get_matches_by_tournament(
-        &self,
-        tournament_id: i32,
-        round: impl Into<Option<i32>>,
-    ) -> Result<Vec<Match>, Self::Error>;
-
-    // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error>;
 }
 
-/// The Postgres database used for the DBC tournament system.
-#[derive(Debug)]
-pub struct PgDatabase {
-    pool: PgPool,
-}
-
-impl Database for PgDatabase {
+impl ConfigDatabase for PgDatabase {
     type Error = BotError;
-
-    async fn connect() -> Result<Self, Self::Error> {
-        #[cfg(debug_assertions)]
-        dotenv::dotenv().ok();
-
-        let db_url = match std::env::var("DATABASE_URL") {
-            Ok(url) => url,
-            Err(_) => {
-                return Err(BotError::msg("DATABASE_URL environment variable not found"));
-            }
-        };
-        let pool = PgPool::connect(db_url.as_str()).await?;
-        info!("Successfully connected to the database.");
-
-        Ok(PgDatabase { pool })
-    }
-
-    async fn migrate(&self) -> Result<(), Self::Error> {
-        sqlx::migrate!("./migrations").run(&self.pool).await?;
-        Ok(())
-    }
-
     async fn set_manager_role(
         &self,
         guild_id: &str,
@@ -398,7 +173,50 @@ impl Database for PgDatabase {
 
         Ok(config)
     }
+}
+pub trait UserDatabase {
+    type Error;
+    /// Adds a user to the database.
+    async fn create_user(&self, user: &User) -> Result<(), Self::Error>;
 
+    /// Deletes a user from the database.
+    async fn delete_user(&self, discord_id: &str) -> Result<(), Self::Error>;
+
+    /// Retrieves a user from the database with a given Discord ID.
+    async fn get_player_by_discord_id(
+        &self,
+        discord_id: &str,
+    ) -> Result<Option<Player>, Self::Error>;
+
+    /// Retrieves a user from the database with a given player tag.
+    async fn get_player_by_player_tag(
+        &self,
+        player_tag: &str,
+    ) -> Result<Option<Player>, Self::Error>;
+
+    /// Retrieves a user from the database with a given player.
+    async fn get_user_by_player(&self, player: Player) -> Result<Option<User>, Self::Error>;
+
+    /// Retrieves a user from the database with a given discord id.
+    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Self::Error>;
+
+    /// Sets the ready status of a player of a specified match to true.
+    async fn set_ready(
+        &self,
+        match_id: &str,
+        player_number: &PlayerNumber,
+    ) -> Result<(), Self::Error>;
+
+    /// Sets the winner of a match
+    async fn set_winner(
+        &self,
+        match_id: &str,
+        player_number: PlayerNumber,
+    ) -> Result<(), Self::Error>;
+}
+
+impl UserDatabase for PgDatabase {
+    type Error = BotError;
     async fn create_user(&self, user: &User) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
@@ -505,6 +323,163 @@ impl Database for PgDatabase {
         Ok(user)
     }
 
+    async fn set_ready(
+        &self,
+        match_id: &str,
+        player_number: &PlayerNumber,
+    ) -> Result<(), Self::Error> {
+        match player_number {
+            PlayerNumber::Player1 => {
+                sqlx::query!(
+                    r#"
+                    UPDATE matches
+                    SET player_1_ready = true
+                    WHERE match_id = $1
+                "#,
+                    match_id
+                )
+                .execute(&self.pool)
+                .await?
+            }
+            PlayerNumber::Player2 => {
+                sqlx::query!(
+                    r#"
+                UPDATE matches
+                SET player_2_ready = true
+                WHERE match_id = $1
+                "#,
+                    match_id
+                )
+                .execute(&self.pool)
+                .await?
+            }
+        };
+
+        Ok(())
+    }
+
+    async fn set_winner(
+        &self,
+        match_id: &str,
+        player_number: PlayerNumber,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET winner = $1::player_number
+            WHERE match_id = $2
+            "#,
+            player_number as PlayerNumber,
+            match_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+}
+pub trait TournamentDatabase {
+    type Error;
+    /// Creates a tournament in the database, returning the tournament id.
+    async fn create_tournament(
+        &self,
+        guild_id: &str,
+        name: &str,
+        mode: &Mode,
+        tournament_id: impl Into<Option<i32>>,
+        role_id: String,
+        announcement_channel_id: &str,
+        notification_channel_id: &str,
+        wins_required: i32,
+    ) -> Result<i32, Self::Error>;
+
+    /// Updates the status of a tournament.
+    async fn set_tournament_status(
+        &self,
+        tournament_id: i32,
+        new_status: TournamentStatus,
+    ) -> Result<(), Self::Error>;
+
+    /// Retrieves a tournament from the database given a guild id and tournament id.
+    async fn get_tournament(
+        &self,
+        guild_id: &str,
+        tournament_id: i32,
+    ) -> Result<Option<Tournament>, Self::Error>;
+
+    /// Retrieves all tournaments from the database.
+    async fn get_all_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Retrieves all active tournaments from the database.
+    ///
+    /// This will get all active tournaments that have their status set to either "pending",
+    /// "started", or "paused".
+    async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Retrieves all active tournaments that the player has currently entered.
+    ///
+    /// Note: in the current design, a player can only be in one active tournament at a time.
+    /// This rule should be enforced at the bot command level.
+    /// This method will still return multiple active tournaments if the player is in multiple active tournaments.
+    async fn get_player_active_tournaments(
+        &self,
+        guild_id: &str,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Deletes a tournament from the database.
+    async fn delete_tournament(&self, tournament_id: i32) -> Result<(), Self::Error>;
+
+    /// Sets the current map for a given tournament.
+    ///
+    /// All matches must be done in the current map in order for them to be counted.
+    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error>;
+
+    /// Enters a user into a tournament.
+    async fn enter_tournament(
+        &self,
+        tournament_id: i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error>;
+
+    /// Exits a user from a tournament.
+    async fn exit_tournament(
+        &self,
+        tournament_id: &i32,
+        discord_id: &str,
+    ) -> Result<(), Self::Error>;
+
+    /// Get an active tournament of a player by their discord id.
+    async fn get_active_tournaments_from_player(
+        &self,
+        discord_id: &str,
+    ) -> Result<Vec<Tournament>, Self::Error>;
+
+    /// Sets the number of wins required to win each round of the tournament.
+    async fn set_wins_required(
+        &self,
+        tournament_id: &i32,
+        wins_required: &i32,
+    ) -> Result<(), Self::Error>;
+
+    /// Gets all players in a tournament.
+    async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error>;
+
+    /// Updates the total number of rounds a tournament has.
+    ///
+    /// Useful for when a tournament starts because the number of rounds can only be determined
+    /// when the number of contestants are known.
+    async fn set_rounds(&self, tournament_id: i32, rounds: i32) -> Result<(), Self::Error>;
+
+    /// Increments the current round of a tournament by 1.
+    ///
+    /// The caller is responsible to check if calls to this method will make a tournament's current
+    /// round exceed its total number of rounds.
+    async fn next_round(&self, tournament_id: i32) -> Result<(), Self::Error>;
+}
+
+impl TournamentDatabase for PgDatabase {
+    type Error = BotError;
     async fn create_tournament(
         &self,
         guild_id: &str,
@@ -564,21 +539,6 @@ impl Database for PgDatabase {
         Ok(tournament_id)
     }
 
-    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            INSERT INTO brawl_maps (id, name)
-            VALUES ($1, $2)
-            ON CONFLICT (name) DO NOTHING
-            "#,
-            map.id,
-            map.name
-        )
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     async fn set_tournament_status(
         &self,
         tournament_id: i32,
@@ -604,19 +564,18 @@ impl Database for PgDatabase {
         guild_id: &str,
         tournament_id: i32,
     ) -> Result<Option<Tournament>, Self::Error> {
-        let tournament = sqlx::query_as!(
-            TournamentToMap,
+        let tournament = sqlx::query!(
             r#"
             SELECT 
-                t.tournament_id, 
+            t.tournament_id, 
                 t.guild_id, 
                 t.name, 
-                t.status as "status:_", 
+                t.status AS "status: TournamentStatus",
                 t.rounds, 
                 t.current_round, 
                 t.created_at, 
                 t.start_time, 
-                t.mode as "mode:_", 
+                t.mode AS "mode: Mode",
                 t.tournament_role_id, 
                 t.wins_required, 
                 t.announcement_channel_id, 
@@ -634,22 +593,51 @@ impl Database for PgDatabase {
             ORDER BY 
                 t.created_at DESC
             LIMIT 1;
-            "#,
+            
+        "#,
             guild_id,
             tournament_id,
         )
         .fetch_optional(&self.pool)
         .await?
-        .map(|t| t.into());
-
+        .map(|row| Tournament {
+            tournament_id: row.tournament_id,
+            guild_id: row.guild_id,
+            name: row.name,
+            status: row.status,
+            rounds: row.rounds,
+            current_round: row.current_round,
+            created_at: row.created_at,
+            start_time: row.start_time,
+            mode: row.mode,
+            map: BrawlMap {
+                id: row.map_id,
+                name: row.map_name,
+            },
+            wins_required: row.wins_required,
+            tournament_role_id: row.tournament_role_id,
+            announcement_channel_id: row.announcement_channel_id,
+            notification_channel_id: row.notification_channel_id,
+        });
         Ok(tournament)
     }
 
     async fn get_all_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error> {
-        let tournaments = sqlx::query_as!(
-            TournamentToMap,
+        let tournaments = sqlx::query!(
             r#"
-            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, bm.id as "map_id", bm.name as "map_name"
+            SELECT 
+                t.tournament_id, 
+                t.guild_id, t.name, 
+                t.status as "status: TournamentStatus", 
+                t.rounds, t.current_round, 
+                t.created_at, t.start_time, 
+                t.mode as "mode: Mode", 
+                t.wins_required, 
+                t.tournament_role_id, 
+                t.announcement_channel_id, 
+                t.notification_channel_id, 
+                bm.id as "map_id", 
+                bm.name as "map_name"
             FROM tournaments t
             INNER JOIN brawl_maps bm 
             ON t.map = bm.id
@@ -661,17 +649,46 @@ impl Database for PgDatabase {
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|t| t.into())
+        .map(|row| Tournament {
+            tournament_id: row.tournament_id,
+            guild_id: row.guild_id,
+            name: row.name,
+            status: row.status,
+            rounds: row.rounds,
+            current_round: row.current_round,
+            created_at: row.created_at,
+            start_time: row.start_time,
+            mode: row.mode,
+            map: BrawlMap {
+                id: row.map_id,
+                name: row.map_name,
+            },
+            wins_required: row.wins_required,
+            tournament_role_id: row.tournament_role_id,
+            announcement_channel_id: row.announcement_channel_id,
+            notification_channel_id: row.notification_channel_id,
+        })
         .collect::<Vec<Tournament>>();
 
         Ok(tournaments)
     }
 
     async fn get_active_tournaments(&self, guild_id: &str) -> Result<Vec<Tournament>, Self::Error> {
-        let tournaments = sqlx::query_as!(
-            TournamentToMap,
+        let tournaments = sqlx::query!(
             r#"
-            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode:_", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, b.id as "map_id", b.name as "map_name"
+            SELECT
+                t.tournament_id, 
+                t.guild_id, t.name, 
+                t.status as "status: TournamentStatus", 
+                t.rounds, t.current_round, 
+                t.created_at, t.start_time, 
+                t.mode as "mode: Mode", 
+                t.wins_required, 
+                t.tournament_role_id, 
+                t.announcement_channel_id, 
+                t.notification_channel_id, 
+                b.id as "map_id", 
+                b.name as "map_name"
             FROM tournaments AS t
             INNER JOIN brawl_maps AS b 
             ON t.map = b.id
@@ -682,7 +699,25 @@ impl Database for PgDatabase {
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|t| t.into())
+        .map(|row| Tournament {
+            tournament_id: row.tournament_id,
+            guild_id: row.guild_id,
+            name: row.name,
+            status: row.status,
+            rounds: row.rounds,
+            current_round: row.current_round,
+            created_at: row.created_at,
+            start_time: row.start_time,
+            mode: row.mode,
+            map: BrawlMap {
+                id: row.map_id,
+                name: row.map_name,
+            },
+            wins_required: row.wins_required,
+            tournament_role_id: row.tournament_role_id,
+            announcement_channel_id: row.announcement_channel_id,
+            notification_channel_id: row.notification_channel_id,
+        })
         .collect::<Vec<Tournament>>();
 
         Ok(tournaments)
@@ -693,25 +728,21 @@ impl Database for PgDatabase {
         guild_id: &str,
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error> {
-        let tournaments = sqlx::query_as!(
-            TournamentToMap,
+        let tournaments = sqlx::query!(
             r#"
             SELECT
-    t.tournament_id,
-    t.guild_id,
-    t.name,
-    t.status AS "status: _",
-    t.rounds,
-    t.current_round,
-    t.created_at,
-    t.start_time,
-    t.mode AS "mode: _",
-    b.id AS "map_id",
-    b.name AS "map_name",
-    t.wins_required,
-    t.tournament_role_id,
-    t.announcement_channel_id,
-    t.notification_channel_id
+                t.tournament_id, 
+                t.guild_id, t.name, 
+                t.status as "status: TournamentStatus", 
+                t.rounds, t.current_round, 
+                t.created_at, t.start_time, 
+                t.mode as "mode: Mode", 
+                t.wins_required, 
+                t.tournament_role_id, 
+                t.announcement_channel_id, 
+                t.notification_channel_id, 
+                b.id as "map_id", 
+                b.name as "map_name"
 FROM tournaments AS t
 INNER JOIN tournament_players AS tp ON t.tournament_id = tp.tournament_id
 INNER JOIN brawl_maps AS b ON t.map = b.id
@@ -723,7 +754,25 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|t| t.into())
+        .map(|row| Tournament {
+            tournament_id: row.tournament_id,
+            guild_id: row.guild_id,
+            name: row.name,
+            status: row.status,
+            rounds: row.rounds,
+            current_round: row.current_round,
+            created_at: row.created_at,
+            start_time: row.start_time,
+            mode: row.mode,
+            map: BrawlMap {
+                id: row.map_id,
+                name: row.map_name,
+            },
+            wins_required: row.wins_required,
+            tournament_role_id: row.tournament_role_id,
+            announcement_channel_id: row.announcement_channel_id,
+            notification_channel_id: row.notification_channel_id,
+        })
         .collect::<Vec<Tournament>>();
         Ok(tournaments)
     }
@@ -785,10 +834,21 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         &self,
         discord_id: &str,
     ) -> Result<Vec<Tournament>, Self::Error> {
-        let tournament = sqlx::query_as!(
-            TournamentToMap,
+        let tournament = sqlx::query!(
             r#"
-            SELECT t.tournament_id, t.guild_id, t.name, t.status as "status: _", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as "mode: _", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, bm.id as "map_id", bm.name as "map_name"
+            SELECT
+                t.tournament_id, 
+                t.guild_id, t.name, 
+                t.status as "status: TournamentStatus", 
+                t.rounds, t.current_round, 
+                t.created_at, t.start_time, 
+                t.mode as "mode: Mode", 
+                t.wins_required, 
+                t.tournament_role_id, 
+                t.announcement_channel_id, 
+                t.notification_channel_id, 
+                bm.id as "map_id", 
+                bm.name as "map_name"
             FROM tournaments AS t 
             JOIN tournament_players AS tp
             ON tp.tournament_id = t.tournament_id
@@ -802,7 +862,25 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|t| t.into())
+        .map(|row| Tournament {
+            tournament_id: row.tournament_id,
+            guild_id: row.guild_id,
+            name: row.name,
+            status: row.status,
+            rounds: row.rounds,
+            current_round: row.current_round,
+            created_at: row.created_at,
+            start_time: row.start_time,
+            mode: row.mode,
+            map: BrawlMap {
+                id: row.map_id,
+                name: row.map_name,
+            },
+            wins_required: row.wins_required,
+            tournament_role_id: row.tournament_role_id,
+            announcement_channel_id: row.announcement_channel_id,
+            notification_channel_id: row.notification_channel_id,
+        })
         .collect::<Vec<Tournament>>();
 
         Ok(tournament)
@@ -856,6 +934,80 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         Ok(())
     }
 
+    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET map = $1
+            WHERE tournament_id = $2
+            "#,
+            map.id,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_wins_required(
+        &self,
+        tournament_id: &i32,
+        wins_required: &i32,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET wins_required = $1
+            WHERE tournament_id = $2
+            "#,
+            wins_required,
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+}
+
+pub trait MatchDatabase {
+    type Error;
+    /// Creates a match associated with a tournament.
+    async fn create_match(
+        &self,
+        tournament_id: i32,
+        round: i32,
+        sequence_in_round: i32,
+        player_1_type: PlayerType,
+        player_2_type: PlayerType,
+        discord_id_1: Option<&str>,
+        discord_id_2: Option<&str>,
+    ) -> Result<(), Self::Error>;
+
+    /// Retrieves a match by its id.
+    async fn get_match_by_id(&self, match_id: &str) -> Result<Option<Match>, Self::Error>;
+
+    /// Retrieves a match by the player's discord id.
+    ///
+    /// This will retrive the match with the highest round number that does not yet have a winner.
+    async fn get_match_by_player(
+        &self,
+        tournament_id: i32,
+        discord_id: &str,
+    ) -> Result<Option<Match>, Self::Error>;
+
+    /// Retrieves all matches associated with a tournament.
+    ///
+    /// Pass in a None for the round number to retrieve all matches for the tournament.
+    async fn get_matches_by_tournament(
+        &self,
+        tournament_id: i32,
+        round: impl Into<Option<i32>>,
+    ) -> Result<Vec<Match>, Self::Error>;
+}
+
+impl MatchDatabase for PgDatabase {
+    type Error = BotError;
     async fn create_match(
         &self,
         tournament_id: i32,
@@ -882,61 +1034,6 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
             player_2_type as PlayerType,
             discord_id_1,
             discord_id_2,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    async fn set_ready(
-        &self,
-        match_id: &str,
-        player_number: &PlayerNumber,
-    ) -> Result<(), Self::Error> {
-        match player_number {
-            PlayerNumber::Player1 => {
-                sqlx::query!(
-                    r#"
-                    UPDATE matches
-                    SET player_1_ready = true
-                    WHERE match_id = $1
-                "#,
-                    match_id
-                )
-                .execute(&self.pool)
-                .await?
-            }
-            PlayerNumber::Player2 => {
-                sqlx::query!(
-                    r#"
-                UPDATE matches
-                SET player_2_ready = true
-                WHERE match_id = $1
-                "#,
-                    match_id
-                )
-                .execute(&self.pool)
-                .await?
-            }
-        };
-
-        Ok(())
-    }
-
-    async fn set_winner(
-        &self,
-        match_id: &str,
-        player_number: PlayerNumber,
-    ) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            UPDATE matches
-            SET winner = $1::player_number
-            WHERE match_id = $2
-            "#,
-            player_number as PlayerNumber,
-            match_id
         )
         .execute(&self.pool)
         .await?;
@@ -1020,21 +1117,29 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 
         Ok(brackets)
     }
+}
+pub trait BattleDatabase {
+    type Error;
+}
 
-    async fn set_map(&self, tournament_id: i32, map: &BrawlMap) -> Result<(), Self::Error> {
+impl Database for PgDatabase {
+    type Error = BotError;
+
+    async fn create_map(&self, map: &BrawlMap) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            UPDATE tournaments
-            SET map = $1
-            WHERE tournament_id = $2
+            INSERT INTO brawl_maps (id, name)
+            VALUES ($1, $2)
+            ON CONFLICT (name) DO NOTHING
             "#,
             map.id,
-            tournament_id
+            map.name
         )
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
         Ok(())
     }
+
     async fn add_records(&self, match_id: &str) -> Result<i64, Self::Error> {
         let query = sqlx::query!(
             r#"
@@ -1099,25 +1204,6 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         Ok(query.id)
     }
 
-    async fn set_wins_required(
-        &self,
-        tournament_id: &i32,
-        wins_required: &i32,
-    ) -> Result<(), Self::Error> {
-        sqlx::query!(
-            r#"
-            UPDATE tournaments
-            SET wins_required = $1
-            WHERE tournament_id = $2
-            "#,
-            wins_required,
-            tournament_id
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
     // async fn get_battle_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error> {
     //     let record = sqlx::query_as!(
     //         BattleRecord,

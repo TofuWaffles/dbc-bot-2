@@ -213,7 +213,6 @@ pub struct GameMode {
     pub image_url: String,
 }
 
-
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 
@@ -239,7 +238,7 @@ pub struct FullGameMode {
     pub last_active: Option<String>,
 }
 
-impl From<FullGameMode> for GameMode{
+impl From<FullGameMode> for GameMode {
     fn from(value: FullGameMode) -> Self {
         Self {
             id: value.id.map(|id| id as i32),
@@ -253,9 +252,9 @@ impl From<FullGameMode> for GameMode{
     }
 }
 
-impl From<GameMode> for database::models::Mode{
-    fn from(value: GameMode) -> Self{
-        match value.name.as_str(){
+impl From<GameMode> for database::models::Mode {
+    fn from(value: GameMode) -> Self {
+        match value.name.as_str() {
             "Bounty" => database::models::Mode::bounty,
             "Brawl Ball" => database::models::Mode::brawlBall,
             "Gem Grab" => database::models::Mode::gemGrab,

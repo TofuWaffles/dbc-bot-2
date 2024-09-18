@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT t.tournament_id, t.guild_id, t.name, t.status as \"status: _\", t.rounds, t.current_round, t.created_at, t.start_time, t.mode as \"mode:_\", t.wins_required, t.tournament_role_id, t.announcement_channel_id, t.notification_channel_id, b.id as \"map_id\", b.name as \"map_name\"\n            FROM tournaments AS t\n            INNER JOIN brawl_maps AS b \n            ON t.map = b.id\n            WHERE t.guild_id = $1 AND t.status != 'inactive'\n            ",
+  "query": "\n            SELECT\n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                bm.id as \"map_id\", \n                bm.name as \"map_name\"\n            FROM tournaments AS t \n            JOIN tournament_players AS tp\n            ON tp.tournament_id = t.tournament_id\n            JOIN brawl_maps AS bm\n            ON t.map = bm.id\n            WHERE tp.discord_id = $1\n            AND t.status != 'inactive';\n            ",
   "describe": {
     "columns": [
       {
@@ -20,7 +20,7 @@
       },
       {
         "ordinal": 3,
-        "name": "status: _",
+        "name": "status: TournamentStatus",
         "type_info": {
           "Custom": {
             "name": "tournament_status",
@@ -57,7 +57,7 @@
       },
       {
         "ordinal": 8,
-        "name": "mode:_",
+        "name": "mode: Mode",
         "type_info": {
           "Custom": {
             "name": "mode",
@@ -144,5 +144,5 @@
       false
     ]
   },
-  "hash": "10e1ba5d02097568ec95a97c33eaf7d40eb1e70bead54f88022a438240e577be"
+  "hash": "eb1c38db884b50ddd61fb5e60b69b8f4e07fc3f18e9ef0356a04cd659c3b3158"
 }

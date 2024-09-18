@@ -141,15 +141,21 @@ impl ImagesAPI {
         Ok(bytes)
     }
 
-    pub async fn battle_log(self, record: database::models::BattleRecord, matchid: database::models::Match, )-> Result<Vec<u8>, BotError>{
+    pub async fn battle_log(
+        self,
+        record: database::models::BattleRecord,
+        matchid: database::models::Match,
+    ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/images/battle_log", self.base_url);
-        let data: Vec<Value> = record.battles.into_iter().map(|battle|{
-            let player1 = &battle.battle_class.teams[0][0];
-            let player2 = &battle.battle_class.teams[1][0];
-            serde_json::json!({
-
+        let data: Vec<Value> = record
+            .battles
+            .into_iter()
+            .map(|battle| {
+                let player1 = &battle.battle_class.teams[0][0];
+                let player2 = &battle.battle_class.teams[1][0];
+                serde_json::json!({})
             })
-        }).collect();
+            .collect();
         let payloads = serde_json::json!({"battle_logs": data});
 
         let bytes = self.get(url, &payloads).await?;

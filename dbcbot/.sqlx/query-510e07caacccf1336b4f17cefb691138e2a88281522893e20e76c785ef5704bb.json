@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT \n                t.tournament_id, \n                t.guild_id, \n                t.name, \n                t.status as \"status:_\", \n                t.rounds, \n                t.current_round, \n                t.created_at, \n                t.start_time, \n                t.mode as \"mode:_\", \n                t.tournament_role_id, \n                t.wins_required, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\"\n            FROM \n                tournaments AS t\n            INNER JOIN \n                brawl_maps AS b\n            ON \n                t.map = b.id\n            WHERE \n                t.guild_id = $1 AND t.tournament_id = $2\n            ORDER BY \n                t.created_at DESC\n            LIMIT 1;\n            ",
+  "query": "\n            SELECT \n            t.tournament_id, \n                t.guild_id, \n                t.name, \n                t.status AS \"status: TournamentStatus\",\n                t.rounds, \n                t.current_round, \n                t.created_at, \n                t.start_time, \n                t.mode AS \"mode: Mode\",\n                t.tournament_role_id, \n                t.wins_required, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\"\n            FROM \n                tournaments AS t\n            INNER JOIN \n                brawl_maps AS b\n            ON \n                t.map = b.id\n            WHERE \n                t.guild_id = $1 AND t.tournament_id = $2\n            ORDER BY \n                t.created_at DESC\n            LIMIT 1;\n            \n        ",
   "describe": {
     "columns": [
       {
@@ -20,7 +20,7 @@
       },
       {
         "ordinal": 3,
-        "name": "status:_",
+        "name": "status: TournamentStatus",
         "type_info": {
           "Custom": {
             "name": "tournament_status",
@@ -57,7 +57,7 @@
       },
       {
         "ordinal": 8,
-        "name": "mode:_",
+        "name": "mode: Mode",
         "type_info": {
           "Custom": {
             "name": "mode",
@@ -145,5 +145,5 @@
       false
     ]
   },
-  "hash": "72b3bf3aeb185539c1ff77cb5e0858327ab684afd9304597228bd45c48e03629"
+  "hash": "510e07caacccf1336b4f17cefb691138e2a88281522893e20e76c785ef5704bb"
 }

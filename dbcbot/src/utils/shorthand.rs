@@ -12,11 +12,12 @@ use crate::{
 };
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-
+use crate::database::*;
 use super::discord::select_options;
 use poise::{
     serenity_prelude::{
-        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter,
+        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
+        CreateEmbedFooter,
     },
     CreateReply, ReplyHandle,
 };
@@ -427,7 +428,9 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .title(format!("{}", map.name))
                 .description(format!(
                     "Environment: ** {}**\nMode: **{}**\nAvailability: **{}**",
-                    map.environment.name, map.game_mode.name, ["Yes", "No"][(!map.disabled) as usize]
+                    map.environment.name,
+                    map.game_mode.name,
+                    ["Yes", "No"][(!map.disabled) as usize]
                 ))
                 .image(map.image_url)
                 .thumbnail(map.game_mode.image_url)
@@ -448,11 +451,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 "select" => {
                     interactions.defer(self.http()).await?;
                     return Ok(filtered_maps[page_number].clone());
-                },
+                }
                 "any" => {
                     interactions.defer(self.http()).await?;
                     return Ok(BrawlMap::default());
-                },
+                }
                 "next" => {
                     page_number = (page_number + 1).min(filtered_maps.len() - 1);
                 }
@@ -465,7 +468,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Err(anyhow!("User did not respond in time"))
     }
 
-    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError>{
+    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {
         let modes = match self.data().apis.brawlify.get_modes().await? {
             APIResult::Ok(m) => m,
             APIResult::NotFound => return Err(anyhow!("Modes not found")),
@@ -494,7 +497,8 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .title(format!("{}", mode.name))
                 .description(format!(
                     "Description: **{}**\nAvailability: **{}**",
-                    mode.description, ["Yes", "No"][(mode.disabled) as usize]
+                    mode.description,
+                    ["Yes", "No"][(mode.disabled) as usize]
                 ))
                 .thumbnail(mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
@@ -504,8 +508,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         };
         let mut page_number: usize = 0;
         let mut selected = modes.list[page_number].to_owned();
-        msg.edit(*self, reply(selected.to_owned()))
-            .await?;
+        msg.edit(*self, reply(selected.to_owned())).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
@@ -523,8 +526,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             }
             interactions.defer(self.http()).await?;
             selected = modes.list[page_number].to_owned();
-            msg.edit(*self, reply(selected.to_owned()))
-                .await?;
+            msg.edit(*self, reply(selected.to_owned())).await?;
         }
         Err(anyhow!("User did not respond in time"))
     }

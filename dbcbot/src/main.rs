@@ -1,9 +1,9 @@
 use api::APIsContainer;
-use std::{fs::File, io};
+use std::io;
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
-use database::{Database, PgDatabase};
+use database::{Database, PgDatabase, TournamentDatabase};
 use poise::{serenity_prelude as serenity, CreateReply};
 
 use commands::{
@@ -11,8 +11,6 @@ use commands::{
     owner_commands::OwnerCommands, test_commands::TestCommands, user_commands::UserCommands,
     CommandsContainer,
 };
-use utils::lru::LRUCache;
-
 use crate::log::discord_log_error;
 
 /// Utilities for interacting with the game API.
@@ -28,13 +26,15 @@ mod database;
 mod log;
 
 mod utils;
+
+// Mail feature
+mod mail;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
 #[derive(Debug)]
 pub struct Data<DB> {
     database: DB,
-    cache: Cache,
     apis: APIsContainer,
 }
 
@@ -47,15 +47,10 @@ where
         Self {
             database,
             apis: game_api,
-            cache: Cache::default(),
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct Cache {
-    pub assets: LRUCache<String, Vec<u8>>,
-}
 
 /// Convenience type for the bot's data with generics filled in.
 pub type BotData = Data<PgDatabase>;

@@ -1,18 +1,17 @@
 use crate::api::brawlify::GameMode;
 use crate::database::models::{BrawlMap, Mode, Tournament};
+use crate::database::{TournamentDatabase, MatchDatabase};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
 use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
-    database::{
-        models::{Match, Player, TournamentStatus},
-        Database,
-    },
+    database::*,
     log, BotContext, BotData, BotError,
 };
 use anyhow::anyhow;
 
+use models::{Match, Player, TournamentStatus};
 use poise::serenity_prelude::{Channel, Role};
 use poise::Modal;
 use poise::{
@@ -766,7 +765,7 @@ mod tests {
     use super::generate_matches_new_tournament;
     use crate::database::{
         models::{Mode, Player, PlayerType, User},
-        Database, PgDatabase,
+        Database, PgDatabase, TournamentDatabase, UserDatabase,
     };
 
     fn create_dummy(sample: usize) -> Vec<User> {

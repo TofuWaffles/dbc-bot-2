@@ -1,36 +1,47 @@
 use anyhow::anyhow;
 use futures::Stream;
-use poise::{
-    serenity_prelude::{
-        futures::StreamExt, ButtonStyle, ChannelId, Color, ComponentInteraction, CreateActionRow,
-        CreateAttachment, CreateButton, CreateEmbed, CreateMessage,
-    },
-    CreateReply, Modal, ReplyHandle,
-};
-use prettytable::{row, Table};
+use poise::serenity_prelude::futures::StreamExt;
+use poise::serenity_prelude::*;
+use poise::CreateReply;
+use poise::Modal;
+use poise::ReplyHandle;
+use prettytable::row;
+use prettytable::Table;
 use serde_json::json;
-use tracing::{info, instrument};
+use tracing::info;
+use tracing::instrument;
 
-use crate::{
-    api::{images::ImagesAPI, official_brawl_stars::BattleLogItem, APIResult},
-    commands::checks::{is_config_set, is_tournament_paused},
-    database::{
-        models::{
-            BattleResult, BattleType, Match,
-            PlayerNumber::{Player1, Player2},
-            PlayerType, Tournament, TournamentStatus, User,
-        },
-        Database,
-    },
-    log::{self, Log},
-    utils::{
-        discord::{modal, select_options},
-        shorthand::BotContextExt,
-    },
-    BotContext, BotData, BotError,
-};
+use crate::database::models::BattleResult;
+use crate::database::models::BattleType;
+use crate::database::models::Match;
+use crate::database::models::PlayerNumber::*;
+use crate::database::models::PlayerType;
+use crate::database::models::TournamentStatus;
+use crate::database::models::User;
+use crate::database::ConfigDatabase;
+use crate::database::TournamentDatabase;
+use crate::database::MatchDatabase;
+use crate::database::UserDatabase;
+
+use crate::api::images::ImagesAPI;
+use crate::api::official_brawl_stars::BattleLogItem;
+use crate::api::APIResult;
+
+use crate::commands::checks::is_config_set;
+use crate::commands::checks::is_tournament_paused;
+
+use crate::database::models::Tournament;
+use crate::log::{self, Log};
+use crate::utils::discord::modal;
+use crate::utils::discord::select_options;
+use crate::utils::shorthand::BotContextExt;
+
+use crate::BotContext;
+use crate::BotData;
+use crate::BotError;
 
 use super::CommandsContainer;
+
 
 /// CommandsContainer for the User commands
 pub struct UserCommands;

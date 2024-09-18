@@ -2,7 +2,8 @@ use poise::serenity_prelude as serenity;
 use tracing::{info, instrument};
 
 use crate::{database::Database, BotContext, BotData, BotError};
-
+use crate::database::models::{Match, PlayerNumber, TournamentStatus};
+use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 use super::CommandsContainer;
 
 pub struct OwnerCommands;

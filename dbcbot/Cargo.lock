@@ -201,6 +201,7 @@ dependencies = [
  "instant",
  "once_cell",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -2724,6 +2725,7 @@ dependencies = [
  "libc",
  "mio",
  "num_cpus",
+ "parking_lot",
  "pin-project-lite",
  "socket2",
  "tokio-macros",

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n    t.tournament_id,\n    t.guild_id,\n    t.name,\n    t.status AS \"status: _\",\n    t.rounds,\n    t.current_round,\n    t.created_at,\n    t.start_time,\n    t.mode AS \"mode: _\",\n    b.id AS \"map_id\",\n    b.name AS \"map_name\",\n    t.wins_required,\n    t.tournament_role_id,\n    t.announcement_channel_id,\n    t.notification_channel_id\nFROM tournaments AS t\nINNER JOIN tournament_players AS tp ON t.tournament_id = tp.tournament_id\nINNER JOIN brawl_maps AS b ON t.map = b.id\nWHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.discord_id = $2;\n            ",
+  "query": "\n            SELECT\n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\"\n            FROM tournaments AS t\n            INNER JOIN brawl_maps AS b \n            ON t.map = b.id\n            WHERE t.guild_id = $1 AND t.status != 'inactive'\n            ",
   "describe": {
     "columns": [
       {
@@ -20,7 +20,7 @@
       },
       {
         "ordinal": 3,
-        "name": "status: _",
+        "name": "status: TournamentStatus",
         "type_info": {
           "Custom": {
             "name": "tournament_status",
@@ -57,7 +57,7 @@
       },
       {
         "ordinal": 8,
-        "name": "mode: _",
+        "name": "mode: Mode",
         "type_info": {
           "Custom": {
             "name": "mode",
@@ -92,38 +92,37 @@
       },
       {
         "ordinal": 9,
-        "name": "map_id",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 10,
-        "name": "map_name",
-        "type_info": "Varchar"
-      },
-      {
-        "ordinal": 11,
         "name": "wins_required",
         "type_info": "Int4"
       },
       {
-        "ordinal": 12,
+        "ordinal": 10,
         "name": "tournament_role_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 13,
+        "ordinal": 11,
         "name": "announcement_channel_id",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 14,
+        "ordinal": 12,
         "name": "notification_channel_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 13,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "map_name",
         "type_info": "Varchar"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
         "Text"
       ]
     },
@@ -145,5 +144,5 @@
       false
     ]
   },
-  "hash": "c1955db874f850f3779d7982b89e0306ee6838fb8f58540be9f973ff328ccb56"
+  "hash": "f5dec0945fbc8d70151b2e8d4c60e114d0ca69530c9009a779d09cd1b6174282"
 }

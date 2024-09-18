@@ -6,14 +6,11 @@ use poise::{
 };
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
-
 use crate::{
-    database::{
-        models::{BrawlMap, Match, PlayerNumber, TournamentStatus},
-        Database,
-    }, log::{self, Log}, utils::shorthand::BotContextExt, BotContext, BotData, BotError
+   log::{self, Log}, utils::shorthand::BotContextExt, BotContext, BotData, BotError
 };
-
+use crate::database::models::{Match, PlayerNumber, TournamentStatus};
+use crate::database::{TournamentDatabase, MatchDatabase, UserDatabase};
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 
 /// CommandsContainer for the Marshal commands
@@ -151,7 +148,9 @@ async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
-    let msg = ctx.send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps..."))).await?;
+    let msg = ctx
+        .send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps...")))
+        .await?;
     let guild_id = ctx.guild_id().unwrap().to_string();
     let tournament = match ctx
         .data()
@@ -177,10 +176,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError
     let map = ctx.map_selection(&msg, &mode).await?;
     ctx.data()
         .database
-        .set_map(
-            tournament_id,
-            &map.clone().into(),
-        )
+        .set_map(tournament_id, &map.clone().into())
         .await?;
 
     ctx.send(
@@ -497,13 +493,14 @@ Disqualified by: {disqualified_by}."#,
 /// List all currently active tournaments.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn next_round(
-    ctx: BotContext<'_>,
-    tournament_id: i32,
-) -> Result<(), BotError> {
-    let msg = ctx.send(CreateReply::default().embed(CreateEmbed::default().description("Running commands..."))).await?;
+async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default().embed(CreateEmbed::default().description("Running commands...")),
+        )
+        .await?;
     let guild_id = ctx.guild_id().unwrap().to_string();
-    
+
     let tournament = match ctx
         .data()
         .database
@@ -567,8 +564,14 @@ async fn next_round(
     }
 
     ctx.data().database.next_round(tournament_id).await?;
-    
-    if ctx.confirmation(&msg, CreateEmbed::default().description("Do you want to select map for next round?")).await?{
+
+    if ctx
+        .confirmation(
+            &msg,
+            CreateEmbed::default().description("Do you want to select map for next round?"),
+        )
+        .await?
+    {
         let mode = tournament.mode.clone();
         let map = ctx.map_selection(&msg, &mode).await?;
         ctx.data()
