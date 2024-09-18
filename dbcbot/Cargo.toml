@@ -16,11 +16,16 @@ reqwest = { version = "0.12.2", features = ["json", "native-tls-vendored"] }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.120"
 tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread", "time"] }
-sqlx = { version = "0.7.4", features = ["runtime-tokio", "postgres", "chrono", "macros"]}
+sqlx = { version = "0.7.4", features = [
+    "runtime-tokio",
+    "postgres",
+    "chrono",
+    "macros",
+] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 urlencoding = "2.1.3"
 strum_macros = "0.26.4"
-strum = {version = "0.26.3", features = ["derive"]}
-cached = {version = "0.52.0", features = ["tokio"]}
+strum = { version = "0.26.3", features = ["derive"] }
+cached = { version = "0.52.0", features = ["async"] }
 base64 = "0.22.1"

@@ -195,8 +195,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8466736fe5dbcaf8b8ee24f9bbefe43c884dc3e9ff7178da70f55bffca1133c"
 dependencies = [
  "ahash",
+ "async-trait",
  "cached_proc_macro",
  "cached_proc_macro_types",
+ "futures",
  "hashbrown",
  "instant",
  "once_cell",

@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
+use cached::proc_macro::cached;
 use reqwest::Client;
-use serde::Serialize;
 use serde_json::Value;
 use tracing::debug;
 
@@ -22,49 +22,6 @@ impl ImagesAPI {
                 .expect("Expected IMAGES_API as an environment variable"),
             client: Client::new(),
         }
-    }
-
-    async fn get<T>(
-        &self,
-        endpoint: impl reqwest::IntoUrl,
-        payload: &T,
-    ) -> Result<Vec<u8>, BotError>
-    where
-        T: Serialize + ?Sized,
-    {
-        let response = self
-            .client
-            .get(endpoint)
-            .header("accept", "text/plain")
-            .header("Content-Type", "application/json")
-            .json(payload)
-            .send()
-            .await?;
-        let content = match response.text().await {
-            Ok(content) => {
-                debug!("Successfully got image from API");
-                content
-            }
-            Err(e) => {
-                return Err(anyhow!(
-                    "Error getting image from API: {}\n{}",
-                    e,
-                    e.to_string()
-                ));
-            }
-        };
-        let bytes = match general_purpose::STANDARD.decode(content.clone()) {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                debug!("Error decoding image from API: {}\n{}", e, content);
-                return Err(anyhow!(
-                    "Error decoding image from API: {}\n```json\n{}```",
-                    e,
-                    content
-                ));
-            }
-        };
-        Ok(bytes)
     }
 
     pub async fn match_image(
@@ -89,7 +46,7 @@ impl ImagesAPI {
                 "icon": player2.icon
             }
         });
-        let bytes = self.get(url, &payload).await?;
+        let bytes = get_image(url, payload).await?;
         Ok(bytes)
     }
 
@@ -115,7 +72,7 @@ impl ImagesAPI {
                 "icon": loser.icon
             }
         });
-        let bytes = self.get(url, &payload).await?;
+        let bytes = get_image(url, payload).await?;
         Ok(bytes)
     }
 
@@ -125,7 +82,7 @@ impl ImagesAPI {
         tournament_id: String,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/profile", self.base_url);
-        let payload = &serde_json::json!({
+        let payload = serde_json::json!({
             "player": {
                 "discord_id": user.discord_id,
                 "discord_name": user.discord_name,
@@ -137,7 +94,7 @@ impl ImagesAPI {
                 "tournament_id": tournament_id
             }
         });
-        let bytes = self.get(url, payload).await?;
+        let bytes = get_image(url, payload).await?;
         Ok(bytes)
     }
 
@@ -158,7 +115,45 @@ impl ImagesAPI {
             .collect();
         let payloads = serde_json::json!({"battle_logs": data});
 
-        let bytes = self.get(url, &payloads).await?;
+        let bytes = get_image(url, payloads).await?;
         Ok(bytes)
     }
+}
+
+#[cached(size = 10, result = true)]
+async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError> {
+    let images_api = ImagesAPI::new();
+    let response = images_api
+        .client
+        .get(endpoint)
+        .header("accept", "text/plain")
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await?;
+    let content = match response.text().await {
+        Ok(content) => {
+            debug!("Successfully got image from API");
+            content
+        }
+        Err(e) => {
+            return Err(anyhow!(
+                "Error getting image from API: {}\n{}",
+                e,
+                e.to_string()
+            ));
+        }
+    };
+    let bytes = match general_purpose::STANDARD.decode(content.clone()) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            debug!("Error decoding image from API: {}\n{}", e, content);
+            return Err(anyhow!(
+                "Error decoding image from API: {}\n```json\n{}```",
+                e,
+                content
+            ));
+        }
+    };
+    Ok(bytes)
 }
