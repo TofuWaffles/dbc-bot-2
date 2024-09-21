@@ -363,13 +363,12 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                                 .await?;
                         match selected.as_str() {
                             "prev" => {
-                                page_number = page_number.checked_sub(1).unwrap_or(0);
+                                page_number = page_number.saturating_sub(1);
                             }
                             "next" => {
                                 page_number = (page_number + 1).min(brawlers.len() - 1);
                             }
                             identifier @ _ => {
-                                println!("Selected brawler id: {}", identifier);
                                 let brawler = chunk
                                     .iter()
                                     .find(|b| (**b).id == identifier.parse::<i32>().unwrap())

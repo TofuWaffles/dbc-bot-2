@@ -32,6 +32,7 @@ use crate::commands::checks::is_tournament_paused;
 
 use crate::database::models::Tournament;
 use crate::log::{self, Log};
+use crate::mail::MailBotCtx;
 use crate::utils::discord::modal;
 use crate::utils::discord::select_options;
 use crate::utils::shorthand::BotContextExt;
@@ -100,6 +101,7 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
+    ctx.mail_notification().await?;
     let mut player_active_tournaments = ctx
         .data()
         .database
@@ -120,6 +122,10 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             CreateButton::new("deregister")
                 .label("Deregister")
                 .style(ButtonStyle::Danger),
+            CreateButton::new("mail")
+                .label("Mail")
+                .emoji(ReactionType::Unicode("📧".to_string()))
+                .style(ButtonStyle::Primary),
         ];
         ctx.prompt(
             msg,
@@ -233,6 +239,10 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     &game_match.unwrap(),
                 )
                 .await;
+            },
+            "mail" => {
+                interaction.defer(ctx.http()).await?;
+                ctx.inbox(msg).await?;
             }
             _ => {
                 continue;

@@ -765,7 +765,7 @@ mod tests {
     use super::generate_matches_new_tournament;
     use crate::database::{
         models::{Mode, Player, PlayerType, User},
-        Database, PgDatabase, TournamentDatabase, UserDatabase,
+        PgDatabase, TournamentDatabase, UserDatabase,
     };
 
     fn create_dummy(sample: usize) -> Vec<User> {

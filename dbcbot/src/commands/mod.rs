@@ -3,8 +3,6 @@ pub mod marshal_commands;
 pub mod owner_commands;
 pub mod test_commands;
 pub mod user_commands;
-use crate::database::models::{Match, PlayerNumber, TournamentStatus};
-use crate::database::{TournamentDatabase, MatchDatabase, UserDatabase};
 /// A way to group commands together while side-stepping the need to use global variables.
 ///
 /// Implemenations of this trait can return a list of their commands from within their own module.
@@ -57,7 +55,7 @@ mod checks {
     };
 
     use crate::{
-        database::{models::TournamentStatus, ConfigDatabase, Database, TournamentDatabase},
+        database::{models::TournamentStatus, ConfigDatabase, TournamentDatabase},
         BotContext, BotError,
     };
 

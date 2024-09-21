@@ -4,10 +4,8 @@ use cached::proc_macro::cached;
 use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
-
 use crate::{database, BotError};
 
-use super::official_brawl_stars::Brawler;
 
 #[derive(Debug)]
 pub struct ImagesAPI {

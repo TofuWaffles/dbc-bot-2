@@ -1,20 +1,20 @@
 use poise::serenity_prelude::{User, UserId};
 use serde::{Deserialize, Serialize};
 
-use crate::{BotContext, BotError};
+use crate::{database::models::Selectable, BotContext, BotError};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Mail {
-    id: i64, //timestamp
-    sender: String,
-    recipient: String,
-    subject: String,
-    match_id: Option<String>,
-    body: String,
-    read: bool,
+    pub id: i64, //timestamp
+    pub sender: String,
+    pub recipient: String,
+    pub subject: String,
+    pub match_id: Option<String>,
+    pub body: String,
+    pub read: bool,
 }
 impl Mail {
-    async fn new(
+    pub async fn new(
         sender: String,
         recipient: String,
         subject: String,
@@ -31,15 +31,25 @@ impl Mail {
             read: false,
         }
     }
-    async fn recepient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+    pub async fn recepient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
         Ok(UserId::new(self.recipient.parse::<u64>()?)
             .to_user(ctx.http())
             .await?)
     }
 
-    async fn sender(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+    pub async fn sender(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
         Ok(UserId::new(self.sender.parse::<u64>()?)
             .to_user(ctx.http())
             .await?)
+    }
+}
+
+impl Selectable for Mail {
+    fn identifier(&self) -> String {
+        self.id.to_string()
+    }
+
+    fn label(&self) -> String {
+        self.subject.clone()
     }
 }

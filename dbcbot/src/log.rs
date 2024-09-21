@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use strum::Display;
 
-use crate::{database::Database, utils::shorthand::BotContextExt, BotContext, BotError};
+use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 #[allow(dead_code)]
 pub enum State {
     SUCCESS = Color::DARK_GREEN.0 as isize,
