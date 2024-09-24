@@ -85,8 +85,8 @@ class Profile(BaseImage):
             stroke="black",
         )
         self.write(
-            text=self.player.player_tag,
-            textbox_pos=((200, 170), (360, 195)),
+            text=f"#{self.player.player_tag}",
+            textbox_pos=((210, 170), (360, 195)),
             font_size=20,
             align="left",
             color=(255, 255, 255),
