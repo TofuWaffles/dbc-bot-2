@@ -1,8 +1,10 @@
+import base64
 from typing import Union
+
 from PIL.Image import Resampling
 from pydantic import BaseModel
-from .model import Background, Component, BaseImage, Player
-import base64
+
+from .model import Background, BaseImage, Component, Player
 
 
 class RequestMatch(BaseModel):
@@ -44,12 +46,12 @@ class Match(BaseImage):
             text=self.player1.discord_name,
             textbox_pos=((125, 460), (500, 530)),
             align="center",
-            color=(255, 255, 255),
+            color="white",
         )
         self.write(
             text=self.player2.discord_name,
             textbox_pos=((780, 460), (1155, 530)),
             align="center",
-            color=(255, 255, 255),
+            color="white",
         )
         self.components.extend([icon1, icon2])

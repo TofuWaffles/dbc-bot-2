@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT * FROM mail \n            WHERE ($1 = sender AND $2 = recipient)\n                OR ($1 = recipient AND $2 = sender)\n        ",
+  "query": "\n            SELECT * FROM mail \n            WHERE (sender = $1  AND recipient = $2)\n                OR (recipient = $1 AND sender = $2 )\n        ",
   "describe": {
     "columns": [
       {
@@ -55,5 +55,5 @@
       true
     ]
   },
-  "hash": "1a3928444aad8944412ba0f8ed6571453e5cad4600862dc9f7398c267a1e4d55"
+  "hash": "111b1e29fb0b453381f4c2bfa4cd004780d4ed6345697d89c6447664a49c54c8"
 }

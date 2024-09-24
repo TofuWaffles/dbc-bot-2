@@ -99,7 +99,6 @@ class Player(BaseModel):
     discord_name: str
     player_tag: str
     player_name: str
-    player_name: str
     icon: int
 
 
@@ -112,7 +111,6 @@ class ExtendedPlayer(Player):
     discord_id: str
     discord_name: str
     player_tag: str
-    player_name: str
     player_name: str
     icon: int
     brawler: Brawler
@@ -334,6 +332,9 @@ class Component:
         )
         self._revert_font()
 
+    def __str__(self) -> str:
+        return f"{self.name} ({self.width}x{self.height})"
+
 
 class Background:
     def __init__(
@@ -343,11 +344,12 @@ class Background:
         bg: Image.Image = None,
         name: str = "untitled",
     ):
-        self.image: Image.Image = bg or Image.new(
+        self.image: Image.Image = bg.copy() or Image.new(
             "RGBA", (width or 1920, height or 1080), (0, 0, 0, 0)
         )
         if width is not None or height is not None:
             self.image = self.image.resize((width, height), Image.LANCZOS)
+
         self.width: int = self.image.width
         self.height: int = self.image.height
         self.name: str = name
@@ -364,19 +366,17 @@ class Background:
                 final_image.paste(top, (overlay.x, overlay.y), top)
             else:
                 final_image.paste(top, (overlay.x, overlay.y))
+
         return final_image
 
 
 class BaseImage:
     """Inheriting this class allows you to define an async __init__.
 
-    So you can create objects by doing something like `await MyClass(params)`
+    So you can create objects by doing something like `await BaseImage(params)`
     """
 
     asset: Asset = Asset()
-    error: Optional[Exception] = None
-    components: List[Component] = []
-    final: Optional[Image.Image] = None
 
     async def __new__(cls, *a, **kw):
         instance = super().__new__(cls)
@@ -386,6 +386,9 @@ class BaseImage:
     async def __init__(self, bg: Background, default_font_size: int = 30):
         self.font, self.error = self.asset.font(default_font_size)
         self.bg = bg
+        self.error: Optional[Exception] = None
+        self.components: List[Component] = []
+        self.final: Optional[Image.Image] = None
 
     def set_font(self, size: int) -> None:
         self.font, self.error = self.asset.font(size)
@@ -461,7 +464,7 @@ class BaseImage:
             text=text,
             font=self.font,
             fill=color,
-            stroke_width=3,
+            stroke_width=None if stroke is None else 3,
             stroke_fill=stroke,
         )
         self.revert_font()
@@ -470,6 +473,7 @@ class BaseImage:
         for component in self.components:
             self.bg.add_overlay(component)
         self.final = self.bg.fabricate()
+        self.components = []
 
     def _update_error(self, error):
         if error:
@@ -481,5 +485,4 @@ class BaseImage:
             return Exception("Image not built")
         self.final.save(output, format="PNG")
         output.seek(0)
-        return output.getvalue()
         return output.getvalue()

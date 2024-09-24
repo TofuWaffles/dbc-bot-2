@@ -1,9 +1,11 @@
 pub mod model;
 use crate::utils::discord::{modal, select_options};
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
+use async_recursion::async_recursion;
+use futures::StreamExt;
 use model::Mail;
 use poise::serenity_prelude::{
-    ButtonStyle, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, Mentionable
+    ButtonStyle, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, Mentionable,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -97,8 +99,8 @@ impl MailDatabase for PgDatabase {
             Mail,
             r#"
             SELECT * FROM mail 
-            WHERE ($1 = sender AND $2 = recipient)
-                OR ($1 = recipient AND $2 = sender)
+            WHERE (sender = $1  AND recipient = $2)
+                OR (recipient = $1 AND sender = $2 )
         "#,
             sender.to_string(),
             recipient.to_string()
@@ -130,7 +132,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         auto_subject: impl Into<Option<String>>,
     ) -> Result<(), BotError> {
         let embed = CreateEmbed::new()
-            .title("Compose an email")
+            .title("Compose an mail")
             .description("Please press at the button below to compose a mail");
         let mail = match auto_subject.into() {
             None => {
@@ -196,74 +198,8 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             self.prompt(msg, embed, None).await?;
             return Ok(());
         }
-        let (prev, next) = (String::from("prev"), String::from("next"));
-        let buttons = CreateActionRow::Buttons(vec![
-            CreateButton::new(prev.clone())
-                .label("⬅️")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(next.clone())
-                .label("➡️")
-                .style(ButtonStyle::Primary),
-        ]);
-        async fn inbox(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, BotError> {
-            let mut inbox = Vec::with_capacity(mails.len());
-            for mail in mails {
-                let sender = mail.sender(ctx).await?.mention();
-                inbox.push(format!(
-                    r#"{read_status} | From {sender} 
-**{subject}**
--# Sent at <t:{time_sent}:F>"#,
-                    read_status = if mail.read { "✉️" } else { "📩" },
-                    time_sent = mail.id,
-                    subject = mail.subject,
-                ))
-            }
-            Ok(CreateEmbed::default()
-                .title(format!("{}'s inbox", ctx.author().mention()))
-                .description(format!(
-                    "There are {} mail(s) in this page!\n Select a mail to read it{}",
-                    mails.len(),
-                    inbox.join("\n")
-                ))
-                .timestamp(ctx.now()))
-        }
         let chunked_mail: Vec<&[Mail]> = mails.chunks(CHUNK).collect();
-        let mut page_number: usize = 0;
-        let total = chunked_mail.len();
-        loop {
-            let selected = select_options(
-                self,
-                msg,
-                inbox(self, chunked_mail[page_number]).await?,
-                vec![buttons.clone()],
-                chunked_mail[page_number],
-            )
-            .await?;
-            match selected.as_str() {
-                "prev" => {
-                    page_number = page_number.saturating_sub(1);
-                }
-                "next" => {
-                    page_number = (page_number + 1).min(total - 1);
-                }
-                id @ _ => {
-                    let mail = mails
-                        .iter()
-                        .find(|mail| mail.id.to_string() == id)
-                        .unwrap()
-                        .to_owned();
-                    let embed = CreateEmbed::new()
-                        .title(&mail.subject)
-                        .description(&mail.body)
-                        .thumbnail(mail.sender(self).await?.avatar_url().unwrap_or_default())
-                        .footer(CreateEmbedFooter::new(format!("Sent at <t:{}:F>", mail.id)));
-
-                    self.data().database.mark_read(mail.id).await?;
-                    self.prompt(msg, embed, None).await?;
-                    break;
-                }
-            }
-        }
+        inbox_helper(self, msg, &chunked_mail).await?;
         Ok(())
     }
 
@@ -295,4 +231,123 @@ struct ComposeMailWithoutSubject {
     #[paragraph]
     #[placeholder = "The body of the mail"]
     body: String,
+}
+
+#[async_recursion]
+async fn mail_page(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    mail: &Mail,
+) -> Result<(), BotError> {
+    ctx.inbox(msg).await?;
+    let embed = CreateEmbed::new()
+        .title(&mail.subject)
+        .description(format!(
+            "{}\n{}\nSent at <t:{}:F>",
+            mail.sender(ctx).await?.mention(),
+            &mail.body,
+            mail.id
+        ))
+        .thumbnail(mail.sender(ctx).await?.avatar_url().unwrap_or_default());
+    ctx.data().database.mark_read(mail.id).await?;
+    let buttons = CreateActionRow::Buttons(vec![
+        CreateButton::new("reply")
+            .label("Reply")
+            .style(ButtonStyle::Success),
+        CreateButton::new("back")
+            .label("Back")
+            .style(ButtonStyle::Secondary),
+        CreateButton::new("report")
+            .label("Report to Marshals")
+            .style(ButtonStyle::Danger),
+    ]);
+    let reply = CreateReply::default()
+        .embed(embed)
+        .components(vec![buttons]);
+    msg.edit(*ctx, reply).await?;
+    Ok(())
+}
+
+async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, BotError> {
+    let mut inbox = Vec::with_capacity(mails.len());
+    for mail in mails {
+        let sender = mail.sender(ctx).await?.mention();
+        inbox.push(format!(
+            r#"{read_status} | From {sender} 
+**{subject}**
+-# Sent at <t:{time_sent}:F>"#,
+            read_status = if mail.read { "✉️" } else { "📩" },
+            time_sent = mail.id,
+            subject = mail.subject,
+        ))
+    }
+    Ok(CreateEmbed::default()
+        .title(format!("{}'s inbox", ctx.author().mention()))
+        .description(format!(
+            "There are {} mail(s) in this page!\nSelect a mail to read it\n{}",
+            mails.len(),
+            inbox.join("\n")
+        ))
+        .timestamp(ctx.now()))
+}
+
+#[async_recursion]
+async fn inbox_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, chunked_mail: &Vec<&[Mail]>) -> Result<(), BotError> {
+    let (prev, next) = (String::from("prev"), String::from("next"));
+    let mut page_number: usize = 0;
+    let total = chunked_mail.len();
+    let buttons = CreateActionRow::Buttons(vec![
+        CreateButton::new(prev.clone())
+            .label("⬅️")
+            .style(ButtonStyle::Primary),
+        CreateButton::new(next.clone())
+            .label("➡️")
+            .style(ButtonStyle::Primary),
+    ]);
+
+    let mut selected_mail: Option<Mail> = None;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interaction) = ic.next().await{
+        let selected = select_options(
+            ctx,
+            msg,
+            detail(ctx, chunked_mail[page_number]).await?,
+            vec![buttons.clone()],
+            chunked_mail[page_number],
+        )
+        .await?;
+        match selected.as_str() {
+            "prev" => {
+                page_number = page_number.saturating_sub(1);
+            }
+            "next" => {
+                page_number = (page_number + 1).min(total - 1);
+            },
+            "back" => {
+                interaction.defer_ephemeral(ctx.http()).await?;
+                // This can only be triggered from mail_page
+                inbox_helper(ctx, msg, chunked_mail).await?;
+                break;
+            },
+            "reply" => {
+                interaction.defer_ephemeral(ctx.http()).await?;
+                // This can only be triggered from mail_page
+                let mail = selected_mail.clone().unwrap();
+                ctx.compose(msg, mail.recipient_id()?, mail.subject).await?;
+            }
+            "report" => {
+                // This can only be triggered from mail_page
+            },
+            id @ _ => {
+                let mail = chunked_mail[page_number]
+                    .iter()
+                    .find(|mail| mail.id.to_string() == id)
+                    .unwrap()
+                    .to_owned();
+                selected_mail = Some(mail);
+                mail_page(ctx, msg, selected_mail.as_ref().unwrap()).await?;
+            }
+        }
+    }
+    Ok(())
 }

@@ -31,10 +31,14 @@ impl Mail {
             read: false,
         }
     }
-    pub async fn recepient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+    pub async fn recipient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
         Ok(UserId::new(self.recipient.parse::<u64>()?)
             .to_user(ctx.http())
             .await?)
+    }
+
+    pub fn recipient_id(&self) -> Result<UserId, BotError> {
+        Ok(UserId::new(self.recipient.parse::<u64>()?))
     }
 
     pub async fn sender(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {

@@ -118,7 +118,7 @@ impl ImagesAPI {
     }
 }
 
-#[cached(size = 50, time = 86400, result = true)]
+// #[cached(size = 50, time = 86400, result = true)]
 async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError> {
     let images_api = ImagesAPI::new();
     let response = images_api
@@ -129,6 +129,9 @@ async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError
         .json(&payload)
         .send()
         .await?;
+    if !response.status().is_success(){
+        return Err(anyhow!("Error getting image from API: {}", response.text().await?));
+    }
     let content = match response.text().await {
         Ok(content) => {
             debug!("Successfully got image from API");
