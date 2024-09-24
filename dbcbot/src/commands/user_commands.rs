@@ -242,7 +242,9 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             },
             "mail" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.inbox(msg).await?;
+                if ctx.inbox(msg).await.is_err(){
+                    msg.delete(*ctx).await?;
+                }
             }
             _ => {
                 continue;

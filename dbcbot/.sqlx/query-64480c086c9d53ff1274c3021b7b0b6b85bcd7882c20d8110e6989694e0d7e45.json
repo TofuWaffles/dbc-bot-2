@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO mail (id, sender, recipient, subject, match_id, body, read, mode)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Text",
+        "Varchar",
+        "Text",
+        "Bool",
+        {
+          "Custom": {
+            "name": "mail_type",
+            "kind": {
+              "Enum": [
+                "user",
+                "marshal"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "64480c086c9d53ff1274c3021b7b0b6b85bcd7882c20d8110e6989694e0d7e45"
+}

@@ -51,12 +51,8 @@ where
     ))];
     let builder = CreateReply::default().embed(embed).components(component);
     msg.edit(*ctx, builder).await?;
-    while let Some(mci) = ComponentInteractionCollector::new(ctx)
-        .author_id(ctx.author().id)
-        .channel_id(ctx.channel_id())
-        .timeout(std::time::Duration::from_secs(120))
-        .filter(move |mci| mci.data.custom_id == "channel")
-        .await
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(mci) = ic.next().await
     {
         mci.defer(ctx.http()).await?;
         if let ChannelSelect { values } = mci.data.kind {

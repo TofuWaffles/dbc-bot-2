@@ -1,7 +1,18 @@
 use poise::serenity_prelude::{User, UserId};
 use serde::{Deserialize, Serialize};
-
 use crate::{database::models::Selectable, BotContext, BotError};
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Clone)]
+#[sqlx(type_name = "mail_type", rename_all = "snake_case")]
+pub enum MailType{
+    User,
+    Marshal
+}
+
+impl Default for MailType {
+    fn default() -> Self {
+        Self::User
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Mail {
@@ -9,9 +20,11 @@ pub struct Mail {
     pub sender: String,
     pub recipient: String,
     pub subject: String,
-    pub match_id: Option<String>,
+    #[serde(default)]
+    pub match_id: String,
     pub body: String,
     pub read: bool,
+    pub mode: MailType,
 }
 impl Mail {
     pub async fn new(
@@ -27,8 +40,9 @@ impl Mail {
             recipient,
             subject,
             body,
-            match_id: match_id.into(),
+            match_id: match_id.into().unwrap_or_default(),
             read: false,
+            mode: MailType::default()
         }
     }
     pub async fn recipient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
@@ -46,6 +60,14 @@ impl Mail {
             .to_user(ctx.http())
             .await?)
     }
+
+    pub fn sender_id(&self) -> Result<UserId, BotError> {
+        Ok(UserId::new(self.sender.parse::<u64>()?))
+    }
+
+    pub fn marshal_type(&mut self) {
+        self.mode = MailType::Marshal;
+    }
 }
 
 impl Selectable for Mail {
@@ -57,3 +79,4 @@ impl Selectable for Mail {
         self.subject.clone()
     }
 }
+

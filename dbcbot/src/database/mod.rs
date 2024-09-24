@@ -1,8 +1,9 @@
 use crate::info;
 use crate::BotError;
 use models::*;
+use poise::serenity_prelude::RoleId;
 use sqlx::PgPool;
-
+use anyhow::anyhow;
 /// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
@@ -87,6 +88,9 @@ pub trait ConfigDatabase {
 
     /// Retrieves the config of a given guild from the database.
     async fn get_config(&self, guild_id: &str) -> Result<Option<GuildConfig>, Self::Error>;
+
+    /// Retrieves the marshal role of a given guild from the database.
+    async fn get_marshal_role(&self, guild_id: &str) -> Result<Option<RoleId>, Self::Error>;
 }
 
 impl ConfigDatabase for PgDatabase {
@@ -173,6 +177,25 @@ impl ConfigDatabase for PgDatabase {
 
         Ok(config)
     }
+
+    async fn get_marshal_role(&self, guild_id: &str) -> Result<Option<RoleId>, Self::Error> {
+        let role = sqlx::query!(
+            r#"
+            SELECT marshal_role_id FROM config WHERE guild_id = $1
+            LIMIT 1
+            "#,
+            guild_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let marshal = match role{
+            Some(r) => r.marshal_role_id,
+            None => return Err(anyhow!("No marshal role found"))
+        };
+        Ok(marshal.parse().ok())
+    }
+
+
 }
 pub trait UserDatabase {
     type Error;

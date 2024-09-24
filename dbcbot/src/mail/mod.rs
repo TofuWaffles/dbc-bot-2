@@ -1,11 +1,16 @@
 pub mod model;
+use std::ops::{Deref, DerefMut};
+
+use crate::database::ConfigDatabase;
+use crate::log::Log;
 use crate::utils::discord::{modal, select_options};
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
+use anyhow::anyhow;
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::Mail;
+use model::{Mail, MailType};
 use poise::serenity_prelude::{
-    ButtonStyle, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, Mentionable,
+    AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage, CreateThread, Mentionable, RoleId
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -22,6 +27,7 @@ pub trait MailDatabase {
         sender: UserId,
         recipient: UserId,
     ) -> Result<Vec<Mail>, Self::Error>;
+    async fn to_marshal(&self, mail: &mut Mail, role_id: RoleId) -> Result<(), Self::Error>;
 }
 
 impl MailDatabase for PgDatabase {
@@ -30,10 +36,12 @@ impl MailDatabase for PgDatabase {
         let mails = sqlx::query_as!(
             Mail,
             r#"
-            SELECT * FROM mail 
+            SELECT 
+                id, sender, recipient, subject, match_id, body, read, mode as "mode: MailType"
+            FROM mail 
             WHERE recipient = $1
             ORDER BY id DESC
-        "#,
+            "#,
             recipient.to_string()
         )
         .fetch_all(&self.pool)
@@ -74,8 +82,8 @@ impl MailDatabase for PgDatabase {
     async fn store(&self, mail: Mail) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO mail (id, sender, recipient, subject, match_id, body, read)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO mail (id, sender, recipient, subject, match_id, body, read, mode)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             "#,
             mail.id,
             mail.sender,
@@ -83,7 +91,8 @@ impl MailDatabase for PgDatabase {
             mail.subject,
             mail.match_id,
             mail.body,
-            mail.read
+            mail.read,
+            mail.mode as MailType
         )
         .execute(&self.pool)
         .await?;
@@ -98,7 +107,9 @@ impl MailDatabase for PgDatabase {
         let mails = sqlx::query_as!(
             Mail,
             r#"
-            SELECT * FROM mail 
+            SELECT 
+                id, sender, recipient, subject, match_id, body, read, mode as "mode: MailType"
+            FROM mail
             WHERE (sender = $1  AND recipient = $2)
                 OR (recipient = $1 AND sender = $2 )
         "#,
@@ -108,6 +119,13 @@ impl MailDatabase for PgDatabase {
         .fetch_all(&self.pool)
         .await?;
         Ok(mails)
+    }
+
+    async fn to_marshal(&self, mail: &mut Mail, role_id: RoleId) -> Result<(), Self::Error> {
+        mail.marshal_type();
+        mail.recipient = role_id.to_string();
+        self.store(mail.clone()).await?;
+        Ok(())
     }
 }
 
@@ -239,7 +257,6 @@ async fn mail_page(
     msg: &ReplyHandle<'_>,
     mail: &Mail,
 ) -> Result<(), BotError> {
-    ctx.inbox(msg).await?;
     let embed = CreateEmbed::new()
         .title(&mail.subject)
         .description(format!(
@@ -265,6 +282,25 @@ async fn mail_page(
         .embed(embed)
         .components(vec![buttons]);
     msg.edit(*ctx, reply).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interactions) = &ic.next().await {
+        match interactions.data.custom_id.as_str() {
+            "back" => {
+                interactions.defer(ctx.http()).await?;
+                break;
+            }
+            "reply" => {
+                interactions.defer(ctx.http()).await?;
+                ctx.compose(msg, mail.sender_id()?, mail.subject.clone())
+                    .await?;
+            }
+            "report" => {
+                interactions.defer(ctx.http()).await?;
+                report(ctx, msg, mail).await?;
+            }
+            _ => {}
+        }
+    }
     Ok(())
 }
 
@@ -292,7 +328,11 @@ async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, Bot
 }
 
 #[async_recursion]
-async fn inbox_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, chunked_mail: &Vec<&[Mail]>) -> Result<(), BotError> {
+async fn inbox_helper(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    chunked_mail: &Vec<&[Mail]>,
+) -> Result<(), BotError> {
     let (prev, next) = (String::from("prev"), String::from("next"));
     let mut page_number: usize = 0;
     let total = chunked_mail.len();
@@ -304,10 +344,7 @@ async fn inbox_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, chunked_mail:
             .label("➡️")
             .style(ButtonStyle::Primary),
     ]);
-
-    let mut selected_mail: Option<Mail> = None;
-    let mut ic = ctx.create_interaction_collector(msg).await?;
-    while let Some(interaction) = ic.next().await{
+    loop {
         let selected = select_options(
             ctx,
             msg,
@@ -322,32 +359,60 @@ async fn inbox_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, chunked_mail:
             }
             "next" => {
                 page_number = (page_number + 1).min(total - 1);
-            },
-            "back" => {
-                interaction.defer_ephemeral(ctx.http()).await?;
-                // This can only be triggered from mail_page
-                inbox_helper(ctx, msg, chunked_mail).await?;
-                break;
-            },
-            "reply" => {
-                interaction.defer_ephemeral(ctx.http()).await?;
-                // This can only be triggered from mail_page
-                let mail = selected_mail.clone().unwrap();
-                ctx.compose(msg, mail.recipient_id()?, mail.subject).await?;
             }
-            "report" => {
-                // This can only be triggered from mail_page
-            },
             id @ _ => {
                 let mail = chunked_mail[page_number]
                     .iter()
                     .find(|mail| mail.id.to_string() == id)
                     .unwrap()
                     .to_owned();
-                selected_mail = Some(mail);
-                mail_page(ctx, msg, selected_mail.as_ref().unwrap()).await?;
+                mail_page(ctx, msg, &mail).await?;
             }
         }
     }
+}
+
+async fn report(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, mail: &Mail) -> Result<(), BotError> {
+    const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
+    let guild = ctx.guild().ok_or(anyhow!("Guild not found"))?.id;
+    let marshal = ctx
+        .data()
+        .database
+        .get_marshal_role(&guild.to_string())
+        .await?;
+    let log = ctx.get_log_channel().await?;
+    let thread = CreateThread::new(mail.recipient_id()?.to_string()).kind(ChannelType::PublicThread)
+        .name(mail.recipient(ctx).await?.name)
+        .auto_archive_duration(AUTO_ARCHIVE_DURATION);
+    let reply = {
+        let sender = mail.sender(ctx).await?.mention();
+        let recipient = mail.recipient(ctx).await?.mention();
+        let embed = CreateEmbed::default()
+            .title("A potential suspicious mail has been reported!")
+            .description(format!(
+                r#"From: {sender} `{sender_id}`
+To: {recipient} `{recipient_id}`
+Subject: {subject}
+```
+{body}
+```
+Sent at <t:{timestamp}:F>
+Reported by: {recipient}.
+
+"#,
+                sender = sender,
+                sender_id = mail.sender.clone(),
+                recipient = recipient,
+                recipient_id = mail.recipient.clone(),
+                subject = mail.subject.clone(),
+                body = mail.body.clone(),
+                timestamp = mail.id,
+            ))
+            .timestamp(ctx.now());
+
+        CreateMessage::new().embed(embed).content(format!("{}", marshal.map_or_else(||"".to_string(),|r| r.mention().to_string())))
+    };
+    let thread_id = log.create_thread(ctx.http(), thread).await?;
+    thread_id.send_message(ctx.http(), reply).await?;
     Ok(())
 }

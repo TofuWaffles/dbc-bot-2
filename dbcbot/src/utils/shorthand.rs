@@ -1,3 +1,5 @@
+use super::discord::select_options;
+use crate::database::*;
 use crate::{
     api::{
         brawlify::{BrawlMap, FullBrawler, FullGameMode, GameMode},
@@ -12,8 +14,6 @@ use crate::{
 };
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-use crate::database::*;
-use super::discord::select_options;
 use poise::{
     serenity_prelude::{
         ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
@@ -351,16 +351,26 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             interactions.defer(self.http()).await?;
             match interactions.data.custom_id.as_str() {
                 "0" => {
-                    let brawlers: Vec<Vec<FullBrawler>> = brawlers
+                    let brawlers: Vec<Vec<FullBrawler>> = brawlers.clone()
                         .sort_by_alphabet()
                         .chunks(CAPACITY)
                         .map(|chunk| chunk.to_vec())
                         .collect();
                     let mut chunk: &[FullBrawler] = brawlers[page_number].as_ref();
                     loop {
-                        let selected =
-                            select_options(self, msg, embed(chunk), vec![buttons.clone()], chunk)
-                                .await?;
+                        let selected = match select_options(
+                            self,
+                            msg,
+                            embed(chunk),
+                            vec![buttons.clone()],
+                            chunk,
+                        )
+                        .await
+                        {
+                            Ok(s) => s,
+                            Err(_) => break,
+                        };
+
                         match selected.as_str() {
                             "prev" => {
                                 page_number = page_number.saturating_sub(1);
@@ -386,7 +396,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 _ => unreachable!(),
             }
         }
-        Err(anyhow!("User did not respond in time"))
+        Err(anyhow!("No option selected"))
     }
 
     async fn map_selection(
