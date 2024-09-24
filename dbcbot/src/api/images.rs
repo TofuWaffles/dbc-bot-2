@@ -118,7 +118,7 @@ impl ImagesAPI {
     }
 }
 
-// #[cached(size = 50, time = 86400, result = true)]
+#[cached(size = 50, time = 86400, result = true)]
 async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError> {
     let images_api = ImagesAPI::new();
     let response = images_api
