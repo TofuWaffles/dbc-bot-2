@@ -6,12 +6,12 @@ use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 use database::{Database, PgDatabase, TournamentDatabase};
 use poise::{serenity_prelude as serenity, CreateReply};
 
+use crate::log::discord_log_error;
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
     owner_commands::OwnerCommands, test_commands::TestCommands, user_commands::UserCommands,
     CommandsContainer,
 };
-use crate::log::discord_log_error;
 
 /// Utilities for interacting with the game API.
 mod api;
@@ -50,7 +50,6 @@ where
         }
     }
 }
-
 
 /// Convenience type for the bot's data with generics filled in.
 pub type BotData = Data<PgDatabase>;

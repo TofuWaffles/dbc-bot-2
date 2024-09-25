@@ -222,21 +222,14 @@ pub trait UserDatabase {
     async fn get_user_by_player(&self, player: Player) -> Result<Option<Player>, Self::Error>;
 
     /// Retrieves a user from the database with a given discord id.
-    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<Player>, Self::Error>;
+    async fn get_user_by_discord_id(&self, discord_id: &str)
+        -> Result<Option<Player>, Self::Error>;
 
     /// Sets the ready status of a player of a specified match to true.
-    async fn set_ready(
-        &self,
-        match_id: &str,
-        discord_id: &str,
-    ) -> Result<(), Self::Error>;
+    async fn set_ready(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error>;
 
     /// Sets the winner of a match
-    async fn set_winner(
-        &self,
-        match_id: &str,
-        discord_id: &str
-    ) -> Result<(), Self::Error>;
+    async fn set_winner(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error>;
 }
 
 impl UserDatabase for PgDatabase {
@@ -315,7 +308,10 @@ impl UserDatabase for PgDatabase {
         Ok(user)
     }
 
-    async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<Player>, Self::Error> {
+    async fn get_user_by_discord_id(
+        &self,
+        discord_id: &str,
+    ) -> Result<Option<Player>, Self::Error> {
         let user = sqlx::query_as!(
             Player,
             r#"
@@ -351,19 +347,15 @@ impl UserDatabase for PgDatabase {
         Ok(user)
     }
 
-    async fn set_ready(
-        &self,
-        match_id: &str,
-        discord_id: &str,
-    ) -> Result<(), Self::Error> {
+    async fn set_ready(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
             UPDATE match_players
             SET ready = true
             WHERE match_id = $1 AND discord_id = $2
         "#,
-        match_id,
-        discord_id
+            match_id,
+            discord_id
         )
         .execute(&self.pool)
         .await?;
@@ -371,11 +363,7 @@ impl UserDatabase for PgDatabase {
         Ok(())
     }
 
-    async fn set_winner(
-        &self,
-        match_id: &str,
-        discord_id: &str,
-    ) -> Result<(), Self::Error> {
+    async fn set_winner(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
             UPDATE matches
@@ -1214,7 +1202,7 @@ impl MatchDatabase for PgDatabase {
                 record.round,
                 record.sequence_in_round,
                 players,
-                &record.score
+                &record.score,
             ))
         }
 

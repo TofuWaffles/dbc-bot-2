@@ -755,13 +755,7 @@ fn generate_matches_new_tournament(
             players.push(tournament_players.remove(i as usize).into());
         }
 
-        matches.push(Match::new(
-            tournament_id,
-            1,
-            (i + 1) as i32,
-            players,
-            "0-0",
-        ));
+        matches.push(Match::new(tournament_id, 1, (i + 1) as i32, players, "0-0"));
     }
 
     Ok(matches)
@@ -773,9 +767,7 @@ mod tests {
     use poise::serenity_prelude::Role;
 
     use super::{generate_matches_new_tournament, models::Player};
-    use crate::database::{
-        models::Mode, PgDatabase, TournamentDatabase, UserDatabase,
-    };
+    use crate::database::{models::Mode, PgDatabase, TournamentDatabase, UserDatabase};
 
     fn create_dummy(sample: usize) -> Vec<Player> {
         let mut users: Vec<Player> = Vec::new();
@@ -819,11 +811,15 @@ mod tests {
         db.delete_tournament(-1).await.unwrap();
 
         assert_eq!(matches.len(), 2);
-        matches.iter().take(2).enumerate().for_each(|(i, game_match)| {
-            assert_eq!(game_match.sequence_in_round, i as i32 + 1);
-            assert!(game_match.match_players.get(0).is_some());
-            assert!(game_match.match_players.get(1).is_some());
-        });
+        matches
+            .iter()
+            .take(2)
+            .enumerate()
+            .for_each(|(i, game_match)| {
+                assert_eq!(game_match.sequence_in_round, i as i32 + 1);
+                assert!(game_match.match_players.get(0).is_some());
+                assert!(game_match.match_players.get(1).is_some());
+            });
     }
 
     #[tokio::test]
