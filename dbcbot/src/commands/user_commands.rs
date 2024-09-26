@@ -1,48 +1,30 @@
 use anyhow::anyhow;
 use futures::Stream;
-use poise::serenity_prelude::futures::StreamExt;
-use poise::serenity_prelude::*;
-use poise::CreateReply;
-use poise::Modal;
-use poise::ReplyHandle;
-use prettytable::row;
-use prettytable::Table;
+use poise::serenity_prelude::{futures::StreamExt, *};
+use poise::{CreateReply, Modal, ReplyHandle};
+use prettytable::{row, Table};
 use serde_json::json;
-use tracing::info;
-use tracing::instrument;
+use tracing::{info, instrument};
 
-use crate::database::models::BattleResult;
-use crate::database::models::BattleType;
-use crate::database::models::Match;
-use crate::database::models::PlayerNumber::*;
-use crate::database::models::PlayerType;
-use crate::database::models::TournamentStatus;
-use crate::database::models::User;
-use crate::database::ConfigDatabase;
-use crate::database::TournamentDatabase;
-use crate::database::MatchDatabase;
-use crate::database::UserDatabase;
+use crate::database::models::{
+    BattleResult, BattleType, Match, Player, PlayerType, TournamentStatus,
+};
+use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 
-use crate::api::images::ImagesAPI;
-use crate::api::official_brawl_stars::BattleLogItem;
-use crate::api::APIResult;
+use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
+use crate::{api::APIResult, commands::checks::is_config_set};
 
-use crate::commands::checks::is_config_set;
 use crate::commands::checks::is_tournament_paused;
 
 use crate::database::models::Tournament;
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
-use crate::utils::discord::modal;
-use crate::utils::discord::select_options;
+use crate::utils::discord::{modal, select_options};
 use crate::utils::shorthand::BotContextExt;
 
-use crate::BotContext;
-use crate::BotData;
-use crate::BotError;
+use crate::{BotContext, BotData, BotError};
 
 use super::CommandsContainer;
-
 
 /// CommandsContainer for the User commands
 pub struct UserCommands;
@@ -273,65 +255,21 @@ async fn user_display_match(
     let bracket = match bracket_opt {
         Some(ref bracket) => {
             let reply;
-            // let embed = match (bracket.player_1_type, bracket.player_2_type) {
-            //     (PlayerType::Dummy, _) | (_, PlayerType::Dummy) => {
-            //         ctx.data()
-            //             .database
-            //             .set_winner(
-            //                 &bracket.match_id,
-            //                 bracket
-            //                     .get_player_number(&ctx.author().id.to_string())
-            //                     .ok_or(anyhow!(
-            //                         "Player <@{}> is not in this match {}",
-            //                         ctx.author().id.to_string(),
-            //                         bracket.match_id
-            //                     ))?,
-            //             )
-            //             .await?;
-            //         CreateEmbed::new()
-            //             .title("Match Information.")
-            //             .description("You have no opponents for the current round. See you in the next round, partner!")
-            //             .fields(vec![
-            //                 ("Tournament", tournament.name, true),
-            //                 ("Match ID", bracket.match_id.to_owned(), true),
-            //                 ("Round", bracket.round.to_string(), true),
-            //             ])
-            //     }
-            //     (PlayerType::Pending, _) | (_, PlayerType::Pending) => CreateEmbed::new()
-            //         .title("Match Information.")
-            //         .description("Your opponent has yet to be determined. Please be patient.")
-            //         .fields(vec![
-            //             ("Tournament", tournament.name, true),
-            //             ("Match ID", bracket.match_id.to_owned(), true),
-            //             ("Round", bracket.round.to_string(), true),
-            //         ]),
-            //     (PlayerType::Player, _) | (_,PlayerType::Player) => {
-            //         CreateEmbed::new()
-            //                 .title("Match Information.")
-            //                 .description("Your opponent has yet to be determined. Please be patient.")
-            //                 .fields(vec![
-            //                     ("Tournament", tournament.name, true),
-            //                     ("Match ID", bracket.match_id.to_owned(), true),
-            //                     ("Round", bracket.round.to_string(), true),
-            //                 ])
-            //     },
-            // };
-            if bracket.player_1_type == PlayerType::Dummy
-                || bracket.player_2_type == PlayerType::Dummy
-            {
+            if bracket.match_players.len() < 2 {
                 // Automatically advance the player to the next round if the opponent is a dummy
                 // (a bye round)
                 ctx.data()
                     .database
                     .set_winner(
                         &bracket.match_id,
-                        bracket
-                            .get_player_number(&ctx.author().id.to_string())
+                        &bracket
+                            .match_players
+                            .get(0)
                             .ok_or(anyhow!(
-                                "Player <@{}> is not in this match {}",
-                                ctx.author().id.to_string(),
-                                bracket.match_id
-                            ))?,
+                                "Error displaying a bye round to user: No player found in match {}",
+                                &bracket.match_id
+                            ))?
+                            .discord_id,
                     )
                     .await?;
                 reply = CreateReply::default().content("").embed(
@@ -345,60 +283,26 @@ async fn user_display_match(
                             ("Round", bracket.round.to_string(), true),
                         ]),
                     );
-            } else if bracket.player_1_type == PlayerType::Pending
-                || bracket.player_2_type == PlayerType::Pending
-            {
-                // Pending is not currently in use, but we check for it anyway
-                reply = CreateReply::default().content("").embed(
-                    CreateEmbed::new()
-                        .title("Match Information.")
-                        .description("Your opponent has yet to be determined. Please be patient.")
-                        .fields(vec![
-                            ("Tournament", tournament.name, true),
-                            ("Match ID", bracket.match_id.to_owned(), true),
-                            ("Round", bracket.round.to_string(), true),
-                        ]),
-                );
             } else {
-                let player_number = bracket
-                    .get_player_number(&ctx.author().id.to_string())
-                    .ok_or(anyhow!(
-                        "Player <@{}> is not in match {}",
-                        ctx.author().id.to_string(),
-                        bracket.match_id
-                    ))?;
                 // We don't want to show the player the ready button if they're already ready
-                let button_components = match player_number {
-                    Player1 => {
-                        if !bracket.player_1_ready {
-                            vec![CreateActionRow::Buttons(vec![CreateButton::new(
-                                "match_menu_ready",
-                            )
-                            .label("Ready")
-                            .style(ButtonStyle::Success)])]
-                        } else {
-                            vec![]
-                        }
-                    }
-                    Player2 => {
-                        if !bracket.player_2_ready {
-                            vec![CreateActionRow::Buttons(vec![CreateButton::new(
-                                "match_menu_ready",
-                            )
-                            .label("Ready")
-                            .style(ButtonStyle::Success)])]
-                        } else {
-                            vec![]
-                        }
-                    }
+                let player = bracket.get_player(&ctx.author().id.to_string())?;
+                let button_components = if player.ready {
+                    vec![CreateActionRow::Buttons(vec![CreateButton::new(
+                        "match_menu_ready",
+                    )
+                    .label("Ready")
+                    .style(ButtonStyle::Success)])]
+                } else {
+                    vec![]
                 };
+
                 let image_api = ImagesAPI::new();
                 let p1 = ctx
-                    .get_user_by_discord_id(bracket.discord_id_1.clone().unwrap())
+                    .get_player_from_discord_id(player.discord_id.clone())
                     .await?
                     .ok_or(anyhow!("Player 1 is not found in the database"))?;
                 let p2 = ctx
-                    .get_user_by_discord_id(bracket.discord_id_2.clone().unwrap())
+                    .get_player_from_discord_id(player.discord_id.clone())
                     .await?
                     .ok_or(anyhow!("Player 2 is not found in the database"))?;
                 let image = image_api.match_image(&p1, &p2).await?;
@@ -414,18 +318,13 @@ async fn user_display_match(
                             ("Match ID", bracket.match_id.to_owned(), true),
                             ("Round", bracket.round.to_string(), true),
                             ("Player 1",
-                             match bracket.player_1_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_1.to_owned().ok_or(anyhow!("Player 1 is set to type Player but has no Discord ID in match {}", bracket.match_id))?),
-                                PlayerType::Dummy => "No opponent, please proceed by clicking 'Submit'".to_string(),
-                                PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
-                            },
+                            format!("<@{}>", bracket.match_players.get(0).ok_or(anyhow!("Error displaying player 1 for match {}: no player found", bracket.match_id))?.discord_id),
                              false),
                             ("Player 2", 
-                             match bracket.player_2_type {
-                                PlayerType::Player => format!("<@{}>", bracket.discord_id_2.to_owned().ok_or(anyhow!("Player 2 is set to type Player but has not Discord ID in match {}", bracket.match_id))?),
-                                PlayerType::Dummy => "No opponent for the current match, please proceed by clicking 'Submit'".to_string(),
-                                PlayerType::Pending => "Please wait. Opponent to be determined.".to_string(),
-                            },
+                             match bracket.match_players.get(1) {
+    Some(player) => format!("<@{}", player.discord_id),
+    None => format!("Congrats! You have no opponent for the current match. You can proceed to the next round."),
+},
                              false),
                         ]),
                     )
@@ -456,42 +355,24 @@ async fn user_display_match(
                 None,
             ).await?;
 
-            let player_number = bracket
-                .get_player_number(&ctx.author().id.to_string())
-                .unwrap();
-
-            let player_1_id = bracket.discord_id_1.clone().ok_or(anyhow!(
-                "Player 1 type is set to Player but has not Discord ID in match {}",
-                bracket.match_id
-            ))?;
-            let player_2_id = bracket.discord_id_2.clone().ok_or(anyhow!(
-                "Player 2 type is set to Player but has not Discord ID in match {}",
-                bracket.match_id
-            ))?;
+            let player = bracket.get_player(&ctx.author().id.to_string())?;
+            let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
 
             ctx.data()
                 .database
-                .set_ready(&bracket.match_id, &player_number)
+                .set_ready(&bracket.match_id, &player.discord_id)
                 .await?;
 
-            let notification_message = match player_number {
-                Player1 => {
-                    if bracket.player_2_ready {
-                        format!(
-                            r#"<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the "Submit" button when you have done so. Best of luck!"#,
-                            player_1_id, player_2_id
-                        )
-                    } else {
-                        format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_2_id, player_1_id)
-                    }
-                }
-                Player2 => {
-                    if bracket.player_1_ready {
-                        format!("<@{}> and <@{}>.\n\nBoth players have readied up. Please complete your matches and press the \"Submit\" button when you have done so. Best of luck!", player_1_id, player_2_id)
-                    } else {
-                        format!("<@{}>.\n\nYour opponent <@{}> has readied up. You are advised to ready up using the /menu command or get your match in by clicking \"Submit\" in the menu. Failure to do so may result in automatic disqualification.", player_1_id, player_2_id)
-                    }
-                }
+            let notification_message = if opponent.ready {
+                format!(
+                    r#"<@{}> <@{}>.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                    player.discord_id, opponent.discord_id
+                )
+            } else {
+                format!(
+                    r#"<@{}>.\n\nYour opponent <@{}> is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
+                    opponent.discord_id, player.discord_id
+                )
             };
 
             let notification_channel = ChannelId::new(tournament.notification_channel_id.parse()?);
@@ -652,7 +533,7 @@ async fn user_display_registration(
     msg: &ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
-    let mut user = User::default();
+    let mut user = Player::default();
     let buttons = vec![CreateButton::new("player_profile_registration")
         .label("Register")
         .style(ButtonStyle::Primary)];
@@ -1029,14 +910,34 @@ async fn submit(
                 .all(|(c1, c2)| c1 == c2 || (c1 == 'O' && c2 == '0') || (c1 == '0' && c2 == 'O'))
                 && s1.len() == s2.len()
         };
+        let mp1 = game_match.match_players.get(0).ok_or(anyhow!(
+            "Error submitting results for match {}: unable to find first player",
+            game_match.match_id
+        ))?;
+        let mp2 = game_match.match_players.get(1).ok_or(anyhow!(
+            "Error submitting results for match {}: unable to find second player",
+            game_match.match_id
+        ))?;
         let p1 = ctx
-            .get_player_from_discord_id(game_match.discord_id_1.clone().unwrap())
+            .data()
+            .database
+            .get_player_by_discord_id(&mp1.discord_id)
             .await?
-            .unwrap();
+            .ok_or(anyhow!(
+                "Error submitting results for match {}: no player found for id {}",
+                game_match.match_id,
+                mp1.discord_id
+            ))?;
         let p2 = ctx
-            .get_player_from_discord_id(game_match.discord_id_2.clone().unwrap())
+            .data()
+            .database
+            .get_player_by_discord_id(&mp2.discord_id)
             .await?
-            .unwrap();
+            .ok_or(anyhow!(
+                "Error submitting results for match {}: no player found for id {}",
+                game_match.match_id,
+                mp2.discord_id
+            ))?;
         let mut whitelist = vec![];
         for log in logs {
             if log.unix() < tournament.created_at {
@@ -1065,7 +966,7 @@ async fn submit(
     }
     /// Analyse the battle logs to determine the winner of the match
     /// Returns true if player 1 wins, false if player 2 wins, and None if no conclusion can be made
-    async fn analyse(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<bool> {
+    async fn analyze(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<bool> {
         let mut conclusion: Option<bool> = None; //true = player 1, false = player 2, None = no conclusion
         let mut victory = 0;
         let mut defeat = 0;
@@ -1168,27 +1069,24 @@ async fn submit(
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }
-    let winner = analyse(&tournament, battles).await;
-    let (caller, opposite) = match bracket.discord_id_1.clone().unwrap() == caller {
-        true => (Player1, Player2),
-        false => (Player2, Player1),
-    };
+    let winner = analyze(&tournament, battles).await;
     let channel = ChannelId::new(tournament.notification_channel_id.parse()?);
     let target = match winner {
         None => return handle_not_enough_matches(ctx, msg).await,
         Some(true) => {
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, caller)
+                .set_winner(&bracket.match_id, &ctx.author().id.to_string())
                 .await?;
-            ctx.get_user_by_discord_id(None).await?.unwrap()
+            ctx.get_player_from_discord_id(None).await?.unwrap()
         }
         Some(false) => {
+            let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?;
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, opposite)
+                .set_winner(&bracket.match_id, &opponent_id.discord_id)
                 .await?;
-            ctx.get_user_by_discord_id(bracket.discord_id_2.clone())
+            ctx.get_player_from_discord_id(opponent_id.discord_id.to_string())
                 .await?
                 .unwrap()
         }
@@ -1230,7 +1128,7 @@ async fn submit(
 async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
-    winner: &User,
+    winner: &Player,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().unwrap().to_string();
     let announcement_channel_id = ctx

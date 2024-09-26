@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers\n            FROM tournament_players\n            JOIN users ON tournament_players.discord_id = users.discord_id\n            WHERE tournament_players.tournament_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "discord_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "player_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "player_tag",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "icon",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "trophies",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "brawlers",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "df3507138313357c1aed52d10cfa9069b9530663a1cbd85789a4a7dc3871696a"
+}

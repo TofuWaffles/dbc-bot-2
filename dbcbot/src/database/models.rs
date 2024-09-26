@@ -1,7 +1,10 @@
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::api::official_brawl_stars::Brawler;
+
+use std::vec::Vec;
 
 /// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
@@ -70,8 +73,8 @@ impl Selectable for Tournament {
 }
 
 /// A Discord user within the database.
-#[derive(Debug, Serialize, Deserialize, Default)]
-pub struct User {
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+pub struct Player {
     pub discord_id: String,
     pub discord_name: String,
     pub player_tag: String,
@@ -82,26 +85,12 @@ pub struct User {
                                           // implemented
 }
 
-impl From<User> for Player {
-    fn from(value: User) -> Self {
-        Self {
-            discord_id: value.discord_id.clone(),
-            player_tag: value.player_tag.clone(),
-        }
-    }
-}
-
-impl User {
+impl Player {
     pub fn get_brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Player {
-    pub discord_id: String,
-    pub player_tag: String,
-}
 /// A relational object that links a Discord user to a tournament they've joined.
 #[derive(Serialize, Deserialize)]
 pub struct TournamentPlayer {
@@ -118,42 +107,27 @@ pub struct Match {
     pub tournament_id: i32,
     pub round: i32,
     pub sequence_in_round: i32,
-    pub player_1_type: PlayerType,
-    pub player_2_type: PlayerType,
-    pub discord_id_1: Option<String>,
-    pub discord_id_2: Option<String>,
-    pub player_1_ready: bool,
-    pub player_2_ready: bool,
-    pub winner: Option<PlayerNumber>,
+    pub match_players: Vec<MatchPlayer>,
+    pub score: String,
+    pub winner: Option<String>,
 }
 
 impl Match {
     pub fn new(
-        match_id: String,
         tournament_id: i32,
         round: i32,
         sequence_in_round: i32,
-        discord_id_1: Option<String>,
-        discord_id_2: Option<String>,
+        match_players: Vec<MatchPlayer>,
+        score: &str,
     ) -> Self {
         Self {
-            match_id,
+            match_id: Match::generate_id(tournament_id, round, sequence_in_round),
             tournament_id,
             round,
             sequence_in_round,
-            player_1_type: match discord_id_1 {
-                Some(_) => PlayerType::Player,
-                None => PlayerType::Dummy,
-            },
-            player_2_type: match discord_id_2 {
-                Some(_) => PlayerType::Player,
-                None => PlayerType::Dummy,
-            },
-            discord_id_1,
-            discord_id_2,
-            player_1_ready: false,
-            player_2_ready: false,
+            match_players,
             winner: None,
+            score: score.to_string(),
         }
     }
 
@@ -161,13 +135,63 @@ impl Match {
         format!("{}.{}.{}", tournament_id, round, sequence_in_round)
     }
 
-    pub fn get_player_number(&self, discord_id: &str) -> Option<PlayerNumber> {
-        if discord_id == self.discord_id_1.clone().unwrap_or_default() {
-            return Some(PlayerNumber::Player1);
-        } else if discord_id == self.discord_id_2.clone().unwrap_or_default() {
-            return Some(PlayerNumber::Player2);
+    /// Retrieves the winning player as a reference to its User type.
+    /// The caller is responsible to clone or take ownership of the underlying User type.
+    ///
+    /// Warning: Cloning may be expensive as the user type contains image data in the form of bytes.
+    pub fn get_winning_player(&self) -> Option<&MatchPlayer> {
+        let winner_id = match self.winner {
+            Some(ref id) => id,
+            None => return None,
+        };
+
+        self.match_players
+            .iter()
+            .find(|p| p.discord_id == *winner_id)
+    }
+
+    /// Get a player in this match with a particular Discord ID.
+    pub fn get_player(&self, discord_id: &str) -> Result<&MatchPlayer> {
+        self.match_players
+            .iter()
+            .filter(|p| p.discord_id == discord_id)
+            .next()
+            .ok_or(anyhow!(
+                "Error: Unable to find player inside match {}",
+                self.match_id
+            ))
+    }
+
+    /// Get the opponent of the player that's passed in.
+    pub fn get_opponent(&self, discord_id: &str) -> Result<&MatchPlayer> {
+        self.match_players
+            .iter()
+            .filter(|p| p.discord_id != discord_id)
+            .next()
+            .ok_or(anyhow!(
+                "Error: Unable to find opponent inside match {}",
+                self.match_id
+            ))
+    }
+}
+
+/// A relational entity linking players to matches.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MatchPlayer {
+    pub match_id: String,
+    pub discord_id: String,
+    pub player_type: PlayerType,
+    pub ready: bool,
+}
+
+impl From<Player> for MatchPlayer {
+    fn from(value: Player) -> Self {
+        MatchPlayer {
+            match_id: "".to_string(),
+            discord_id: value.discord_id,
+            player_type: PlayerType::Player,
+            ready: false,
         }
-        None
     }
 }
 
@@ -175,28 +199,12 @@ impl Match {
 ///
 /// Used to determine if the slot is occupied by a real player, a dummy (a bye round),
 /// or is pending (waiting for a player to reach the bracket).
-#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, sqlx::Type, Serialize, Deserialize, Clone)]
 #[sqlx(type_name = "player_type", rename_all = "snake_case")]
 pub enum PlayerType {
     Player,
     Dummy,
     Pending,
-}
-
-#[derive(Debug, sqlx::Type, Serialize, Deserialize, PartialEq, Eq)]
-#[sqlx(type_name = "player_number", rename_all = "snake_case")]
-pub enum PlayerNumber {
-    Player1,
-    Player2,
-}
-
-impl ToString for PlayerNumber {
-    fn to_string(&self) -> String {
-        match self {
-            PlayerNumber::Player1 => "player_1".to_string(),
-            PlayerNumber::Player2 => "player_2".to_string(),
-        }
-    }
 }
 
 /// A match schedule within the database.

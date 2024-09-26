@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE match_players\n            SET ready = true\n            WHERE match_id = $1 AND discord_id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78f28f3fc33239e169e813c163ce51f1dd3a51cdbca145b6bdf2024aee7ff1af"
+}

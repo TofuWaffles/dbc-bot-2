@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT match_id, tournament_id, round, sequence_in_round, winner, score\n            FROM matches\n            WHERE match_id = $1\n            ORDER BY round DESC\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "match_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "sequence_in_round",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "winner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "score",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "9430b38f8181d6542626b1e59b7c84547f60978be3a3fcdaa3b06150262f5cf5"
+}

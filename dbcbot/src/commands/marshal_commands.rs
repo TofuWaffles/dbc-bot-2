@@ -1,3 +1,11 @@
+use super::{checks::is_marshal_or_higher, CommandsContainer};
+use crate::database::models::{Match, PlayerType, TournamentStatus};
+use crate::database::{MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::{
+    log::{self, Log},
+    utils::shorthand::BotContextExt,
+    BotContext, BotData, BotError,
+};
 use anyhow::anyhow;
 use chrono::DateTime;
 use poise::{
@@ -6,12 +14,6 @@ use poise::{
 };
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
-use crate::{
-   log::{self, Log}, utils::shorthand::BotContextExt, BotContext, BotData, BotError
-};
-use crate::database::models::{Match, PlayerNumber, TournamentStatus};
-use crate::database::{TournamentDatabase, MatchDatabase, UserDatabase};
-use super::{checks::is_marshal_or_higher, CommandsContainer};
 
 /// CommandsContainer for the Marshal commands
 pub struct MarshalCommands;
@@ -274,18 +276,12 @@ async fn get_match(
                                 ("Round", bracket.round.to_string(), false),
                                 (
                                     "Player 1",
-                                    match bracket.discord_id_1 {
-                                        Some(player_id) => format!("<@{}>", player_id),
-                                        None => "No player".to_string(),
-                                    },
+                                    format!("{:#?}", bracket.match_players.get(0)),
                                     false,
                                 ),
                                 (
                                     "Player 2",
-                                    match bracket.discord_id_2 {
-                                        Some(player_id) => format!("<@{}>", player_id),
-                                        None => "No player".to_string(),
-                                    },
+                                    format!("{:#?}", bracket.match_players.get(1)),
                                     false,
                                 ),
                                 ("Winner", format!("<@{:#?}>", bracket.winner), false),
@@ -441,23 +437,11 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         }
     };
 
-    if player.id.to_string() == bracket.discord_id_1.unwrap_or_default() {
-        ctx.data()
-            .database
-            .set_winner(&bracket.match_id, PlayerNumber::Player2)
-            .await?;
-    } else if player.id.to_string() == bracket.discord_id_2.unwrap_or_default() {
-        ctx.data()
-            .database
-            .set_winner(&bracket.match_id, PlayerNumber::Player1)
-            .await?;
-    } else {
-        return Err(anyhow!(
-            "Player <@{}> did not match either player in match {}",
-            player.id,
-            bracket.match_id
-        ));
-    }
+    let opponent = bracket.get_opponent(&player.id.to_string())?;
+    ctx.data()
+        .database
+        .set_winner(&bracket.match_id, &opponent.discord_id)
+        .await?;
 
     ctx.send(
         CreateReply::default()
@@ -542,25 +526,22 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     let next_round_brackets = generate_next_round(with_winners, round)?;
     let new_brackets_count = next_round_brackets.len();
 
-    for bracket in next_round_brackets {
+    for mut bracket in next_round_brackets {
         ctx.data()
             .database
-            .create_match(
-                tournament_id,
-                round,
-                bracket.sequence_in_round,
-                bracket.player_1_type,
-                bracket.player_2_type,
-                Some(&bracket.discord_id_1.ok_or(anyhow!(
-                    "Newly generated match {} has no Discord ID in slot 1",
-                    bracket.match_id
-                ))?),
-                Some(&bracket.discord_id_2.ok_or(anyhow!(
-                    "Newly generated match {} has no Discord ID in slot 2",
-                    bracket.match_id
-                ))?),
-            )
+            .create_match(tournament_id, round, bracket.sequence_in_round)
             .await?;
+
+        for _ in 0..bracket.match_players.len() {
+            ctx.data()
+                .database
+                .enter_match(
+                    &Match::generate_id(tournament_id, round, bracket.sequence_in_round),
+                    &bracket.match_players.remove(0).discord_id,
+                    PlayerType::Player,
+                )
+                .await?;
+        }
     }
 
     ctx.data().database.next_round(tournament_id).await?;
@@ -618,38 +599,37 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
     let mut brackets_iter = brackets.into_iter();
 
     for _i in 1..=next_round_brackets.len() {
-        let old_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round"))?;
+        let old_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
         let old_bracket_2 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
 
-        let discord_id_1 = match old_bracket_1.winner.ok_or(anyhow!(
-            "Error advancing to the next round: Match {} has no winner!",
-            old_bracket_1.match_id
-        ))? {
-            PlayerNumber::Player1 => old_bracket_1.discord_id_1,
-            PlayerNumber::Player2 => old_bracket_1.discord_id_2,
-        };
-        let discord_id_2 = match old_bracket_2.winner.ok_or(anyhow!(
-            "Error advancing to the next round: Match {} has no winner!",
-            old_bracket_2.match_id
-        ))? {
-            PlayerNumber::Player1 => old_bracket_2.discord_id_1,
-            PlayerNumber::Player2 => old_bracket_2.discord_id_2,
-        };
+        let player_1 = old_bracket_1
+            .get_winning_player()
+            .ok_or(anyhow!(
+                "Error advancing to the next round: Unable to find the winning player in Match {}",
+                old_bracket_1.match_id
+            ))?
+            .to_owned();
+
+        let player_2 = old_bracket_2
+            .get_winning_player()
+            .ok_or(anyhow!(
+                "Error advancing to the next round: Unable to find the winning player in Match {}",
+                old_bracket_2.match_id
+            ))?
+            .to_owned();
+
         let new_sequence = (old_bracket_1.sequence_in_round as f32 / 2.0).ceil() as i32;
 
         if new_sequence != (old_bracket_2.sequence_in_round / 2) {
             return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id));
         }
 
-        let match_id = Match::generate_id(tournament_id, round, new_sequence);
-
         next_round_brackets.push(Match::new(
-            match_id,
             tournament_id,
             round,
             new_sequence,
-            discord_id_1,
-            discord_id_2,
+            vec![player_1, player_2],
+            "0-0",
         ))
     }
 

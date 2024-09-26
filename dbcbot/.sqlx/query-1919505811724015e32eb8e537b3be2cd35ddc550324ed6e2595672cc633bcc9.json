@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO match_players (match_id, discord_id, player_type, ready)\n            VALUES ($1, $2, $3, false)\n            ON CONFLICT (match_id, discord_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        {
+          "Custom": {
+            "name": "player_type",
+            "kind": {
+              "Enum": [
+                "player",
+                "dummy",
+                "pending"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1919505811724015e32eb8e537b3be2cd35ddc550324ed6e2595672cc633bcc9"
+}

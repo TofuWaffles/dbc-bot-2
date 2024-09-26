@@ -84,11 +84,11 @@ async fn match_image(
 ) -> Result<(), BotError> {
     ctx.defer().await?;
     let p1 = ctx
-        .get_user_by_discord_id(user1.id.to_string())
+        .get_player_from_discord_id(user1.id.to_string())
         .await?
         .ok_or(anyhow!("User 1 not found."))?;
     let p2 = ctx
-        .get_user_by_discord_id(user2.id.to_string())
+        .get_player_from_discord_id(user2.id.to_string())
         .await?
         .ok_or(anyhow!("User 2 not found."))?;
     let image_api = ImagesAPI::new();
@@ -152,11 +152,11 @@ async fn result_image(
 ) -> Result<(), BotError> {
     ctx.defer().await?;
     let p1 = ctx
-        .get_user_by_discord_id(winner.id.to_string())
+        .get_player_from_discord_id(winner.id.to_string())
         .await?
         .ok_or(anyhow!("Winner not found."))?;
     let p2 = ctx
-        .get_user_by_discord_id(loser.id.to_string())
+        .get_player_from_discord_id(loser.id.to_string())
         .await?
         .ok_or(anyhow!("Loser not found."))?;
     let image_api = ImagesAPI::new();
@@ -219,7 +219,7 @@ async fn profile_image(
     ctx.defer().await?;
     let discord_id = user.id.to_string();
     let user = ctx
-        .get_user_by_discord_id(discord_id.clone())
+        .get_player_from_discord_id(discord_id.clone())
         .await?
         .ok_or(anyhow!("User not found."))?;
     let tournament_id = ctx

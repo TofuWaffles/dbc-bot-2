@@ -24,8 +24,8 @@ impl ImagesAPI {
 
     pub async fn match_image(
         self,
-        player1: &database::models::User,
-        player2: &database::models::User,
+        player1: &database::models::Player,
+        player2: &database::models::Player,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/match", self.base_url);
         let payload = serde_json::json!({
@@ -50,8 +50,8 @@ impl ImagesAPI {
 
     pub async fn result_image(
         self,
-        winner: &database::models::User,
-        loser: &database::models::User,
+        winner: &database::models::Player,
+        loser: &database::models::Player,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/result", self.base_url);
         let payload = serde_json::json!({
@@ -76,7 +76,7 @@ impl ImagesAPI {
 
     pub async fn profile_image(
         self,
-        user: &database::models::User,
+        user: &database::models::Player,
         tournament_id: String,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/profile", self.base_url);
