@@ -25,7 +25,7 @@ impl CommandsContainer for TestCommands {
             choose_brawler_command(),
             choose_map_command(),
             choose_gamemode_command(),
-            send_mail()
+            send_mail(),
         ]
     }
 }
@@ -327,7 +327,10 @@ async fn choose_gamemode_command(ctx: BotContext<'_>) -> Result<(), BotError> {
 }
 
 #[poise::command(slash_command)]
-pub async fn send_mail(ctx: BotContext<'_>, recipient: serenity_prelude::User) -> Result<(), BotError> {
+pub async fn send_mail(
+    ctx: BotContext<'_>,
+    recipient: serenity_prelude::User,
+) -> Result<(), BotError> {
     let msg = ctx.reply("Test sending a mail").await?;
     ctx.compose(&msg, recipient.id, None).await?;
     Ok(())

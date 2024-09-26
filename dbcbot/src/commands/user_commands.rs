@@ -221,10 +221,10 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     &game_match.unwrap(),
                 )
                 .await;
-            },
+            }
             "mail" => {
                 interaction.defer(ctx.http()).await?;
-                if ctx.inbox(msg).await.is_err(){
+                if ctx.inbox(msg).await.is_err() {
                     msg.delete(*ctx).await?;
                 }
             }

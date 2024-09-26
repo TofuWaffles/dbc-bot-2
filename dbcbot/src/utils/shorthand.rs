@@ -2,14 +2,11 @@ use super::discord::select_options;
 use crate::database::*;
 use crate::{
     api::{
-        brawlify::{BrawlMap, FullBrawler, FullGameMode, GameMode},
+        brawlify::{BrawlMap, FullBrawler, FullGameMode},
         official_brawl_stars::Brawler,
         APIResult,
     },
-    database::{
-        models::{GuildConfig, Mode},
-        Database,
-    },
+    database::models::{GuildConfig, Mode},
     BotContext, BotError,
 };
 use anyhow::anyhow;
@@ -329,7 +326,8 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             interactions.defer(self.http()).await?;
             match interactions.data.custom_id.as_str() {
                 "0" => {
-                    let brawlers: Vec<Vec<FullBrawler>> = brawlers.clone()
+                    let brawlers: Vec<Vec<FullBrawler>> = brawlers
+                        .clone()
                         .sort_by_alphabet()
                         .chunks(CAPACITY)
                         .map(|chunk| chunk.to_vec())

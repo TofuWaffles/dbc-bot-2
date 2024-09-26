@@ -1,11 +1,11 @@
+use crate::{database::models::Selectable, BotContext, BotError};
 use poise::serenity_prelude::{User, UserId};
 use serde::{Deserialize, Serialize};
-use crate::{database::models::Selectable, BotContext, BotError};
 #[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Clone)]
 #[sqlx(type_name = "mail_type", rename_all = "snake_case")]
-pub enum MailType{
+pub enum MailType {
     User,
-    Marshal
+    Marshal,
 }
 
 impl Default for MailType {
@@ -42,7 +42,7 @@ impl Mail {
             body,
             match_id: match_id.into().unwrap_or_default(),
             read: false,
-            mode: MailType::default()
+            mode: MailType::default(),
         }
     }
     pub async fn recipient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
@@ -79,4 +79,3 @@ impl Selectable for Mail {
         self.subject.clone()
     }
 }
-

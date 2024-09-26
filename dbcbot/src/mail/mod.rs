@@ -1,5 +1,4 @@
 pub mod model;
-use std::ops::{Deref, DerefMut};
 
 use crate::database::ConfigDatabase;
 use crate::log::Log;
@@ -8,9 +7,10 @@ use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, B
 use anyhow::anyhow;
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::{Mail, MailType};
+use model::Mail;
 use poise::serenity_prelude::{
-    AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateMessage, CreateThread, Mentionable, RoleId
+    AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed,
+    CreateMessage, CreateThread, Mentionable, RoleId,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -381,7 +381,8 @@ async fn report(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, mail: &Mail) -> Res
         .get_marshal_role(&guild.to_string())
         .await?;
     let log = ctx.get_log_channel().await?;
-    let thread = CreateThread::new(mail.recipient_id()?.to_string()).kind(ChannelType::PublicThread)
+    let thread = CreateThread::new(mail.recipient_id()?.to_string())
+        .kind(ChannelType::PublicThread)
         .name(mail.recipient(ctx).await?.name)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);
     let reply = {
@@ -410,7 +411,10 @@ Reported by: {recipient}.
             ))
             .timestamp(ctx.now());
 
-        CreateMessage::new().embed(embed).content(format!("{}", marshal.map_or_else(||"".to_string(),|r| r.mention().to_string())))
+        CreateMessage::new().embed(embed).content(format!(
+            "{}",
+            marshal.map_or_else(|| "".to_string(), |r| r.mention().to_string())
+        ))
     };
     let thread_id = log.create_thread(ctx.http(), thread).await?;
     thread_id.send_message(ctx.http(), reply).await?;

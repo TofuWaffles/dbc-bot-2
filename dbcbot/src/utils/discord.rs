@@ -52,8 +52,7 @@ where
     let builder = CreateReply::default().embed(embed).components(component);
     msg.edit(*ctx, builder).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
-    while let Some(mci) = ic.next().await
-    {
+    while let Some(mci) = ic.next().await {
         mci.defer(ctx.http()).await?;
         if let ChannelSelect { values } = mci.data.kind {
             let channel = values[0].to_channel(ctx.http()).await?;

@@ -1,11 +1,10 @@
+use crate::{database, BotError};
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 use cached::proc_macro::cached;
 use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
-use crate::{database, BotError};
-
 
 #[derive(Debug)]
 pub struct ImagesAPI {
@@ -129,8 +128,11 @@ async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError
         .json(&payload)
         .send()
         .await?;
-    if !response.status().is_success(){
-        return Err(anyhow!("Error getting image from API: {}", response.text().await?));
+    if !response.status().is_success() {
+        return Err(anyhow!(
+            "Error getting image from API: {}",
+            response.text().await?
+        ));
     }
     let content = match response.text().await {
         Ok(content) => {

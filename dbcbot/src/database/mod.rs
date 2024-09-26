@@ -1,10 +1,9 @@
 use crate::info;
 use crate::BotError;
-use futures::TryFutureExt;
+use anyhow::anyhow;
 use models::*;
 use poise::serenity_prelude::RoleId;
 use sqlx::PgPool;
-use anyhow::anyhow;
 /// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
@@ -189,14 +188,12 @@ impl ConfigDatabase for PgDatabase {
         )
         .fetch_optional(&self.pool)
         .await?;
-        let marshal = match role{
+        let marshal = match role {
             Some(r) => r.marshal_role_id,
-            None => return Err(anyhow!("No marshal role found"))
+            None => return Err(anyhow!("No marshal role found")),
         };
         Ok(marshal.parse().ok())
     }
-
-
 }
 pub trait UserDatabase {
     type Error;
