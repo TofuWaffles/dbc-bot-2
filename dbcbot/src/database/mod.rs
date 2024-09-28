@@ -1061,12 +1061,14 @@ impl MatchDatabase for PgDatabase {
     }
 
     async fn get_match_players(&self, match_id: &str) -> Result<Vec<MatchPlayer>, Self::Error> {
+        // ORDER BY discord_id ensures we always get the players in the same order.
         let players = sqlx::query_as!(
             MatchPlayer,
             r#"
                 SELECT match_id, discord_id, player_type as "player_type: PlayerType", ready
                 FROM match_players
                 WHERE match_id = $1
+                ORDER BY discord_id
                 "#,
             match_id
         )

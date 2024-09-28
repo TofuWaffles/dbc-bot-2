@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT match_id, discord_id, player_type as \"player_type: PlayerType\", ready\n                FROM match_players\n                WHERE match_id = $1\n                ",
+  "query": "\n                SELECT match_id, discord_id, player_type as \"player_type: PlayerType\", ready\n                FROM match_players\n                WHERE match_id = $1\n                ORDER BY discord_id\n                ",
   "describe": {
     "columns": [
       {
@@ -47,5 +47,5 @@
       false
     ]
   },
-  "hash": "6731664a86282fdc2c2710f0ba2f3d8a42bfbb5879715465a3716040201412e2"
+  "hash": "b0e3d3868ea0a2fe59e7da5ff33b847c986b4498f1d5aaf2e3cf1ecaa38bf051"
 }
