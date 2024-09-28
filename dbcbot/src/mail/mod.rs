@@ -1,5 +1,6 @@
 pub mod model;
 
+use crate::mail::model::MailType;
 use crate::database::ConfigDatabase;
 use crate::log::Log;
 use crate::utils::discord::{modal, select_options};
