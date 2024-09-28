@@ -620,34 +620,34 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
     let mut brackets_iter = brackets.into_iter();
 
     for _i in 1..=next_round_brackets.len() {
-        let old_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
-        let old_bracket_2 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
+        let prev_bracket_1 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
+        let prev_bracket_2 = brackets_iter.next().ok_or(anyhow!("Error advancing to the next round: Ran out of brackets from the previous round while generating the next round."))?;
 
-        let player_1 = old_bracket_1
+        let player_1 = prev_bracket_1
             .get_winning_player()
             .ok_or(anyhow!(
                 "Error advancing to the next round: Unable to find the winning player in Match {}",
-                old_bracket_1.match_id
+                prev_bracket_1.match_id
             ))?
             .to_owned();
 
-        let player_2 = old_bracket_2
+        let player_2 = prev_bracket_2
             .get_winning_player()
             .ok_or(anyhow!(
                 "Error advancing to the next round: Unable to find the winning player in Match {}",
-                old_bracket_2.match_id
+                prev_bracket_2.match_id
             ))?
             .to_owned();
 
-        let new_sequence = (old_bracket_1.sequence()? + 1) >> 1;
-        if new_sequence != (old_bracket_2.sequence()? + 1) >> 1 {
-            return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id));
+        let cur_sequence = (prev_bracket_1.sequence()? + 1) >> 1;
+        if cur_sequence != (prev_bracket_2.sequence()? + 1) >> 1 {
+            return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", prev_bracket_1.match_id, prev_bracket_2.match_id));
         }
 
         next_round_brackets.push(Match::new(
             tournament_id,
             round,
-            new_sequence,
+            cur_sequence,
             vec![player_1, player_2],
             "0-0",
         ))

@@ -1,5 +1,6 @@
 pub mod model;
 
+use crate::mail::model::MailType;
 use crate::database::ConfigDatabase;
 use crate::log::Log;
 use crate::utils::discord::{modal, select_options};
@@ -8,7 +9,6 @@ use anyhow::anyhow;
 use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::Mail;
-use model::MailType;
 use poise::serenity_prelude::{
     AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed,
     CreateMessage, CreateThread, Mentionable, RoleId,

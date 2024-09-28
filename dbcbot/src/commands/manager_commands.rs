@@ -731,20 +731,18 @@ fn generate_matches_new_tournament(
 ) -> Result<Vec<Match>, BotError> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
-    let matches_count = 2_u32.pow(rounds_count - 1);
+    let match_count = 2_u32.pow(rounds_count - 1);
 
     let mut matches = Vec::new();
 
-    for i in 0..matches_count {
+    for i in 0..match_count {
         let mut players: Vec<MatchPlayer> = Vec::new();
         // Not guaranteed to have a player, this would be a bye round if there is no player
-        if (matches_count as usize) < tournament_players.len() {
-            players.push(tournament_players.remove(matches_count as usize).into());
+        if (match_count as usize) <= tournament_players.len() {
+            players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
         }
         // Guaranteed to have a player
-        if (i as usize) < tournament_players.len() {
-            players.push(tournament_players.remove(i as usize).into());
-        }
+        players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
 
         matches.push(Match::new(tournament_id, 1, (i + 1) as i32, players, "0-0"));
     }
@@ -755,14 +753,11 @@ fn generate_matches_new_tournament(
 /// Test for the match generation for new tournaments.
 #[cfg(test)]
 mod tests {
-    use poise::serenity_prelude::Role;
-
     use super::{generate_matches_new_tournament, models::Player};
-    use crate::database::{models::Mode, PgDatabase, TournamentDatabase, UserDatabase};
 
-    fn create_dummy(sample: usize) -> Vec<Player> {
-        let mut users: Vec<Player> = Vec::new();
-        for index in 0..sample {
+    fn create_dummies(count: i32) -> Vec<Player> {
+        let mut users: Vec<Player> = Vec::with_capacity(count as usize);
+        for index in 0..count {
             let mut user = Player::default();
             user.discord_id = index.to_string();
             user.player_tag = index.to_string();
@@ -773,38 +768,16 @@ mod tests {
 
     #[tokio::test]
     async fn creates_two_matches() {
-        let db = PgDatabase::connect().await.unwrap();
-        const SAMPLE: usize = 4;
-        let users: Vec<Player> = create_dummy(SAMPLE);
-        let channel_id: String = Default::default();
-        db.create_tournament(
-            "0",
-            "test",
-            &Mode::unknown,
-            -1,
-            Role::default().id.to_string(),
-            &channel_id,
-            &channel_id,
-            3,
-        )
-        .await
-        .unwrap();
+        const USERCOUNT: i32 = 4;
+        let users: Vec<Player> = create_dummies(USERCOUNT);
 
         println!("{:?}", users);
 
-        for user in &users {
-            db.create_user(user).await.unwrap();
-            db.enter_tournament(-1, &user.discord_id).await.unwrap();
-        }
-
         let matches = generate_matches_new_tournament(users, -1).unwrap();
-
-        db.delete_tournament(-1).await.unwrap();
 
         assert_eq!(matches.len(), 2);
         matches
             .iter()
-            .take(2)
             .enumerate()
             .for_each(|(i, game_match)| {
                 assert_eq!(game_match.match_players.len(), 2);
@@ -815,32 +788,12 @@ mod tests {
 
     #[tokio::test]
     async fn creates_two_matches_with_one_bye() {
-        const SAMPLE: usize = 3;
-        let db = PgDatabase::connect().await.unwrap();
+        const USERCOUNT: i32 = 3;
+        let users = create_dummies(USERCOUNT);
 
-        let users = create_dummy(SAMPLE);
-        let channel_id: String = Default::default();
-        db.create_tournament(
-            "0",
-            "test",
-            &Mode::unknown,
-            -2,
-            Role::default().id.to_string(),
-            &channel_id,
-            &channel_id,
-            3,
-        )
-        .await
-        .unwrap();
-
-        for user in &users {
-            db.create_user(user).await.unwrap();
-            db.enter_tournament(-1, &user.discord_id).await.unwrap();
-        }
+        println!("{:?}", users);
 
         let matches = generate_matches_new_tournament(users, -2).unwrap();
-
-        db.delete_tournament(-2).await.unwrap();
 
         println!("{:?}", matches);
 
@@ -853,41 +806,26 @@ mod tests {
 
     #[tokio::test]
     async fn creates_four_matches_with_two_byes() {
-        const SAMPLE: usize = 6;
-        let db = PgDatabase::connect().await.unwrap();
-        let users = create_dummy(SAMPLE);
-        let channel_id: String = Default::default();
-        db.create_tournament(
-            "0",
-            "test",
-            &Mode::unknown,
-            -3,
-            Role::default().id.to_string(),
-            &channel_id,
-            &channel_id,
-            3,
-        )
-        .await
-        .unwrap();
-        for user in &users {
-            db.create_user(user).await.unwrap();
-            db.enter_tournament(-3, &user.discord_id).await.unwrap();
-        }
+        const USERCOUNT: i32 = 6;
+        let users = create_dummies(USERCOUNT);
 
         let matches = generate_matches_new_tournament(users, -3).unwrap();
-
-        db.delete_tournament(-3).await.unwrap();
 
         println!("{:?}", matches);
 
         assert_eq!(matches.len(), 4);
-        assert!(matches[0].match_players.get(0).is_some());
-        assert!(matches[0].match_players.get(1).is_some());
-        assert!(matches[1].match_players.get(0).is_some());
-        assert!(matches[1].match_players.get(1).is_some());
-        assert!(matches[2].match_players.get(0).is_some());
-        assert!(matches[2].match_players.get(1).is_none());
-        assert!(matches[3].match_players.get(0).is_some());
-        assert!(matches[3].match_players.get(1).is_none());
+
+        matches.iter().enumerate().for_each(|(i, gm)| {
+            match i {
+                2.. => {
+                    assert!(gm.match_players.get(0).is_some());
+                    assert!(gm.match_players.get(1).is_none());
+                },
+                _ => {
+                    assert!(gm.match_players.get(0).is_some());
+                    assert!(gm.match_players.get(1).is_some());
+                }
+            }
+        });
     }
 }
