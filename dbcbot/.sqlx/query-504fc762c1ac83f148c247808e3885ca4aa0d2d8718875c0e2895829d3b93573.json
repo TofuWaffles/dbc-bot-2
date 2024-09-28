@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers\n            FROM users\n            WHERE discord_id = $1\n            LIMIT 1\n            ",
+  "query": "\n            SELECT *\n            FROM users \n            WHERE discord_id = $1 \n                AND player_tag = $2\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -10,12 +10,12 @@
       },
       {
         "ordinal": 1,
-        "name": "player_tag",
+        "name": "discord_name",
         "type_info": "Varchar"
       },
       {
         "ordinal": 2,
-        "name": "discord_name",
+        "name": "player_tag",
         "type_info": "Varchar"
       },
       {
@@ -37,10 +37,16 @@
         "ordinal": 6,
         "name": "brawlers",
         "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "deleted",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Text"
       ]
     },
@@ -51,8 +57,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "f27e6a504a4cdde1e8def254f6c0497c7a693ea2015a8e5a98a2c76be8a8079f"
+  "hash": "504fc762c1ac83f148c247808e3885ca4aa0d2d8718875c0e2895829d3b93573"
 }

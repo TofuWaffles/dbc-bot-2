@@ -1,10 +1,9 @@
+use crate::utils::discord::DiscordTrait;
+use crate::{api::official_brawl_stars::Brawler, BotContext, BotError};
 use anyhow::{anyhow, Result};
+use poise::serenity_prelude::{GuildChannel, Role, User, UserId};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
-
-use crate::api::official_brawl_stars::Brawler;
-
-use std::vec::Vec;
 
 /// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
@@ -20,6 +19,13 @@ pub struct ManagerRoleConfig {
     pub manager_role_id: String,
 }
 
+impl DiscordTrait for ManagerRoleConfig {}
+impl ManagerRoleConfig {
+    pub async fn to_manager(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
+        Self::to_role(ctx, &self.manager_role_id).await
+    }
+}
+
 /// The configuration for a guild within the database.
 #[derive(Serialize, Deserialize)]
 pub struct GuildConfig {
@@ -27,6 +33,22 @@ pub struct GuildConfig {
     pub marshal_role_id: String,
     pub log_channel_id: String,
     pub announcement_channel_id: String,
+}
+
+impl DiscordTrait for GuildConfig {}
+impl GuildConfig {
+    pub async fn marshal(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
+        Self::to_role(ctx, &self.marshal_role_id).await
+    }
+    pub async fn log_channel(&self, ctx: &BotContext<'_>) -> Result<GuildChannel, BotError> {
+        Self::to_channel(ctx, &self.log_channel_id).await
+    }
+    pub async fn announcement_channel(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<GuildChannel, BotError> {
+        Self::to_channel(ctx, &self.announcement_channel_id).await
+    }
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
@@ -63,6 +85,26 @@ pub struct Tournament {
     pub notification_channel_id: String,
 }
 
+impl DiscordTrait for Tournament {}
+
+impl Tournament {
+    pub async fn announcement_channel(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<GuildChannel, BotError> {
+        Self::to_channel(ctx, &self.announcement_channel_id).await
+    }
+    pub async fn notification_channel(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<GuildChannel, BotError> {
+        Self::to_channel(ctx, &self.notification_channel_id).await
+    }
+    pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
+        Self::to_role(ctx, &self.tournament_role_id).await
+    }
+}
+
 impl Selectable for Tournament {
     fn label(&self) -> String {
         self.name.clone()
@@ -81,21 +123,38 @@ pub struct Player {
     pub player_name: String,
     pub icon: i32,
     pub trophies: i32,
-    pub brawlers: sqlx::types::JsonValue, // For match-level brawler bans. Not currently
-                                          // implemented
+    pub brawlers: sqlx::types::JsonValue, // For match-level brawler bans. Not currently implemented
+    pub deleted: bool,
 }
+
+impl DiscordTrait for Player {}
 
 impl Player {
-    pub fn get_brawlers(&self) -> Vec<Brawler> {
+    pub async fn user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+        Self::to_user(ctx, &self.discord_id).await
+    }
+
+    pub fn brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
-}
 
+    pub fn icon(&self) -> String{
+        format!("https://cdn-old.brawlify.com/profile/{}.png", self.icon)
+    }
+}
 /// A relational object that links a Discord user to a tournament they've joined.
 #[derive(Serialize, Deserialize)]
 pub struct TournamentPlayer {
     pub tournament_id: i32,
     pub discord_id: String,
+}
+
+impl DiscordTrait for TournamentPlayer {}
+
+impl TournamentPlayer {
+    pub async fn user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+        Self::to_user(ctx, &self.discord_id).await
+    }
 }
 
 /// A match within the database, associated with a particular tournament.
@@ -104,13 +163,14 @@ pub struct TournamentPlayer {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Match {
     pub match_id: String,
-    pub tournament_id: i32,
-    pub round: i32,
-    pub sequence_in_round: i32,
     pub match_players: Vec<MatchPlayer>,
     pub score: String,
     pub winner: Option<String>,
+    pub start: Option<i64>,
+    pub end: Option<i64>,
 }
+
+impl DiscordTrait for Match {}
 
 impl Match {
     pub fn new(
@@ -121,13 +181,12 @@ impl Match {
         score: &str,
     ) -> Self {
         Self {
-            match_id: Match::generate_id(tournament_id, round, sequence_in_round),
-            tournament_id,
-            round,
-            sequence_in_round,
+            match_id: Self::generate_id(tournament_id, round, sequence_in_round),
             match_players,
             winner: None,
             score: score.to_string(),
+            start: None,
+            end: None,
         }
     }
 
@@ -144,34 +203,75 @@ impl Match {
             Some(ref id) => id,
             None => return None,
         };
-
-        self.match_players
-            .iter()
-            .find(|p| p.discord_id == *winner_id)
+        self.find_player(
+            |p| p.discord_id == *winner_id,
+            "Error: Unable to find winning player".to_string(),
+        )
+        .ok()
     }
 
-    /// Get a player in this match with a particular Discord ID.
     pub fn get_player(&self, discord_id: &str) -> Result<&MatchPlayer> {
-        self.match_players
-            .iter()
-            .filter(|p| p.discord_id == discord_id)
-            .next()
-            .ok_or(anyhow!(
-                "Error: Unable to find player inside match {}",
-                self.match_id
-            ))
+        self.find_player(
+            |p| p.discord_id == discord_id,
+            format!(
+                "Error: Unable to find player with Discord ID {} in match {}",
+                discord_id, self.match_id
+            ),
+        )
     }
 
-    /// Get the opponent of the player that's passed in.
     pub fn get_opponent(&self, discord_id: &str) -> Result<&MatchPlayer> {
+        self.find_player(
+            |p| p.discord_id != discord_id,
+            format!(
+                "Error: Unable to find opponent for player with Discord ID {} in match {}",
+                discord_id, self.match_id
+            ),
+        )
+    }
+
+    fn find_player<F>(&self, predicate: F, error_message: String) -> Result<&MatchPlayer>
+    where
+        F: Fn(&&MatchPlayer) -> bool,
+    {
         self.match_players
             .iter()
-            .filter(|p| p.discord_id != discord_id)
-            .next()
-            .ok_or(anyhow!(
-                "Error: Unable to find opponent inside match {}",
-                self.match_id
-            ))
+            .find(predicate)
+            .ok_or_else(|| anyhow!(error_message))
+    }
+
+    pub fn tournament(&self) -> Result<i32, BotError> {
+        self.match_id
+            .split('.')
+            .nth(0)
+            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find tournament in match ID")))?
+            .parse::<i32>()
+            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse tournament from match ID")))
+    }
+
+    pub fn round(&self) -> Result<i32, BotError> {
+        self.match_id
+            .split('.')
+            .nth(1)
+            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find round in match ID")))?
+            .parse::<i32>()
+            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse round from match ID")))
+    }
+
+    pub fn sequence(&self) -> Result<i32, BotError> {
+        self.match_id
+            .split('.')
+            .nth(2)
+            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find match in match ID")))?
+            .parse::<i32>()
+            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse match from match ID")))
+    }
+
+    pub async fn winner(&self, ctx: &BotContext<'_>) -> Result<Option<User>, BotError> {
+        match &self.winner {
+            Some(winner) => Ok(Some(Self::to_user(ctx, winner).await?)),
+            None => Ok(None),
+        }
     }
 }
 
@@ -192,6 +292,12 @@ impl From<Player> for MatchPlayer {
             player_type: PlayerType::Player,
             ready: false,
         }
+    }
+}
+
+impl MatchPlayer {
+    pub async fn to_user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
+        Ok(UserId::new(self.discord_id.parse()?).to_user(ctx).await?)
     }
 }
 

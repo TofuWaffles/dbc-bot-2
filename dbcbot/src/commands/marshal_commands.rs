@@ -1,5 +1,5 @@
 use super::{checks::is_marshal_or_higher, CommandsContainer};
-use crate::database::models::{Match, PlayerType, TournamentStatus};
+use crate::database::models::{Match, PlayerType, Tournament, TournamentStatus};
 use crate::database::{MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::{
     log::{self, Log},
@@ -272,16 +272,28 @@ async fn get_match(
                         CreateEmbed::new()
                             .title(format!("Match {}", bracket.match_id))
                             .fields(vec![
-                                ("Tournament ID", bracket.tournament_id.to_string(), false),
-                                ("Round", bracket.round.to_string(), false),
+                                ("Tournament ID", bracket.tournament()?.to_string(), false),
+                                ("Round", bracket.round()?.to_string(), false),
                                 (
                                     "Player 1",
-                                    format!("{:#?}", bracket.match_players.get(0)),
+                                    format!(
+                                        "{:#?}",
+                                        bracket
+                                            .match_players
+                                            .get(0)
+                                            .map(|p| format!("<@{}>", p.discord_id))
+                                    ),
                                     false,
                                 ),
                                 (
                                     "Player 2",
-                                    format!("{:#?}", bracket.match_players.get(1)),
+                                    format!(
+                                        "{:#?}",
+                                        bracket
+                                            .match_players
+                                            .get(1)
+                                            .map(|p| format!("<@{}>", p.discord_id))
+                                    ),
                                     false,
                                 ),
                                 ("Winner", format!("<@{:#?}>", bracket.winner), false),
@@ -440,7 +452,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
     let opponent = bracket.get_opponent(&player.id.to_string())?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent.discord_id)
+        .set_winner(&bracket.match_id, &opponent.discord_id, "n/a")
         .await?;
 
     ctx.send(
@@ -493,19 +505,34 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     {
         Some(tournament) => tournament,
         None => {
-            ctx.send(CreateReply::default().content("No tournament found with the given ID. Try again with an existing tournament ID.").ephemeral(true)).await?;
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("No ID was given")
+                    .description("Try again with an existing tournament ID."),
+                None,
+            )
+            .await?;
             return Ok(());
         }
     };
+    let conditions: Vec<(fn(&Tournament) -> bool, &str, &str)> = vec![
+        (|t| t.status != TournamentStatus::Started, "Non active tournament!","This tournament is not currently active. Please try again when the tournament is active again."),
+        (|t| t.current_round == t.rounds, "No more rounds!","Unable to advance to the next round. This tournament is currently on its final round.")
+    ];
 
-    if tournament.status != TournamentStatus::Started {
-        ctx.send(CreateReply::default().content("This tournament is not currently active. Please try again when the tournament is active again.").ephemeral(true)).await?;
-        return Ok(());
+    for (predicate, title, message) in conditions {
+        if predicate(&tournament) {
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new().title(title).description(message),
+                None,
+            )
+            .await?;
+            return Ok(());
+        }
     }
 
-    if tournament.current_round == tournament.rounds {
-        ctx.send(CreateReply::default().content("Unable to advance to the next round. This tournament is currently on its final round.").ephemeral(true)).await?;
-    }
     let brackets = ctx
         .data()
         .database
@@ -525,27 +552,21 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     let round = tournament.current_round + 1;
     let next_round_brackets = generate_next_round(with_winners, round)?;
     let new_brackets_count = next_round_brackets.len();
-
-    for mut bracket in next_round_brackets {
-        ctx.data()
-            .database
-            .create_match(tournament_id, round, bracket.sequence_in_round)
-            .await?;
-
-        for _ in 0..bracket.match_players.len() {
-            ctx.data()
-                .database
-                .enter_match(
-                    &Match::generate_id(tournament_id, round, bracket.sequence_in_round),
-                    &bracket.match_players.remove(0).discord_id,
-                    PlayerType::Player,
-                )
-                .await?;
-        }
-    }
-
+    next_round_brackets.iter().for_each(|bracket| {
+        ctx.data().database.create_match(
+            bracket.tournament().unwrap(),
+            bracket.round().unwrap(),
+            bracket.sequence().unwrap(),
+        );
+        bracket.match_players.iter().for_each(|player| {
+            ctx.data().database.enter_match(
+                &Match::generate_id(tournament_id, round, bracket.sequence().unwrap()),
+                &player.discord_id,
+                PlayerType::Player,
+            );
+        })
+    });
     ctx.data().database.next_round(tournament_id).await?;
-
     if ctx
         .confirmation(
             &msg,
@@ -595,7 +616,7 @@ Advanced by: {}."#,
 /// Generates the matches for the next round.
 fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, BotError> {
     let mut next_round_brackets = Vec::with_capacity(brackets.len() / 2);
-    let tournament_id = brackets[0].tournament_id.to_owned();
+    let tournament_id = brackets[0].tournament()?;
     let mut brackets_iter = brackets.into_iter();
 
     for _i in 1..=next_round_brackets.len() {
@@ -618,9 +639,8 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
             ))?
             .to_owned();
 
-        let new_sequence = (old_bracket_1.sequence_in_round as f32 / 2.0).ceil() as i32;
-
-        if new_sequence != (old_bracket_2.sequence_in_round / 2) {
+        let new_sequence = (old_bracket_1.sequence()? + 1) >> 1;
+        if new_sequence != (old_bracket_2.sequence()? + 1) >> 1 {
             return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", old_bracket_1.match_id, old_bracket_2.match_id));
         }
 

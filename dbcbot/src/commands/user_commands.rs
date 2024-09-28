@@ -3,6 +3,7 @@ use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
 use poise::{CreateReply, Modal, ReplyHandle};
 use prettytable::{row, Table};
+use serde::de;
 use serde_json::json;
 use tracing::{info, instrument};
 
@@ -270,6 +271,7 @@ async fn user_display_match(
                                 &bracket.match_id
                             ))?
                             .discord_id,
+                            "bye",
                     )
                     .await?;
                 reply = CreateReply::default().content("").embed(
@@ -280,7 +282,7 @@ async fn user_display_match(
                         .fields(vec![
                             ("Tournament", tournament.name, true),
                             ("Match ID", bracket.match_id.to_owned(), true),
-                            ("Round", bracket.round.to_string(), true),
+                            ("Round", bracket.round()?.to_string(), true),
                         ]),
                     );
             } else {
@@ -295,8 +297,11 @@ async fn user_display_match(
                 } else {
                     vec![]
                 };
-
-                let image_api = ImagesAPI::new();
+                let discord_id = ctx.author().id;
+                ctx.data()
+                    .database
+                    .get_current_match(&discord_id.to_string())
+                    .await?;
                 let p1 = ctx
                     .get_player_from_discord_id(player.discord_id.clone())
                     .await?
@@ -305,7 +310,7 @@ async fn user_display_match(
                     .get_player_from_discord_id(player.discord_id.clone())
                     .await?
                     .ok_or(anyhow!("Player 2 is not found in the database"))?;
-                let image = image_api.match_image(&p1, &p2).await?;
+                let image = ctx.data().apis.images.match_image(&p1, &p2).await?;
                 reply = CreateReply::default()
                     .attachment(CreateAttachment::bytes(image, "Match.png"))
                     .embed(
@@ -316,15 +321,11 @@ async fn user_display_match(
                         .fields(vec![
                             ("Tournament", tournament.name, true),
                             ("Match ID", bracket.match_id.to_owned(), true),
-                            ("Round", bracket.round.to_string(), true),
+                            ("Round", bracket.round()?.to_string(), true),
                             ("Player 1",
-                            format!("<@{}>", bracket.match_players.get(0).ok_or(anyhow!("Error displaying player 1 for match {}: no player found", bracket.match_id))?.discord_id),
+                            format!("<@{}>", bracket.match_players.get(0).ok_or(anyhow!("Error displaying player 1 for match {}: no player found", bracket.match_id))?.to_user(ctx).await?.mention()).to_string(),
                              false),
-                            ("Player 2", 
-                             match bracket.match_players.get(1) {
-    Some(player) => format!("<@{}", player.discord_id),
-    None => format!("Congrats! You have no opponent for the current match. You can proceed to the next round."),
-},
+                            ("Player 2", bracket.match_players.get(1).ok_or(anyhow!("Error displaying player 2 for match {}: no player found", bracket.match_id))?.to_user(ctx).await?.mention().to_string(),
                              false),
                         ]),
                     )
@@ -901,73 +902,66 @@ async fn submit(
     async fn filter(
         ctx: &BotContext<'_>,
         logs: Vec<BattleLogItem>,
-        tournament: &Tournament,
         game_match: &Match,
+        tournament: &Tournament,
     ) -> Result<Vec<BattleLogItem>, BotError> {
+        let [p1, p2] = match &game_match.match_players[..] {
+            [p1, p2] => [
+                ctx.get_player_from_discord_id(p1.discord_id.to_string())
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow!("Cannot find player with the Discord {}", p1.discord_id)
+                    })?,
+                ctx.get_player_from_discord_id(p2.discord_id.to_string())
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow!("Cannot find player with the Discord {}", p2.discord_id)
+                    })?,
+            ],
+            _ => {
+                return Err(anyhow!(
+                    "Error submitting results for match {}: unable to find both players",
+                    game_match.match_id
+                ))
+            }
+        };
+        let mut tags = vec![p1.player_tag.clone(), p2.player_tag.clone()];
+        tags.sort();
         let compare_tag = |s1: &str, s2: &str| {
             s1.chars()
                 .zip(s2.chars())
                 .all(|(c1, c2)| c1 == c2 || (c1 == 'O' && c2 == '0') || (c1 == '0' && c2 == 'O'))
                 && s1.len() == s2.len()
         };
-        let mp1 = game_match.match_players.get(0).ok_or(anyhow!(
-            "Error submitting results for match {}: unable to find first player",
-            game_match.match_id
-        ))?;
-        let mp2 = game_match.match_players.get(1).ok_or(anyhow!(
-            "Error submitting results for match {}: unable to find second player",
-            game_match.match_id
-        ))?;
-        let p1 = ctx
-            .data()
-            .database
-            .get_player_by_discord_id(&mp1.discord_id)
-            .await?
-            .ok_or(anyhow!(
-                "Error submitting results for match {}: no player found for id {}",
-                game_match.match_id,
-                mp1.discord_id
-            ))?;
-        let p2 = ctx
-            .data()
-            .database
-            .get_player_by_discord_id(&mp2.discord_id)
-            .await?
-            .ok_or(anyhow!(
-                "Error submitting results for match {}: no player found for id {}",
-                game_match.match_id,
-                mp2.discord_id
-            ))?;
-        let mut whitelist = vec![];
-        for log in logs {
-            if log.unix() < tournament.created_at {
-                // If the log is older than the tournament, skip it
-                continue;
-            }
-            if log.battle.mode != tournament.mode || log.event.mode != tournament.mode {
-                continue;
-            }
-            if log.battle.battle_type.to_lowercase()
-                == BattleType::friendly.to_string().to_lowercase()
-            {
-                continue;
-            }
-            if !(compare_tag(&log.battle.teams[0][0].tag, &p1.player_tag)
-                && compare_tag(&log.battle.teams[1][0].tag, &p2.player_tag)
-                || compare_tag(&log.battle.teams[0][0].tag, &p2.player_tag)
-                    && compare_tag(&log.battle.teams[1][0].tag, &p1.player_tag))
-            {
-                continue;
-            }
-
-            whitelist.push(log);
-        }
-        Ok(whitelist)
+        let filtered_logs = logs
+            .iter()
+            .filter(|log| {
+                (log.unix() > game_match.start.unwrap() || log.unix() < game_match.end.unwrap())
+                    && (log.battle.mode.eq(&tournament.mode) || log.event.mode.eq(&tournament.mode))
+                    && log
+                        .battle
+                        .battle_type
+                        .to_lowercase()
+                        .eq(&BattleType::friendly.to_string().to_lowercase())
+                    && {
+                        let mut log_tags = vec![
+                            log.battle.teams[0][0].tag.clone(),
+                            log.battle.teams[1][0].tag.clone(),
+                        ];
+                        log_tags.sort();
+                        tags.iter()
+                            .zip(log_tags.iter())
+                            .all(|(tag1, tag2)| compare_tag(tag1, tag2))
+                    }
+            })
+            .map(|log| log.clone())
+            .collect::<Vec<BattleLogItem>>();
+        Ok(filtered_logs)
     }
     /// Analyse the battle logs to determine the winner of the match
-    /// Returns true if player 1 wins, false if player 2 wins, and None if no conclusion can be made
-    async fn analyze(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<bool> {
-        let mut conclusion: Option<bool> = None; //true = player 1, false = player 2, None = no conclusion
+    /// Returns true if the command caller wins, false if the opponent wins, and None if no conclusion can be made
+    async fn analyze(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<(bool, String)> {
+        let mut conclusion: Option<(bool, String)> = None; //true = player 1, false = player 2, None = no conclusion
         let mut victory = 0;
         let mut defeat = 0;
         let results = battles
@@ -981,10 +975,10 @@ async fn submit(
                 _ => {}
             }
             if defeat == tournament.wins_required && victory < tournament.wins_required {
-                conclusion = Some(false);
+                conclusion = Some((false, format!("{}-{}", defeat, victory)));
                 break;
             } else if victory >= tournament.wins_required {
-                conclusion = Some(true);
+                conclusion = Some((true, format!("{}-{}", victory, defeat)));
                 break;
             }
         }
@@ -1015,10 +1009,25 @@ async fn submit(
         Ok(())
     }
     let caller = ctx.author().id.to_string();
+    let current_match = match ctx.data().database.get_current_match(&caller).await? {
+        Some(m) => m,
+        None => {
+            ctx.prompt(
+                msg,
+                CreateEmbed::new().title("Match Not Found").description(
+                    "You are not currently in a match. Please wait for the next round to begin.",
+                ),
+                None,
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
     let caller_tag = ctx
-        .get_player_from_discord_id(None)
+        .get_player_from_discord_id(caller)
         .await?
-        .ok_or(anyhow!("User not found in the database"))?
+        .ok_or(anyhow!("Player not found in the database"))?
         .player_tag;
     let logs = match ctx
         .data()
@@ -1065,7 +1074,7 @@ async fn submit(
             return Ok(());
         }
     };
-    let battles = filter(ctx, logs, &tournament, &bracket).await?;
+    let battles = filter(ctx, logs, &current_match, tournament).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }
@@ -1073,18 +1082,18 @@ async fn submit(
     let channel = ChannelId::new(tournament.notification_channel_id.parse()?);
     let target = match winner {
         None => return handle_not_enough_matches(ctx, msg).await,
-        Some(true) => {
+        Some((true, score @ _)) => {
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, &ctx.author().id.to_string())
+                .set_winner(&bracket.match_id, &ctx.author().id.to_string(), &score)
                 .await?;
             ctx.get_player_from_discord_id(None).await?.unwrap()
         }
-        Some(false) => {
+        Some((false, score @ _)) => {
             let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?;
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, &opponent_id.discord_id)
+                .set_winner(&bracket.match_id, &opponent_id.discord_id, &score)
                 .await?;
             ctx.get_player_from_discord_id(opponent_id.discord_id.to_string())
                 .await?
@@ -1092,20 +1101,18 @@ async fn submit(
         }
     };
     // Final round. Announce the winner and finish the tournament
-    if bracket.round == tournament.rounds {
+    if bracket.round()? == tournament.rounds {
         finish_tournament(ctx, bracket, &target).await?;
         return Ok(());
     }
+    // TODO: Implement image generation
     let embed = CreateEmbed::new()
         .title("Match submission!")
         .description(format!(
             "Congratulations! <@{}> passes Round {}",
             target.discord_id, tournament.current_round
         ))
-        .thumbnail(format!(
-            "https://cdn-old.brawlify.com/profile/{}.png",
-            target.icon
-        ))
+        .thumbnail(target.icon())
         .author(ctx.get_author_img(&log::Model::PLAYER));
     channel
         .send_message(ctx.http(), CreateMessage::new().embed(embed))
@@ -1138,7 +1145,7 @@ async fn finish_tournament(
         .await?
         .unwrap()
         .announcement_channel_id;
-    let tournament_id = bracket.tournament_id;
+    let tournament_id = bracket.tournament()?;
     let tournament = ctx
         .data()
         .database

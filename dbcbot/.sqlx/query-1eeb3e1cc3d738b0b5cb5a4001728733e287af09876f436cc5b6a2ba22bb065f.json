@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE matches\n            SET winner = $1\n            WHERE match_id = $2 AND score = $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1eeb3e1cc3d738b0b5cb5a4001728733e287af09876f436cc5b6a2ba22bb065f"
+}

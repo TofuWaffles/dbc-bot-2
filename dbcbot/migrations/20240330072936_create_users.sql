@@ -7,4 +7,5 @@ CREATE TABLE IF NOT EXISTS users (
     icon INT NOT NULL,
     trophies INT NOT NULL,
     brawlers JSONB NOT NULL
+    deleted BOOLEAN NOT NULL DEFAULT FALSE
 );

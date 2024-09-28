@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT \n                        match_id, \n                        winner, \n                        score, \n                        start, \n                        \"end\"\n                    FROM matches\n                    WHERE \n                        SPLIT_PART(match_id, '.', 1)::int = $1 -- tournament part\n                    ORDER BY \n                        SPLIT_PART(match_id, '.', 2)::int DESC, -- round part in descending order\n                        SPLIT_PART(match_id, '.', 3)::int       -- sequence part\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "match_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "score",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "start",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "end",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "b0828b5fd8f1808dc4242b383d8d18469d245c6ea34b4903b3eeda78ad43765c"
+}

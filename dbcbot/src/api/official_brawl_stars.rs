@@ -152,7 +152,7 @@ impl From<BattleLog> for database::models::BattleRecord {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleLogItem {
     pub battle_time: String,
@@ -179,7 +179,7 @@ impl BattleLogItem {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
     pub mode: Mode,
@@ -213,7 +213,7 @@ impl From<Battle> for database::models::BattleClass {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamPlayer {
     pub tag: String,

@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                match_id, \n                winner, \n                score, \n                start, \n                \"end\"\n            FROM matches\n            WHERE \n                SPLIT_PART(match_id, '.', 1)::int = $1 -- Extract and match the tournament part\n                AND match_id IN (\n                    SELECT match_id\n                    FROM match_players\n                    WHERE discord_id = $2\n                )\n            ORDER BY \n                SPLIT_PART(match_id, '.', 2)::int DESC -- Order by round part\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "match_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "score",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "start",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "end",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "198ef6455480964d6ffeff0bb028277cab39506bb0ae14895760e3b18c6c9364"
+}

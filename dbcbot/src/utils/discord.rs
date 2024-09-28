@@ -3,16 +3,38 @@ use anyhow::anyhow;
 use futures::StreamExt;
 use poise::{
     serenity_prelude::{
-        self as serenity, Channel, ChannelType, Colour, ComponentInteractionCollector,
+        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector,
         ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
         CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind,
-        CreateSelectMenuOption, Role,
+        CreateSelectMenuOption, GuildChannel, Role, RoleId, User, UserId,
     },
     CreateReply, ReplyHandle,
 };
 
-use super::shorthand::BotContextExt;
+pub trait DiscordTrait {
+    async fn to_user(ctx: &BotContext<'_>, id: &str) -> Result<User, BotError> {
+        Ok(UserId::new(id.parse()?).to_user(ctx.http()).await?)
+    }
 
+    async fn to_role(ctx: &BotContext<'_>, id: &str) -> Result<Role, BotError> {
+        let roldid = RoleId::new(id.parse()?);
+        let guild = ctx
+            .guild()
+            .ok_or(anyhow!("Please use this command in a guild"))?;
+        let role = guild.roles.get(&roldid).ok_or(anyhow!("Role not found"))?;
+        Ok(role.clone())
+    }
+
+    async fn to_channel(ctx: &BotContext<'_>, id: &str) -> Result<GuildChannel, BotError> {
+        Ok(ChannelId::new(id.parse()?)
+            .to_channel(ctx.http())
+            .await?
+            .guild()
+            .ok_or(anyhow!("Channel not found"))?)
+    }
+}
+
+use super::shorthand::BotContextExt;
 pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
         .title("Loading next step...")

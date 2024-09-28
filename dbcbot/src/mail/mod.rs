@@ -8,13 +8,13 @@ use anyhow::anyhow;
 use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::Mail;
+use model::MailType;
 use poise::serenity_prelude::{
     AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed,
     CreateMessage, CreateThread, Mentionable, RoleId,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
-
 pub trait MailDatabase {
     type Error;
     async fn store(&self, mail: Mail) -> Result<(), Self::Error>;

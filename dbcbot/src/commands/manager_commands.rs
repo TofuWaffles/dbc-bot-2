@@ -369,15 +369,6 @@ async fn start_tournament(
     let matches_count = matches.len();
 
     for bracket in matches {
-        ctx.data()
-            .database
-            .create_match(
-                bracket.tournament_id,
-                bracket.round,
-                bracket.sequence_in_round,
-            )
-            .await?;
-
         for player in bracket.match_players {
             ctx.data()
                 .database
@@ -816,9 +807,9 @@ mod tests {
             .take(2)
             .enumerate()
             .for_each(|(i, game_match)| {
-                assert_eq!(game_match.sequence_in_round, i as i32 + 1);
-                assert!(game_match.match_players.get(0).is_some());
-                assert!(game_match.match_players.get(1).is_some());
+                assert_eq!(game_match.match_players.len(), 2);
+                assert_eq!(game_match.match_players[0].discord_id, i.to_string());
+                assert_eq!(game_match.match_players[1].discord_id, (i + 2).to_string());
             });
     }
 

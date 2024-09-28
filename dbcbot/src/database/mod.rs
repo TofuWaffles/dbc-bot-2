@@ -196,6 +196,7 @@ impl ConfigDatabase for PgDatabase {
     }
 }
 pub trait UserDatabase {
+    async fn get_tournament_id(&self, discord_id: &str) -> Result<Option<i32>, Self::Error>;
     type Error;
     /// Adds a user to the database.
     async fn create_user(&self, user: &Player) -> Result<(), Self::Error>;
@@ -226,7 +227,9 @@ pub trait UserDatabase {
     async fn set_ready(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error>;
 
     /// Sets the winner of a match
-    async fn set_winner(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error>;
+    async fn set_winner(&self, match_id: &str, discord_id: &str, score: &str) -> Result<(), Self::Error>;
+
+    async fn get_current_match(&self, discord_id: &str) -> Result<Option<Match>, Self::Error>;
 }
 
 impl UserDatabase for PgDatabase {
@@ -238,7 +241,13 @@ impl UserDatabase for PgDatabase {
             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
             ON CONFLICT (discord_id)
             DO UPDATE SET
-                player_tag = $2
+                discord_name = EXCLUDED.discord_name,
+                player_tag = EXCLUDED.player_tag,
+                player_name = EXCLUDED.player_name,
+                icon = EXCLUDED.icon,
+                trophies = EXCLUDED.trophies,
+                brawlers = EXCLUDED.brawlers,
+                deleted = false
             "#,
             user.discord_id,
             user.discord_name,
@@ -257,7 +266,8 @@ impl UserDatabase for PgDatabase {
     async fn delete_user(&self, discord_id: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            DELETE FROM users
+            UPDATE users
+            SET deleted = true
             WHERE discord_id = $1
             "#,
             discord_id
@@ -275,7 +285,7 @@ impl UserDatabase for PgDatabase {
         let user = sqlx::query_as!(
             Player,
             r#"
-            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers
+            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers, deleted
             FROM users
             WHERE discord_id = $1
             LIMIT 1
@@ -291,7 +301,7 @@ impl UserDatabase for PgDatabase {
         let user = sqlx::query_as!(
             Player,
             r#"
-           SELECT *
+            SELECT *
             FROM users 
             WHERE discord_id = $1 
                 AND player_tag = $2
@@ -312,7 +322,7 @@ impl UserDatabase for PgDatabase {
         let user = sqlx::query_as!(
             Player,
             r#"
-           SELECT *
+            SELECT *
             FROM users 
             WHERE discord_id = $1 
             LIMIT 1
@@ -331,7 +341,7 @@ impl UserDatabase for PgDatabase {
         let user = sqlx::query_as!(
             Player,
             r#"
-            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers
+            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers, deleted
             FROM users
             WHERE player_tag = $1
             LIMIT 1
@@ -360,23 +370,108 @@ impl UserDatabase for PgDatabase {
         Ok(())
     }
 
-    async fn set_winner(&self, match_id: &str, discord_id: &str) -> Result<(), Self::Error> {
+    async fn set_winner(&self, match_id: &str, discord_id: &str, score: &str) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
             UPDATE matches
             SET winner = $1
-            WHERE match_id = $2
+            WHERE match_id = $2 AND score = $3
             "#,
             discord_id,
-            match_id
+            match_id,
+            score
         )
         .execute(&self.pool)
         .await?;
 
         Ok(())
     }
+
+    async fn get_tournament_id(&self, discord_id: &str) -> Result<Option<i32>, Self::Error> {
+        let tournament_id = sqlx::query!(
+            r#"
+            SELECT tournament_id
+            FROM tournament_players
+            WHERE discord_id = $1
+            LIMIT 1
+            "#,
+            discord_id
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|row| row.tournament_id);
+
+        Ok(tournament_id)
+    }
+
+    async fn get_current_match(&self, discord_id: &str) -> Result<Option<Match>, Self::Error> {
+        let tournament_id = self
+            .get_tournament_id(discord_id)
+            .await?
+            .ok_or_else(|| anyhow!("No tournament found for player"))?;
+        let current_round = self.current_round(tournament_id).await?;
+        let current_match = sqlx::query!(
+            r#"
+            SELECT 
+                m.match_id, 
+                m.winner, 
+                m.score,
+                m.start,
+                m.end
+            FROM 
+                matches AS m
+            INNER JOIN 
+                match_players AS mp
+            ON 
+                m.match_id = mp.match_id
+            WHERE 
+                mp.discord_id = $1
+                AND m.match_id LIKE $2
+            ORDER BY 
+                m.match_id DESC
+            LIMIT 1
+            "#,
+            discord_id,
+            format!("%.{}.%", current_round)
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|row| Match {
+            match_id: row.match_id,
+            match_players: Vec::with_capacity(2),
+            winner: row.winner,
+            score: row.score,
+            start: row.start,
+            end: row.end,
+        });
+        match current_match {
+            None => Ok(None),
+            Some(mut cm) => {
+                let mut players = sqlx::query_as!(
+                    MatchPlayer,
+                    r#"
+                    SELECT 
+                        mp.match_id,
+                        mp.discord_id,
+                        mp.player_type AS "player_type: PlayerType",
+                        mp.ready
+                    FROM 
+                        match_players AS mp
+                    WHERE 
+                        mp.match_id = $1
+                    "#,
+                    cm.match_id
+                )
+                .fetch_all(&self.pool)
+                .await?;
+                cm.match_players.append(&mut players);
+                Ok(Some(cm))
+            }
+        }
+    }
 }
 pub trait TournamentDatabase {
+    async fn current_round(&self, tournament_id: i32) -> Result<i32, Self::Error>;
     type Error;
     /// Creates a tournament in the database, returning the tournament id.
     async fn create_tournament(
@@ -888,7 +983,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         let players = sqlx::query_as!(
             Player,
             r#"
-            SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers
+            SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted
             FROM tournament_players
             JOIN users ON tournament_players.discord_id = users.discord_id
             WHERE tournament_players.tournament_id = $1
@@ -966,6 +1061,22 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 
         Ok(())
     }
+
+    async fn current_round(&self, tournament_id: i32) -> Result<i32, Self::Error> {
+        let round = sqlx::query!(
+            r#"
+            SELECT current_round
+            FROM tournaments
+            WHERE tournament_id = $1
+            "#,
+            tournament_id
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .current_round;
+
+        Ok(round)
+    }
 }
 
 pub trait MatchDatabase {
@@ -1020,17 +1131,16 @@ impl MatchDatabase for PgDatabase {
         sequence_in_round: i32,
     ) -> Result<(), Self::Error> {
         let match_id = Match::generate_id(tournament_id, round, sequence_in_round);
-
+        let start = chrono::Utc::now().timestamp();
         sqlx::query!(
             r#"
-            INSERT INTO matches (match_id, tournament_id, round, sequence_in_round, winner)
-            VALUES ($1, $2, $3, $4, NULL)
+            INSERT INTO matches (match_id, score, start)
+            VALUES ($1, $2, $3)
             ON CONFLICT (match_id) DO NOTHING
             "#,
             match_id,
-            tournament_id,
-            round,
-            sequence_in_round,
+            "0-0",
+            start,
         )
         .execute(&self.pool)
         .await?;
@@ -1080,10 +1190,10 @@ impl MatchDatabase for PgDatabase {
         let players = self.get_match_players(match_id).await?;
         let bracket = match sqlx::query!(
             r#"
-            SELECT match_id, tournament_id, round, sequence_in_round, winner, score
+            SELECT match_id, winner, score, start, "end"
             FROM matches
             WHERE match_id = $1
-            ORDER BY round DESC
+            ORDER BY SPLIT_PART(match_id, '.', 2)::int DESC
             LIMIT 1
             "#,
             match_id
@@ -1091,13 +1201,14 @@ impl MatchDatabase for PgDatabase {
         .fetch_optional(&self.pool)
         .await?
         {
-            Some(r) => Some(Match::new(
-                r.tournament_id,
-                r.round,
-                r.sequence_in_round,
-                players,
-                &r.score,
-            )),
+            Some(r) => Some(Match {
+                match_id: r.match_id,
+                match_players: players,
+                winner: r.winner,
+                score: r.score,
+                start: r.start,
+                end: r.end,
+            }),
             None => None,
         };
 
@@ -1111,14 +1222,22 @@ impl MatchDatabase for PgDatabase {
     ) -> Result<Option<Match>, Self::Error> {
         let bracket = match sqlx::query!(
             r#"
-            SELECT match_id, tournament_id, round, sequence_in_round, winner, score
+            SELECT 
+                match_id, 
+                winner, 
+                score, 
+                start, 
+                "end"
             FROM matches
-            WHERE matches.tournament_id = $1 AND matches.match_id IN (
-                SELECT match_id
-                FROM match_players
-                WHERE discord_id = $2
-            )
-            ORDER BY round DESC
+            WHERE 
+                SPLIT_PART(match_id, '.', 1)::int = $1 -- Extract and match the tournament part
+                AND match_id IN (
+                    SELECT match_id
+                    FROM match_players
+                    WHERE discord_id = $2
+                )
+            ORDER BY 
+                SPLIT_PART(match_id, '.', 2)::int DESC -- Order by round part
             LIMIT 1
             "#,
             tournament_id,
@@ -1129,13 +1248,14 @@ impl MatchDatabase for PgDatabase {
         {
             Some(r) => {
                 let players = self.get_match_players(&r.match_id).await?;
-                Some(Match::new(
-                    r.tournament_id,
-                    r.round,
-                    r.sequence_in_round,
-                    players,
-                    &r.score,
-                ))
+                Some(Match {
+                    match_id: r.match_id,
+                    match_players: players,
+                    winner: r.winner,
+                    score: r.score,
+                    start: r.start,
+                    end: r.end,
+                })
             }
             None => None,
         };
@@ -1152,11 +1272,10 @@ impl MatchDatabase for PgDatabase {
         // with match statements
         struct TempMatch {
             match_id: String,
-            tournament_id: i32,
-            round: i32,
-            sequence_in_round: i32,
             winner: Option<String>,
             score: String,
+            start: Option<i64>,
+            end: Option<i64>,
         }
 
         let records = match round.into() {
@@ -1164,10 +1283,17 @@ impl MatchDatabase for PgDatabase {
                 sqlx::query_as!(
                     TempMatch,
                     r#"
-                SELECT match_id, tournament_id, round, sequence_in_round, winner, score
-                FROM matches
-                WHERE tournament_id = $1 AND round = $2
-                ORDER BY sequence_in_round
+                    SELECT 
+                        match_id, 
+                        winner, 
+                        score, 
+                        start, 
+                        "end"
+                    FROM matches
+                    WHERE 
+                        SPLIT_PART(match_id, '.', 1)::int = $1 -- tournament part
+                        AND SPLIT_PART(match_id, '.', 2)::int = $2 -- round part (convert to int if needed)
+                    ORDER BY SPLIT_PART(match_id, '.', 3)::int -- sequence part
                 "#,
                     tournament_id,
                     round
@@ -1179,11 +1305,19 @@ impl MatchDatabase for PgDatabase {
                 sqlx::query_as!(
                     TempMatch,
                     r#"
-                SELECT match_id, tournament_id, round, sequence_in_round, winner, score
-                FROM matches
-                WHERE tournament_id = $1
-                ORDER BY round DESC, sequence_in_round
-                "#,
+                    SELECT 
+                        match_id, 
+                        winner, 
+                        score, 
+                        start, 
+                        "end"
+                    FROM matches
+                    WHERE 
+                        SPLIT_PART(match_id, '.', 1)::int = $1 -- tournament part
+                    ORDER BY 
+                        SPLIT_PART(match_id, '.', 2)::int DESC, -- round part in descending order
+                        SPLIT_PART(match_id, '.', 3)::int       -- sequence part
+                    "#,
                     tournament_id
                 )
                 .fetch_all(&self.pool)
@@ -1194,15 +1328,15 @@ impl MatchDatabase for PgDatabase {
         let mut brackets = Vec::new();
         for record in records {
             let players = self.get_match_players(&record.match_id).await?;
-            brackets.push(Match::new(
-                record.tournament_id,
-                record.round,
-                record.sequence_in_round,
-                players,
-                &record.score,
-            ))
+            brackets.push(Match {
+                match_id: record.match_id,
+                match_players: players,
+                winner: record.winner,
+                score: record.score,
+                start: record.start,
+                end: record.end,
+            });
         }
-
         Ok(brackets)
     }
 }

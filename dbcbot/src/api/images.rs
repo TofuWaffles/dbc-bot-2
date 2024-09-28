@@ -22,7 +22,7 @@ impl ImagesAPI {
     }
 
     pub async fn match_image(
-        self,
+        &self,
         player1: &database::models::Player,
         player2: &database::models::Player,
     ) -> Result<Vec<u8>, BotError> {
@@ -87,7 +87,7 @@ impl ImagesAPI {
                 "player_name": user.player_name,
                 "icon": user.icon,
                 "trophies": user.trophies,
-                "brawler_count": user.get_brawlers().len(),
+                "brawler_count": user.brawlers().len(),
                 "tournament_id": tournament_id
             }
         });

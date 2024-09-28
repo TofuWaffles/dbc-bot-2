@@ -1,0 +1,51 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    SELECT \n                        mp.match_id,\n                        mp.discord_id,\n                        mp.player_type AS \"player_type: PlayerType\",\n                        mp.ready\n                    FROM \n                        match_players AS mp\n                    WHERE \n                        mp.match_id = $1\n                    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "match_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "discord_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "player_type: PlayerType",
+        "type_info": {
+          "Custom": {
+            "name": "player_type",
+            "kind": {
+              "Enum": [
+                "player",
+                "dummy",
+                "pending"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "ready",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2e60434a8fcd1c1af84938a150b71e7a97ef38f9bd17dc06cab3290dc80932fa"
+}
