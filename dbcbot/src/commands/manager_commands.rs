@@ -740,19 +740,19 @@ fn generate_matches_new_tournament(
 ) -> Result<Vec<Match>, BotError> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
-    let matches_count = 2_u32.pow(rounds_count - 1);
+    let match_count = 2_u32.pow(rounds_count - 1);
 
     let mut matches = Vec::new();
 
-    for i in 0..matches_count {
+    for i in 0..match_count {
         let mut players: Vec<MatchPlayer> = Vec::new();
         // Not guaranteed to have a player, this would be a bye round if there is no player
-        if (matches_count as usize) < tournament_players.len() {
-            players.push(tournament_players.remove(matches_count as usize).into());
+        if (match_count as usize) < tournament_players.len() {
+            players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
         }
         // Guaranteed to have a player
         if (i as usize) < tournament_players.len() {
-            players.push(tournament_players.remove(i as usize).into());
+            players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
         }
 
         matches.push(Match::new(tournament_id, 1, (i + 1) as i32, players, "0-0"));
