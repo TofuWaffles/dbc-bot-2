@@ -1,16 +1,19 @@
+import base64
 from typing import Union
+
 from PIL.Image import Resampling
 from pydantic import BaseModel
-from .model import Background, Component, BaseImage, Player
-import base64
+
+from .model import Background, BaseImage, Component, Player
 
 
 class RequestResult(BaseModel):
     winner: Player
     loser: Player
+    score: str
 
     async def respond(self) -> Union[str, Exception]:
-        image = await Result(self.winner, self.loser)
+        image = await Result(self.winner, self.loser, self.score)
         if image.error:
             return image.error
         image.preset()
@@ -20,13 +23,14 @@ class RequestResult(BaseModel):
 
 
 class Result(BaseImage):
-    async def __init__(self, winner: Player, loser: Player):
+    async def __init__(self, winner: Player, loser: Player, score: str):
         bg, self.error = self.asset.get_image("Winner_Loser_clean.png")
         await super().__init__(bg=Background(None, None, bg, "Result"))
         self.winner: Player = winner
         self.loser: Player = loser
         self.pi1, self.error = await self.asset.icon(self.winner.icon)
         self.pi2, self.error = await self.asset.icon(self.loser.icon)
+        self.score = score
 
     def preset(self):
         ICON_SIZE = (275, 275)
@@ -53,5 +57,13 @@ class Result(BaseImage):
             textbox_pos=((780, 460), (1155, 530)),
             align="center",
             color=(255, 255, 255),
+        )
+        self.write(
+            text=self.score,
+            textbox_pos=((500, 250), (780, 330)),
+            align="center",
+            font_size=100,
+            color=(255, 255, 255),
+            stroke="black",
         )
         self.components.extend([icon1, icon2])
