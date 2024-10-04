@@ -278,6 +278,10 @@ impl Match {
             None => Ok(None),
         }
     }
+
+    pub fn is_valid(&self) -> bool {
+        self.match_players.len() == 2
+    }
 }
 
 /// A relational entity linking players to matches.

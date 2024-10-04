@@ -5,17 +5,14 @@ use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
 use poise::{CreateReply, Modal, ReplyHandle};
 use prettytable::{row, Table};
-use serde::de;
 use serde_json::json;
 use tokio::join;
 use tracing::{info, instrument};
-
-use crate::api::official_brawl_stars::BattleLog;
 use crate::database::models::{
-    BattleRecord, BattleResult, BattleType, Match, Player, PlayerType, TournamentStatus,
+    BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
 use crate::database::{
-    BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
+    ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase,
 };
 
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
@@ -253,107 +250,148 @@ async fn user_display_match(
 ) -> Result<(), BotError> {
     info!("User {} is viewing their current match", ctx.author().name);
 
-    let bracket_opt = ctx
+    let current_match = match ctx
         .data()
         .database
-        .get_match_by_player(tournament.tournament_id, &ctx.author().id.to_string())
-        .await?;
-
-    let bracket = match bracket_opt {
-        Some(ref bracket) => {
-            let reply;
-            if bracket.match_players.len() < 2 {
-                // Automatically advance the player to the next round if the opponent is a dummy
-                // (a bye round)
-                ctx.data()
-                    .database
-                    .set_winner(
-                        &bracket.match_id,
-                        &bracket
-                            .match_players
-                            .get(0)
-                            .ok_or(anyhow!(
-                                "Error displaying a bye round to user: No player found in match {}",
-                                &bracket.match_id
-                            ))?
-                            .discord_id,
-                        "bye",
-                    )
-                    .await?;
-                reply = CreateReply::default().content("").embed(
-                        CreateEmbed::new().title("Match Information.")
-                        .description(
-                            "You have no opponents for the current round. See you in the next round, partner!",
-                        )
-                        .fields(vec![
-                            ("Tournament", tournament.name, true),
-                            ("Match ID", bracket.match_id.to_owned(), true),
-                            ("Round", bracket.round()?.to_string(), true),
-                        ]),
-                    );
-            } else {
-                // We don't want to show the player the ready button if they're already ready
-                let player = bracket.get_player(&ctx.author().id.to_string())?;
-                let button_components = if player.ready {
-                    vec![CreateActionRow::Buttons(vec![CreateButton::new(
-                        "match_menu_ready",
-                    )
-                    .label("Ready")
-                    .style(ButtonStyle::Success)])]
-                } else {
-                    vec![]
-                };
-                let discord_id = ctx.author().id;
-                ctx.data()
-                    .database
-                    .get_current_match(&discord_id.to_string())
-                    .await?;
-                let p1 = ctx
-                    .get_player_from_discord_id(player.discord_id.clone())
-                    .await?
-                    .ok_or(anyhow!("Player 1 is not found in the database"))?;
-                let p2 = ctx
-                    .get_player_from_discord_id(player.discord_id.clone())
-                    .await?
-                    .ok_or(anyhow!("Player 2 is not found in the database"))?;
-                let image = ctx.data().apis.images.match_image(&p1, &p2).await?;
-                reply = CreateReply::default()
-                    .attachment(CreateAttachment::bytes(image, "Match.png"))
-                    .embed(
-                        CreateEmbed::new().title("Match Information.")
-                        .description(
-                            "Here is all the information for your current match. May the best brawler win!",
-                        )
-                        .fields(vec![
-                            ("Tournament", tournament.name, true),
-                            ("Match ID", bracket.match_id.to_owned(), true),
-                            ("Round", bracket.round()?.to_string(), true),
-                            ("Player 1",
-                            format!("<@{}>", bracket.match_players.get(0).ok_or(anyhow!("Error displaying player 1 for match {}: no player found", bracket.match_id))?.to_user(ctx).await?.mention()).to_string(),
-                             false),
-                            ("Player 2", bracket.match_players.get(1).ok_or(anyhow!("Error displaying player 2 for match {}: no player found", bracket.match_id))?.to_user(ctx).await?.mention().to_string(),
-                             false),
-                        ]),
-                    )
-                    .components(button_components);
-            }
-
-            msg.edit(*ctx, reply).await?;
-            bracket
-        }
+        .get_current_match(&ctx.author().id.to_string())
+        .await?
+    {
+        Some(m) => m,
         None => {
-            return ctx.prompt(
+            ctx.prompt(
                 msg,
-                CreateEmbed::new().title("Match Information").description("You are not currently in a match. Please wait for the next round to begin.").color(Color::RED), 
-                None
-            ).await;
+                CreateEmbed::new().title("Match Not Found").description(
+                    "You are not currently in a match. Please wait for the next round to begin.",
+                ),
+                None,
+            )
+            .await?;
+            return Ok(());
         }
     };
+
+    if !current_match.is_valid() {
+        // Automatically advance the player to the next round if the opponent is a dummy
+        // (a bye round)
+        ctx.data()
+            .database
+            .set_winner(
+                &current_match.match_id,
+                &current_match
+                    .match_players
+                    .get(0)
+                    .ok_or(anyhow!(
+                        "Error displaying a bye round to user: No player found in match {}",
+                        &current_match.match_id
+                    ))?
+                    .discord_id,
+                "bye",
+            )
+            .await?;
+        ctx.prompt(msg,
+            CreateEmbed::new().title("Match Information.")
+            .description(
+                "You have no opponents for the current round. See you in the next round, partner!",
+            )
+            .fields(vec![
+                ("Tournament", &tournament.name, true),
+                ("Match ID", &current_match.match_id, true),
+                ("Round", &current_match.round()?.to_string(), true),
+            ])
+            , None).await?;
+    }
+
+    let player = current_match.get_player(&ctx.author().id.to_string())?;
+    let discord_id = ctx.author().id;
+    ctx.data()
+        .database
+        .get_current_match(&discord_id.to_string())
+        .await?;
+    let p1 = ctx
+        .get_player_from_discord_id(None)
+        .await?
+        .ok_or(anyhow!("Player 1 is not found in the database"))?;
+    let p2 = ctx
+        .get_player_from_discord_id(player.discord_id.clone())
+        .await?
+        .ok_or(anyhow!("Player 2 is not found in the database"))?;
+
+    let reply = {
+        let image = ctx.data().apis.images.match_image(&p1, &p2).await?;
+        let embed = {
+            CreateEmbed::new()
+                .title("Match Information.")
+                .description(
+                    "Here is all the information for your current match. May the best brawler win!",
+                )
+                .fields(vec![
+                    ("Tournament", tournament.name.clone(), true),
+                    ("Match ID", current_match.match_id.to_owned(), true),
+                    ("Round", current_match.round()?.to_string(), true),
+                    (
+                        "Player 1",
+                        format!(
+                            "<@{}>",
+                            current_match
+                                .match_players
+                                .get(0)
+                                .ok_or(anyhow!(
+                                    "Error displaying player 1 for match {}: no player found",
+                                    current_match.match_id
+                                ))?
+                                .to_user(ctx)
+                                .await?
+                                .mention()
+                        )
+                        .to_string(),
+                        false,
+                    ),
+                    (
+                        "Player 2",
+                        current_match
+                            .match_players
+                            .get(1)
+                            .ok_or(anyhow!(
+                                "Error displaying player 2 for match {}: no player found",
+                                current_match.match_id
+                            ))?
+                            .to_user(ctx)
+                            .await?
+                            .mention()
+                            .to_string(),
+                        false,
+                    ),
+                ])
+        };
+        let buttons = {
+            let mut buttons = vec![];
+            buttons.push(
+                CreateButton::new("mail")
+                    .label("Mail")
+                    .emoji(ReactionType::Unicode("📧".to_string()))
+                    .style(ButtonStyle::Primary),
+            );
+            if !player.ready {
+                buttons.push(
+                    CreateButton::new("match_menu_ready")
+                        .label("Ready")
+                        .style(ButtonStyle::Success),
+                );
+            }
+            buttons
+        };
+        CreateReply::default()
+            .attachment(CreateAttachment::bytes(image, "Match.png"))
+            .embed(embed)
+            .components(vec![CreateActionRow::Buttons(buttons)])
+    };
+    msg.edit(*ctx, reply).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
-        if interaction.data.custom_id.as_str() == "match_menu_ready" {
-            interaction.defer(ctx.http()).await?;
-            ctx.prompt(
+        match interaction.data.custom_id.as_str() {
+            "match_menu_ready" => {
+                interaction.defer(ctx.http()).await?;
+                ctx.prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Ready Confirmation")
@@ -362,32 +400,40 @@ async fn user_display_match(
                 None,
             ).await?;
 
-            let player = bracket.get_player(&ctx.author().id.to_string())?;
-            let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
+                let player = current_match.get_player(&ctx.author().id.to_string())?;
+                let opponent = current_match.get_opponent(&ctx.author().id.to_string())?;
 
-            ctx.data()
-                .database
-                .set_ready(&bracket.match_id, &player.discord_id)
-                .await?;
+                ctx.data()
+                    .database
+                    .set_ready(&current_match.match_id.clone(), &player.discord_id)
+                    .await?;
 
-            let notification_message = if opponent.ready {
-                format!(
-                    r#"<@{}> <@{}>.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
-                    player.discord_id, opponent.discord_id
-                )
-            } else {
-                format!(
-                    r#"<@{}>.\n\nYour opponent <@{}> is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
-                    opponent.discord_id, player.discord_id
-                )
-            };
+                let notification_message = if opponent.ready {
+                    format!(
+                        r#"<@{}> <@{}>.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                        player.discord_id, opponent.discord_id
+                    )
+                } else {
+                    format!(
+                        r#"<@{}>.\n\nYour opponent <@{}> is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
+                        opponent.discord_id, player.discord_id
+                    )
+                };
 
-            let notification_channel = ChannelId::new(tournament.notification_channel_id.parse()?);
-            notification_channel
-                .send_message(ctx, CreateMessage::default().content(notification_message))
-                .await?;
-        } else {
-            continue;
+                let notification_channel =
+                    ChannelId::new(tournament.notification_channel_id.parse()?);
+                notification_channel
+                    .send_message(ctx, CreateMessage::default().content(notification_message))
+                    .await?;
+            }
+            "mail" => {
+                interaction.defer(ctx.http()).await?;
+                ctx.compose(msg, p2.user(ctx).await?.id, current_match.match_id.clone())
+                    .await?;
+            }
+            _ => {
+                continue;
+            }
         }
     }
     Ok(())
