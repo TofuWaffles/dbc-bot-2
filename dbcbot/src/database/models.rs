@@ -350,7 +350,7 @@ impl BattleRecord {
         Self {
             record_id: ctx.now().timestamp(),
             match_id,
-            battles: battles.into_iter().map(|item| Battle::from(item)).collect(),
+            battles: battles.into_iter().map(Battle::from).collect(),
         }
     }
 
@@ -358,7 +358,7 @@ impl BattleRecord {
         let db = &ctx.data().database;
         let record = db.add_record(self).await?;
         for battle in &self.battles {
-            let id = db.add_battle(&battle, record).await?;
+            let id = db.add_battle(battle, record).await?;
             db.add_event(&battle.event, id).await?;
             db.add_battle_class(&battle.battle_class, id).await?;
         }

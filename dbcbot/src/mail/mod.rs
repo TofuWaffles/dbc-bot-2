@@ -194,7 +194,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         self.defer_ephemeral().await?;
         match self.data().database.unread(self.author().id).await? {
             0 => Ok(()),
-            count @ _ => {
+            count => {
                 let embed = CreateEmbed::new().title("Unread mail").description(format!(
                     "You have {} unread mail(s)! Choose mail button in the Menu to access.",
                     count
@@ -331,7 +331,7 @@ async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, Bot
 async fn inbox_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    chunked_mail: &Vec<&[Mail]>,
+    chunked_mail: &[&[Mail]],
 ) -> Result<(), BotError> {
     let (prev, next) = (String::from("prev"), String::from("next"));
     let mut page_number: usize = 0;
@@ -360,7 +360,7 @@ async fn inbox_helper(
             "next" => {
                 page_number = (page_number + 1).min(total - 1);
             }
-            id @ _ => {
+            id => {
                 let mail = chunked_mail[page_number]
                     .iter()
                     .find(|mail| mail.id.to_string() == id)
@@ -409,8 +409,8 @@ Reported by: {recipient}.
                     "From",
                     format!(
                         "{}`{}`",
-                        sender.mention().to_string(),
-                        sender.id.to_string()
+                        sender.mention(),
+                        sender.id
                     ),
                     true,
                 ),
@@ -418,8 +418,8 @@ Reported by: {recipient}.
                     "To",
                     format!(
                         "{}`{}`",
-                        recipient.mention().to_string(),
-                        recipient.id.to_string()
+                        recipient.mention(),
+                        recipient.id
                     ),
                     true,
                 ),
@@ -427,10 +427,7 @@ Reported by: {recipient}.
             .color(Colour::RED)
             .timestamp(ctx.now());
 
-        CreateMessage::new().embed(embed).content(format!(
-            "{}",
-            marshal.map_or_else(|| "".to_string(), |r| r.mention().to_string())
-        ))
+        CreateMessage::new().embed(embed).content(marshal.map_or_else(|| "".to_string(), |r| r.mention().to_string()).to_string())
     };
     let thread_id = log.create_thread(ctx.http(), thread).await?;
     thread_id.send_message(ctx.http(), reply).await?;

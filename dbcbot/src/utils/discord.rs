@@ -26,11 +26,11 @@ pub trait DiscordTrait {
     }
 
     async fn to_channel(ctx: &BotContext<'_>, id: &str) -> Result<GuildChannel, BotError> {
-        Ok(ChannelId::new(id.parse()?)
+        ChannelId::new(id.parse()?)
             .to_channel(ctx.http())
             .await?
             .guild()
-            .ok_or(anyhow!("Channel not found"))?)
+            .ok_or(anyhow!("Channel not found"))
     }
 }
 
@@ -154,7 +154,7 @@ pub async fn select_options<T: Selectable>(
                     return Ok(values[0].clone());
                 }
             }
-            button @ _ => {
+            button => {
                 interactions.defer(ctx.http()).await?;
                 return Ok(button.to_string());
             }

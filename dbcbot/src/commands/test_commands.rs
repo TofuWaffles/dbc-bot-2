@@ -227,8 +227,7 @@ async fn profile_image(
         .data()
         .database
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
-        .await?
-        .get(0)
+        .await?.first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = match image_api.profile_image(&user, tournament_id).await {
@@ -289,7 +288,7 @@ async fn choose_map_command(ctx: BotContext<'_>, mode: Mode) -> Result<(), BotEr
     let map = ctx.map_selection(&msg, &mode).await?;
     let reply = {
         let embed = CreateEmbed::default()
-            .title(format!("{}", map.name))
+            .title(map.name.to_string())
             .description(format!(
                 "Environment: **{}**\nMode: **{}**\nAvailability: **{}**",
                 map.environment.name,
@@ -313,7 +312,7 @@ async fn choose_gamemode_command(ctx: BotContext<'_>) -> Result<(), BotError> {
     let mode = ctx.mode_selection(&msg).await?;
     let reply = {
         let embed = CreateEmbed::default()
-            .title(format!("{}", mode.name))
+            .title(mode.name.to_string())
             .description(format!(
                 "Description: **{}**\nAvailability: **{}**",
                 mode.description,

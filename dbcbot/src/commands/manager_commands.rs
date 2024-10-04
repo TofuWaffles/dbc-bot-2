@@ -142,7 +142,7 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Invalid announcement channel")
                     .description(
@@ -168,7 +168,7 @@ async fn set_config(
         Some(guild) => guild.id.to_string(),
         None => {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new()
                     .title("Invalid log channel")
                     .description("Please enter a valid server channel to set this log channel.")
@@ -202,7 +202,7 @@ async fn set_config(
         )
         .await?;
     ctx.prompt(
-        &msg,
+        msg,
         CreateEmbed::new()
             .title("Configuration set successfully!")
             .description("Run this command again if you want to change the configuration.")
@@ -386,7 +386,7 @@ async fn start_tournament(
         .database
         .set_rounds(tournament_id, rounds_count)
         .await?;
-    ctx.data().database.set_map(tournament_id, &map).await?;
+    ctx.data().database.set_map(tournament_id, map).await?;
     ctx.prompt(
         msg,
         CreateEmbed::default()

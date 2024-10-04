@@ -1,7 +1,7 @@
 use crate::{database, BotError};
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
-use cached::proc_macro::cached;
+
 use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
@@ -100,15 +100,15 @@ impl ImagesAPI {
     pub async fn battle_log(
         self,
         record: database::models::BattleRecord,
-        matchid: database::models::Match,
+        _matchid: database::models::Match,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/images/battle_log", self.base_url);
         let data: Vec<Value> = record
             .battles
             .into_iter()
             .map(|battle| {
-                let player1 = &battle.battle_class.teams[0][0];
-                let player2 = &battle.battle_class.teams[1][0];
+                let _player1 = &battle.battle_class.teams[0][0];
+                let _player2 = &battle.battle_class.teams[1][0];
                 serde_json::json!({})
             })
             .collect();

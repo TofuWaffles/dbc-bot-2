@@ -278,8 +278,7 @@ async fn user_display_match(
             .set_winner(
                 &current_match.match_id,
                 &current_match
-                    .match_players
-                    .get(0)
+                    .match_players.first()
                     .ok_or(anyhow!(
                         "Error displaying a bye round to user: No player found in match {}",
                         &current_match.match_id
@@ -333,8 +332,7 @@ async fn user_display_match(
                         format!(
                             "<@{}>",
                             current_match
-                                .match_players
-                                .get(0)
+                                .match_players.first()
                                 .ok_or(anyhow!(
                                     "Error displaying player 1 for match {}: no player found",
                                     current_match.match_id
@@ -816,8 +814,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         .data()
         .database
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
-        .await?
-        .get(0)
+        .await?.first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = image_api
@@ -1006,8 +1003,7 @@ async fn submit(
                             .zip(log_tags.iter())
                             .all(|(tag1, tag2)| compare_tag(tag1, tag2))
                     }
-            })
-            .map(|log| log.clone())
+            }).cloned()
             .collect::<Vec<BattleLogItem>>();
         Ok(filtered_logs)
     }
@@ -1150,11 +1146,11 @@ async fn submit(
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }
-    let winner = analyze(&tournament, &battles).await;
+    let winner = analyze(tournament, &battles).await;
     let score = winner.clone().map(|(_, s)| s).unwrap_or("0-0".to_string());
     let target = match winner {
         None => return handle_not_enough_matches(ctx, msg).await,
-        Some((true, score @ _)) => join!(
+        Some((true, score)) => join!(
             ctx.data()
                 .database
                 .set_winner(&current_match.match_id, &caller, &score),
@@ -1162,7 +1158,7 @@ async fn submit(
         )
         .1?
         .ok_or(anyhow!("Player not found in the database"))?,
-        Some((false, score @ _)) => {
+        Some((false, score)) => {
             let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?;
             join!(
                 ctx.data()

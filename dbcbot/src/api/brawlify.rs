@@ -37,7 +37,7 @@ impl BrawlifyAPI {
             .send()
             .await?;
 
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 
     pub async fn get_modes(&self) -> Result<APIResult<Wrapper<FullGameMode>>, BotError> {
@@ -47,7 +47,7 @@ impl BrawlifyAPI {
             .send()
             .await?;
 
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 
     pub async fn get_brawlers(&self) -> Result<APIResult<Wrapper<FullBrawler>>, BotError> {
@@ -57,7 +57,7 @@ impl BrawlifyAPI {
             .send()
             .await?;
 
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 
     pub async fn get_map(&self, id: i32) -> Result<APIResult<BrawlMap>, BotError> {
@@ -67,7 +67,7 @@ impl BrawlifyAPI {
             .send()
             .await?;
 
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 
     pub async fn get_brawler(&self, id: i32) -> Result<APIResult<FullBrawler>, BotError> {
@@ -76,7 +76,7 @@ impl BrawlifyAPI {
             .get(self.endpoint.append_path(&format!("brawlers/{}", id)))
             .send()
             .await?;
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 
     pub async fn get_mode(&self, id: i32) -> Result<APIResult<GameMode>, BotError> {
@@ -86,7 +86,7 @@ impl BrawlifyAPI {
             .send()
             .await?;
 
-        Ok(APIResult::from_response(response).await?)
+        APIResult::from_response(response).await
     }
 }
 
@@ -186,7 +186,7 @@ impl Wrapper<BrawlMap> {
                 m.game_mode.name.to_lowercase() == mode.to_string().to_lowercase() && !m.disabled
             })
             .collect();
-        println!("Found {} maps for mode {}", maps.len(), mode.to_string());
+        println!("Found {} maps for mode {}", maps.len(), mode);
         maps
     }
 }

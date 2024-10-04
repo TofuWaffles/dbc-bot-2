@@ -313,9 +313,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         let embed = |brawlers: &[FullBrawler]| {
             CreateEmbed::default()
             .title("Brawler Selection")
-            .description(format!(
-                "Select a brawler to view more information about them. Use the buttons below to navigate through the list."
-            ))
+            .description("Select a brawler to view more information about them. Use the buttons below to navigate through the list.".to_string())
             .fields(brawlers.iter().map(|b|{
                 (b.name.clone(),"",true)
             }).collect::<Vec<(String,&str,bool)>>())
@@ -354,10 +352,10 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                             "next" => {
                                 page_number = (page_number + 1).min(brawlers.len() - 1);
                             }
-                            identifier @ _ => {
+                            identifier => {
                                 let brawler = chunk
                                     .iter()
-                                    .find(|b| (**b).id == identifier.parse::<i32>().unwrap())
+                                    .find(|b| b.id == identifier.parse::<i32>().unwrap())
                                     .unwrap()
                                     .to_owned();
                                 return Ok(brawler.into());
@@ -410,7 +408,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         ]);
         let reply = |map: BrawlMap| {
             let embed = CreateEmbed::default()
-                .title(format!("{}", map.name))
+                .title(map.name.to_string())
                 .description(format!(
                     "Environment: ** {}**\nMode: **{}**\nAvailability: **{}**",
                     map.environment.name,
@@ -431,7 +429,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
                 "prev" => {
-                    page_number = page_number.checked_sub(1).unwrap_or(0);
+                    page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
                     interactions.defer(self.http()).await?;
@@ -479,7 +477,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         ]);
         let reply = |mode: FullGameMode| {
             let embed = CreateEmbed::default()
-                .title(format!("{}", mode.name))
+                .title(mode.name.to_string())
                 .description(format!(
                     "Description: **{}**\nAvailability: **{}**",
                     mode.description,
@@ -498,7 +496,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
                 "prev" => {
-                    page_number = page_number.checked_sub(1).unwrap_or(0);
+                    page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
                     interactions.defer(self.http()).await?;

@@ -146,7 +146,7 @@ impl From<BattleLog> for database::models::BattleRecord {
             battles: value
                 .items
                 .into_iter()
-                .map(|item| database::models::Battle::from(item))
+                .map(database::models::Battle::from)
                 .collect(),
         }
     }
