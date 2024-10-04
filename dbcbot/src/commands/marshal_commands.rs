@@ -515,7 +515,9 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
             return Ok(());
         }
     };
-    let conditions: Vec<(fn(&Tournament) -> bool, &str, &str)> = vec![
+    type ConditionFn = fn(&Tournament) -> bool;
+    type Condition<'a> = (ConditionFn, &'a str, &'a str);
+    let conditions: Vec<Condition> = vec![
         (|t| t.status != TournamentStatus::Started, "Non active tournament!","This tournament is not currently active. Please try again when the tournament is active again."),
         (|t| t.current_round == t.rounds, "No more rounds!","Unable to advance to the next round. This tournament is currently on its final round.")
     ];
