@@ -1,8 +1,8 @@
 pub mod model;
 
-use crate::mail::model::MailType;
 use crate::database::ConfigDatabase;
 use crate::log::Log;
+use crate::mail::model::MailType;
 use crate::utils::discord::{modal, select_options};
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use anyhow::anyhow;
@@ -10,8 +10,8 @@ use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::Mail;
 use poise::serenity_prelude::{
-    AutoArchiveDuration, ButtonStyle, ChannelType, CreateActionRow, CreateButton, CreateEmbed,
-    CreateMessage, CreateThread, Mentionable, RoleId,
+    AutoArchiveDuration, ButtonStyle, ChannelType, Colour, CreateActionRow, CreateButton,
+    CreateEmbed, CreateMessage, CreateThread, Mentionable, RoleId,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -386,13 +386,12 @@ async fn report(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, mail: &Mail) -> Res
         .name(mail.recipient(ctx).await?.name)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);
     let reply = {
-        let sender = mail.sender(ctx).await?.mention();
-        let recipient = mail.recipient(ctx).await?.mention();
+        let sender = mail.sender(ctx).await?;
+        let recipient = mail.recipient(ctx).await?;
         let embed = CreateEmbed::default()
             .title("A potential suspicious mail has been reported!")
             .description(format!(
-                r#"From: {sender} `{sender_id}`
-To: {recipient} `{recipient_id}`
+                r#"
 Subject: {subject}
 ```
 {body}
@@ -401,14 +400,31 @@ Sent at <t:{timestamp}:F>
 Reported by: {recipient}.
 
 "#,
-                sender = sender,
-                sender_id = mail.sender.clone(),
-                recipient = recipient,
-                recipient_id = mail.recipient.clone(),
                 subject = mail.subject.clone(),
                 body = mail.body.clone(),
                 timestamp = mail.id,
             ))
+            .fields(vec![
+                (
+                    "From",
+                    format!(
+                        "{}`{}`",
+                        sender.mention().to_string(),
+                        sender.id.to_string()
+                    ),
+                    true,
+                ),
+                (
+                    "To",
+                    format!(
+                        "{}`{}`",
+                        recipient.mention().to_string(),
+                        recipient.id.to_string()
+                    ),
+                    true,
+                ),
+            ])
+            .color(Colour::RED)
             .timestamp(ctx.now());
 
         CreateMessage::new().embed(embed).content(format!(
@@ -418,5 +434,11 @@ Reported by: {recipient}.
     };
     let thread_id = log.create_thread(ctx.http(), thread).await?;
     thread_id.send_message(ctx.http(), reply).await?;
+    ctx.prompt(msg,
+        CreateEmbed::new()
+            .title("This mail has been reported!")
+            .description("You can safely dismiss this mail. The marshals will keep you up-to-date about this report!"), 
+            None)
+        .await?;
     Ok(())
 }

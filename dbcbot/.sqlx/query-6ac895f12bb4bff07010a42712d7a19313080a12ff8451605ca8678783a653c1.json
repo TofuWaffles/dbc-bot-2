@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO events (mode, map)\n            VALUES ($1, $2)\n            RETURNING id\n            ",
+  "query": "\n            INSERT INTO events (mode, map, battle_id)\n            VALUES ($1, $2, $3)\n            RETURNING id\n            ",
   "describe": {
     "columns": [
       {
@@ -42,12 +42,13 @@
             }
           }
         },
-        "Int4"
+        "Int4",
+        "Int8"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "65694d7f2453dc98168c7a04f58b2f3e82bb9f9df0a9884bfc2c0a09e071d822"
+  "hash": "6ac895f12bb4bff07010a42712d7a19313080a12ff8451605ca8678783a653c1"
 }

@@ -550,22 +550,24 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     }
 
     let round = tournament.current_round + 1;
-    let next_round_brackets = generate_next_round(with_winners, round)?;
+    let mut next_round_brackets = generate_next_round(with_winners, round)?;
     let new_brackets_count = next_round_brackets.len();
-    next_round_brackets.iter().for_each(|bracket| {
-        ctx.data().database.create_match(
-            bracket.tournament().unwrap(),
-            bracket.round().unwrap(),
-            bracket.sequence().unwrap(),
-        );
-        bracket.match_players.iter().for_each(|player| {
-            ctx.data().database.enter_match(
-                &Match::generate_id(tournament_id, round, bracket.sequence().unwrap()),
-                &player.discord_id,
-                PlayerType::Player,
-            );
-        })
-    });
+    while let Some(bracket) = next_round_brackets.pop() {
+        ctx.data()
+            .database
+            .create_match(bracket.tournament()?, bracket.round()?, bracket.sequence()?)
+            .await?;
+
+        for player in bracket.match_players.iter() {
+            let match_id = Match::generate_id(tournament_id, bracket.round()?, bracket.sequence()?);
+
+            ctx.data()
+                .database
+                .enter_match(&match_id, &player.discord_id, PlayerType::Player)
+                .await?;
+        }
+    }
+
     ctx.data().database.next_round(tournament_id).await?;
     if ctx
         .confirmation(

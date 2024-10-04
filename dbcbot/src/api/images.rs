@@ -6,7 +6,7 @@ use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImagesAPI {
     base_url: String,
     client: Client,
@@ -51,6 +51,7 @@ impl ImagesAPI {
         self,
         winner: &database::models::Player,
         loser: &database::models::Player,
+        score: &str,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/result", self.base_url);
         let payload = serde_json::json!({
@@ -67,7 +68,8 @@ impl ImagesAPI {
                 "player_tag": loser.player_tag,
                 "player_name": loser.player_name,
                 "icon": loser.icon
-            }
+            },
+            "score": score
         });
         let bytes = get_image(url, payload).await?;
         Ok(bytes)
@@ -117,7 +119,7 @@ impl ImagesAPI {
     }
 }
 
-#[cached(size = 50, time = 86400, result = true)]
+// #[cached(size = 50, time = 86400, result = true)]
 async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError> {
     let images_api = ImagesAPI::new();
     let response = images_api

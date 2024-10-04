@@ -149,6 +149,7 @@ async fn result_image(
     #[description = "Winner of a match (in the left side)"] winner: serenity_prelude::User,
     #[description = "Eliminated player of a match (in the right side)"]
     loser: serenity_prelude::User,
+    #[description = "Score"] score: String,
 ) -> Result<(), BotError> {
     ctx.defer().await?;
     let p1 = ctx
@@ -160,7 +161,7 @@ async fn result_image(
         .await?
         .ok_or(anyhow!("Loser not found."))?;
     let image_api = ImagesAPI::new();
-    let image = match image_api.result_image(&p1, &p2).await {
+    let image = match image_api.result_image(&p1, &p2, &score).await {
         Ok(image) => image,
         Err(e) => {
             ctx.send(

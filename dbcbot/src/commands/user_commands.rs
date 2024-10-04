@@ -1,3 +1,5 @@
+use std::i64;
+
 use anyhow::anyhow;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
@@ -5,12 +7,16 @@ use poise::{CreateReply, Modal, ReplyHandle};
 use prettytable::{row, Table};
 use serde::de;
 use serde_json::json;
+use tokio::join;
 use tracing::{info, instrument};
 
+use crate::api::official_brawl_stars::BattleLog;
 use crate::database::models::{
-    BattleResult, BattleType, Match, Player, PlayerType, TournamentStatus,
+    BattleRecord, BattleResult, BattleType, Match, Player, PlayerType, TournamentStatus,
 };
-use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{
+    BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
+};
 
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::{api::APIResult, commands::checks::is_config_set};
@@ -271,7 +277,7 @@ async fn user_display_match(
                                 &bracket.match_id
                             ))?
                             .discord_id,
-                            "bye",
+                        "bye",
                     )
                     .await?;
                 reply = CreateReply::default().content("").embed(
@@ -936,7 +942,8 @@ async fn submit(
         let filtered_logs = logs
             .iter()
             .filter(|log| {
-                (log.unix() > game_match.start.unwrap() || log.unix() < game_match.end.unwrap())
+                (log.unix() > game_match.start.unwrap_or(i64::MIN)
+                    || log.unix() < game_match.end.unwrap_or(i64::MAX))
                     && (log.battle.mode.eq(&tournament.mode) || log.event.mode.eq(&tournament.mode))
                     && log
                         .battle
@@ -960,7 +967,7 @@ async fn submit(
     }
     /// Analyse the battle logs to determine the winner of the match
     /// Returns true if the command caller wins, false if the opponent wins, and None if no conclusion can be made
-    async fn analyze(tournament: &Tournament, battles: Vec<BattleLogItem>) -> Option<(bool, String)> {
+    async fn analyze(tournament: &Tournament, battles: &[BattleLogItem]) -> Option<(bool, String)> {
         let mut conclusion: Option<(bool, String)> = None; //true = player 1, false = player 2, None = no conclusion
         let mut victory = 0;
         let mut defeat = 0;
@@ -1008,6 +1015,17 @@ async fn submit(
         .await?;
         Ok(())
     }
+
+    async fn save_record(
+        ctx: &BotContext<'_>,
+        game_match: &Match,
+        battles: Vec<BattleLogItem>,
+    ) -> Result<(), BotError> {
+        let match_id = game_match.match_id.clone();
+        let record = BattleRecord::new(ctx, match_id, battles);
+        record.execute(ctx).await?;
+        Ok(())
+    }
     let caller = ctx.author().id.to_string();
     let current_match = match ctx.data().database.get_current_match(&caller).await? {
         Some(m) => m,
@@ -1025,7 +1043,7 @@ async fn submit(
     };
 
     let caller_tag = ctx
-        .get_player_from_discord_id(caller)
+        .get_player_from_discord_id(caller.clone())
         .await?
         .ok_or(anyhow!("Player not found in the database"))?
         .player_tag;
@@ -1074,30 +1092,40 @@ async fn submit(
             return Ok(());
         }
     };
+    ctx.prompt(
+        msg,
+        CreateEmbed::new()
+            .title("Analyzing results")
+            .description("Hold on. I am analyzing the battle records..."),
+        None,
+    )
+    .await?;
     let battles = filter(ctx, logs, &current_match, tournament).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }
-    let winner = analyze(&tournament, battles).await;
-    let channel = ChannelId::new(tournament.notification_channel_id.parse()?);
+    let winner = analyze(&tournament, &battles).await;
+    let score = winner.clone().map(|(_, s)| s).unwrap_or("0-0".to_string());
     let target = match winner {
         None => return handle_not_enough_matches(ctx, msg).await,
-        Some((true, score @ _)) => {
+        Some((true, score @ _)) => join!(
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, &ctx.author().id.to_string(), &score)
-                .await?;
-            ctx.get_player_from_discord_id(None).await?.unwrap()
-        }
+                .set_winner(&current_match.match_id, &caller, &score),
+            ctx.get_player_from_discord_id(None)
+        )
+        .1?
+        .ok_or(anyhow!("Player not found in the database"))?,
         Some((false, score @ _)) => {
             let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?;
-            ctx.data()
-                .database
-                .set_winner(&bracket.match_id, &opponent_id.discord_id, &score)
-                .await?;
-            ctx.get_player_from_discord_id(opponent_id.discord_id.to_string())
-                .await?
-                .unwrap()
+            join!(
+                ctx.data()
+                    .database
+                    .set_winner(&bracket.match_id, &opponent_id.discord_id, &score),
+                ctx.get_player_from_discord_id(opponent_id.discord_id.to_string())
+            )
+            .1?
+            .ok_or(anyhow!("Player not found in the database"))?
         }
     };
     // Final round. Announce the winner and finish the tournament
@@ -1105,18 +1133,58 @@ async fn submit(
         finish_tournament(ctx, bracket, &target).await?;
         return Ok(());
     }
-    // TODO: Implement image generation
+
+    let (adv, elim) = (
+        &target,
+        ctx.get_player_from_discord_id(
+            current_match
+                .get_opponent(&target.discord_id)?
+                .discord_id
+                .clone(),
+        )
+        .await?
+        .unwrap(),
+    );
+    save_record(ctx, &current_match, battles).await?;
+    let (image, user) = join!(
+        ctx.data()
+            .apis
+            .images
+            .clone()
+            .result_image(adv, &elim, &score),
+        target.user(ctx)
+    );
+
     let embed = CreateEmbed::new()
         .title("Match submission!")
         .description(format!(
-            "Congratulations! <@{}> passes Round {}",
-            target.discord_id, tournament.current_round
+            "Congratulations! {} passes Round {}",
+            user?.mention(),
+            tournament.current_round
         ))
-        .thumbnail(target.icon())
-        .author(ctx.get_author_img(&log::Model::PLAYER));
-    channel
-        .send_message(ctx.http(), CreateMessage::new().embed(embed))
+        .thumbnail(target.icon());
+    let channel = tournament.notification_channel(ctx).await?;
+
+    let result_msg = channel
+        .send_message(
+            ctx.http(),
+            CreateMessage::new()
+                .embed(embed)
+                .add_file(CreateAttachment::bytes(image?, "result.png")),
+        )
         .await?;
+    ctx.prompt(
+        msg,
+        CreateEmbed::new()
+            .title("Result has been recorded successfully!")
+            .description(format!(
+                "Click [here]({}) to see the result\nOr head to {} to view other results!",
+                result_msg.link(),
+                channel.mention()
+            )),
+        None,
+    )
+    .await?;
     ctx.log(
         "Match submission",
         format!(
@@ -1128,7 +1196,6 @@ async fn submit(
         log::Model::PLAYER,
     )
     .await?;
-
     Ok(())
 }
 

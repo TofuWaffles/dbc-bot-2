@@ -1,9 +1,14 @@
+use std::vec;
+
 use crate::utils::discord::DiscordTrait;
+use crate::utils::shorthand::BotContextExt;
 use crate::{api::official_brawl_stars::Brawler, BotContext, BotError};
 use anyhow::{anyhow, Result};
 use poise::serenity_prelude::{GuildChannel, Role, User, UserId};
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, IntoEnumIterator};
+
+use super::BattleDatabase;
 
 /// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
@@ -138,7 +143,7 @@ impl Player {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
 
-    pub fn icon(&self) -> String{
+    pub fn icon(&self) -> String {
         format!("https://cdn-old.brawlify.com/profile/{}.png", self.icon)
     }
 }
@@ -323,7 +328,7 @@ pub struct MatchSchedule {
     accepted: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BattleRecord {
     pub record_id: i64,
     #[serde(default)]
@@ -331,7 +336,32 @@ pub struct BattleRecord {
     #[serde(default)]
     pub battles: Vec<Battle>,
 }
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+
+impl BattleRecord {
+    pub fn new(
+        ctx: &BotContext<'_>,
+        match_id: String,
+        battles: Vec<crate::api::official_brawl_stars::BattleLogItem>,
+    ) -> Self {
+        Self {
+            record_id: ctx.now().timestamp(),
+            match_id,
+            battles: battles.into_iter().map(|item| Battle::from(item)).collect(),
+        }
+    }
+
+    pub async fn execute(&self, ctx: &BotContext<'_>) -> Result<(), BotError> {
+        let db = &ctx.data().database;
+        let record = db.add_record(self).await?;
+        for battle in &self.battles {
+            let id = db.add_battle(&battle, record).await?;
+            db.add_event(&battle.event, id).await?;
+            db.add_battle_class(&battle.battle_class, id).await?;
+        }
+        Ok(())
+    }
+}
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
     #[serde(default)]
@@ -343,7 +373,7 @@ pub struct Battle {
     pub event: Event,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleClass {
     #[serde(default)]
