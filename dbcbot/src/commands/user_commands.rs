@@ -1,5 +1,9 @@
 use std::i64;
 
+use crate::database::models::{
+    BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
+};
+use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 use anyhow::anyhow;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
@@ -8,12 +12,6 @@ use prettytable::{row, Table};
 use serde_json::json;
 use tokio::join;
 use tracing::{info, instrument};
-use crate::database::models::{
-    BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
-};
-use crate::database::{
-    ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase,
-};
 
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::{api::APIResult, commands::checks::is_config_set};
@@ -278,7 +276,8 @@ async fn user_display_match(
             .set_winner(
                 &current_match.match_id,
                 &current_match
-                    .match_players.first()
+                    .match_players
+                    .first()
                     .ok_or(anyhow!(
                         "Error displaying a bye round to user: No player found in match {}",
                         &current_match.match_id
@@ -332,7 +331,8 @@ async fn user_display_match(
                         format!(
                             "<@{}>",
                             current_match
-                                .match_players.first()
+                                .match_players
+                                .first()
                                 .ok_or(anyhow!(
                                     "Error displaying player 1 for match {}: no player found",
                                     current_match.match_id
@@ -814,7 +814,8 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         .data()
         .database
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
-        .await?.first()
+        .await?
+        .first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = image_api
@@ -1003,7 +1004,8 @@ async fn submit(
                             .zip(log_tags.iter())
                             .all(|(tag1, tag2)| compare_tag(tag1, tag2))
                     }
-            }).cloned()
+            })
+            .cloned()
             .collect::<Vec<BattleLogItem>>();
         Ok(filtered_logs)
     }

@@ -227,7 +227,8 @@ async fn profile_image(
         .data()
         .database
         .get_active_tournaments_from_player(&ctx.author().id.to_string())
-        .await?.first()
+        .await?
+        .first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = match image_api.profile_image(&user, tournament_id).await {

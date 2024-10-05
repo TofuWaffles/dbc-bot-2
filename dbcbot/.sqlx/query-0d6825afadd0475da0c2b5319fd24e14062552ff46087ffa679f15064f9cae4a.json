@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM battle_records\n            WHERE match_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "record_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "match_id",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "0d6825afadd0475da0c2b5319fd24e14062552ff46087ffa679f15064f9cae4a"
+}

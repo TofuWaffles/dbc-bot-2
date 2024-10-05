@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT \n                    e.id,\n                    e.mode AS \"mode: Mode\",\n                    e.map,\n                    e.battle_id\n                FROM events AS e\n                WHERE battle_id = ANY($1)\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "mode: Mode",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "map",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "battle_id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d2141a23baae3083fad1c5b9c1a88b7d84a992b669d15f9e66c7d3424e5a14f7"
+}

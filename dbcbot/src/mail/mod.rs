@@ -405,29 +405,21 @@ Reported by: {recipient}.
                 timestamp = mail.id,
             ))
             .fields(vec![
-                (
-                    "From",
-                    format!(
-                        "{}`{}`",
-                        sender.mention(),
-                        sender.id
-                    ),
-                    true,
-                ),
+                ("From", format!("{}`{}`", sender.mention(), sender.id), true),
                 (
                     "To",
-                    format!(
-                        "{}`{}`",
-                        recipient.mention(),
-                        recipient.id
-                    ),
+                    format!("{}`{}`", recipient.mention(), recipient.id),
                     true,
                 ),
             ])
             .color(Colour::RED)
             .timestamp(ctx.now());
 
-        CreateMessage::new().embed(embed).content(marshal.map_or_else(|| "".to_string(), |r| r.mention().to_string()).to_string())
+        CreateMessage::new().embed(embed).content(
+            marshal
+                .map_or_else(|| "".to_string(), |r| r.mention().to_string())
+                .to_string(),
+        )
     };
     let thread_id = log.create_thread(ctx.http(), thread).await?;
     thread_id.send_message(ctx.http(), reply).await?;

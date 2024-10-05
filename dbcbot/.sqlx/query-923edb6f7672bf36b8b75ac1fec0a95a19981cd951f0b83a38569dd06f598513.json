@@ -1,0 +1,115 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT \n                    bc.id,\n                    bc.battle_id,\n                    bc.mode AS \"mode: Mode\",\n                    bc.battle_type AS \"battle_type: BattleType\",\n                    bc.result AS \"result: BattleResult\",\n                    bc.duration,\n                    bc.trophy_change,\n                    bc.teams\n                FROM battle_classes AS bc\n                WHERE battle_id = ANY($1)\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "battle_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "mode: Mode",
+        "type_info": {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipe_out",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "battle_type: BattleType",
+        "type_info": {
+          "Custom": {
+            "name": "battle_type",
+            "kind": {
+              "Enum": [
+                "friendly",
+                "ranked"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "result: BattleResult",
+        "type_info": {
+          "Custom": {
+            "name": "result",
+            "kind": {
+              "Enum": [
+                "victory",
+                "defeat",
+                "draw"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "duration",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "trophy_change",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "teams",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "923edb6f7672bf36b8b75ac1fec0a95a19981cd951f0b83a38569dd06f598513"
+}

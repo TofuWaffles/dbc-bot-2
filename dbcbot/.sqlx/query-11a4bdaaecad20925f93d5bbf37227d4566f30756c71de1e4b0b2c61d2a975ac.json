@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT bm.id, bm.name\n            FROM events AS e\n            JOIN brawl_maps AS bm\n            ON e.map = bm.id\n            WHERE e.battle_id = ANY($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "11a4bdaaecad20925f93d5bbf37227d4566f30756c71de1e4b0b2c61d2a975ac"
+}

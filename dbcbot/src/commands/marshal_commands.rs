@@ -279,7 +279,8 @@ async fn get_match(
                                     format!(
                                         "{:#?}",
                                         bracket
-                                            .match_players.first()
+                                            .match_players
+                                            .first()
                                             .map(|p| format!("<@{}>", p.discord_id))
                                     ),
                                     false,

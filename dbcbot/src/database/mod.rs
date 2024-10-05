@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use models::*;
 use poise::serenity_prelude::RoleId;
 use sqlx::PgPool;
+use tokio::join;
 /// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
@@ -1337,6 +1338,8 @@ impl MatchDatabase for PgDatabase {
     }
 }
 pub trait BattleDatabase {
+    async fn get_battle(&self, record_id: i64) -> Result<Vec<Battle>, Self::Error>;
+    async fn get_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error>;
     async fn add_event(&self, event: &Event, battle_id: i64) -> Result<i64, Self::Error>;
     async fn add_battle_class(
         &self,
@@ -1420,6 +1423,129 @@ impl BattleDatabase for PgDatabase {
         .fetch_one(&self.pool)
         .await?;
         Ok(query.id)
+    }
+
+    async fn get_record(&self, match_id: &str) -> Result<Option<BattleRecord>, Self::Error> {
+        let record = sqlx::query!(
+            r#"
+            SELECT *
+            FROM battle_records
+            WHERE match_id = $1
+            "#,
+            match_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let record_id = record
+            .map(|r| r.record_id)
+            .ok_or(anyhow!("No record found"))?;
+        let battles = self.get_battle(record_id).await?;
+        Ok(Some(BattleRecord {
+            record_id,
+            match_id: match_id.to_string(),
+            battles,
+        }))
+    }
+
+    async fn get_battle(&self, record_id: i64) -> Result<Vec<Battle>, Self::Error> {
+        // Fetch all battles based on record_id
+        let battles = sqlx::query!(
+            r#"
+            SELECT *
+            FROM battles
+            WHERE record_id = $1
+            "#,
+            record_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let battle_ids: Vec<i64> = battles.iter().map(|b| b.id).collect();
+        let (battle_classes, events) = join!(
+            sqlx::query!(
+                r#"
+                SELECT 
+                    bc.id,
+                    bc.battle_id,
+                    bc.mode AS "mode: Mode",
+                    bc.battle_type AS "battle_type: BattleType",
+                    bc.result AS "result: BattleResult",
+                    bc.duration,
+                    bc.trophy_change,
+                    bc.teams
+                FROM battle_classes AS bc
+                WHERE battle_id = ANY($1)
+                "#,
+                &battle_ids
+            ).fetch_all(&self.pool),
+            
+            sqlx::query!(
+                r#"
+                SELECT 
+                    e.id,
+                    e.mode AS "mode: Mode",
+                    e.map,
+                    e.battle_id
+                FROM events AS e
+                WHERE battle_id = ANY($1)
+                "#,
+                &battle_ids
+            ).fetch_all(&self.pool)
+        );
+        let battle_classes = battle_classes?;
+        let events = events?;
+        let mut map_ids: Vec<i64> = vec![];
+        for event in events.iter(){
+            let id: i32  = event.map.ok_or(anyhow!("No map found"))?;
+            map_ids.push(id as i64);
+        }
+
+        let maps: Vec<BrawlMap> = sqlx::query_as!(
+            BrawlMap,
+            r#"
+            SELECT bm.id, bm.name
+            FROM events AS e
+            JOIN brawl_maps AS bm
+            ON e.map = bm.id
+            WHERE e.battle_id = ANY($1)
+            "#,
+             &map_ids
+        ).fetch_all(&self.pool).await?;
+        let mut battles_with_details = Vec::new();
+        for record in battles {
+            let battle_class = battle_classes
+                .iter()
+                .find(|bc| bc.battle_id == record.id)
+                .ok_or_else(|| anyhow!("Battle class not found for battle id: {}", record.id))?;
+            let event = events
+                .iter()
+                .find(|e| e.battle_id.unwrap() == record.id)
+                .ok_or_else(|| anyhow!("Event not found for battle id: {}", record.id))?;
+            let battle = Battle {
+                id: record.id,
+                battle_time: record.battle_time,
+                record_id: record.record_id,
+                battle_class: BattleClass {
+                    id: battle_class.id,
+                    battle_id: battle_class.battle_id,
+                    mode: battle_class.mode.clone(),
+                    battle_type: battle_class.battle_type.clone(),
+                    result: battle_class.result.clone(),
+                    duration: battle_class.duration,
+                    trophy_change: battle_class.trophy_change,
+                    teams: battle_class.teams.clone(),
+                },
+                event: Event {
+                    id: event.id,
+                    mode: event.mode.unwrap() as Mode,
+                    map: maps.iter().find(|m| m.id == event.map.unwrap_or(0)).unwrap().clone(),
+                    battle_id: event.battle_id.unwrap(),
+                },
+            };
+            battles_with_details.push(battle);
+        }
+
+        // Return the collected battles
+        Ok(battles_with_details)
     }
 }
 

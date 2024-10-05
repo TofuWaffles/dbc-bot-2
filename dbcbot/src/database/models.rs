@@ -389,7 +389,7 @@ pub struct BattleClass {
     pub result: BattleResult,
     pub duration: i32,
     pub trophy_change: Option<i32>,
-    pub teams: serde_json::Value, // Assuming teams is stored as JSONB
+    pub teams: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]

@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM battles\n            WHERE record_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "record_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "battle_time",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "a45848d99519ff98c56784cdd74c863719044e426e36449a7472ff3e19b32d23"
+}
