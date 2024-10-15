@@ -1,11 +1,9 @@
-use super::BattleDatabase;
+use super::{BattleDatabase, Database, MatchDatabase};
 use crate::api::official_brawl_stars::TeamPlayer;
 use crate::utils::discord::DiscordTrait;
-use crate::utils::error::CommonError;
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotContextExt;
 use crate::{api::official_brawl_stars::Brawler, BotContext, BotError};
-use anyhow::{anyhow, Result};
 use poise::serenity_prelude::{GuildChannel, Role, User, UserId};
 use serde::{Deserialize, Serialize};
 use std::vec;
@@ -122,6 +120,23 @@ impl Tournament {
     pub fn is_pending(&self) -> bool {
         self.status == TournamentStatus::Pending
     }
+
+    pub async fn count_players_in_current_round(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
+        Ok(ctx
+            .data()
+            .database
+            .participants(self.tournament_id, self.rounds)
+            .await?)
+    }
+
+    pub async fn count_finished_matches(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
+        Ok(ctx
+            .data()
+            .database
+            .count_finished_matches(self.tournament_id, self.rounds)
+            .await?)
+    }
+
 }
 
 impl Selectable for Tournament {
@@ -229,7 +244,7 @@ impl Match {
         .ok()
     }
 
-    pub fn get_player(&self, discord_id: &str) -> Result<&MatchPlayer> {
+    pub fn get_player(&self, discord_id: &str) -> Result<&MatchPlayer, BotError> {
         self.find_player(
             |p| p.discord_id == discord_id,
             format!(
@@ -239,7 +254,7 @@ impl Match {
         )
     }
 
-    pub fn get_opponent(&self, discord_id: &str) -> Result<&MatchPlayer> {
+    pub fn get_opponent(&self, discord_id: &str) -> Result<&MatchPlayer, BotError> {
         self.find_player(
             |p| p.discord_id != discord_id,
             format!(
@@ -249,7 +264,7 @@ impl Match {
         )
     }
 
-    fn find_player<F>(&self, predicate: F, error_message: String) -> Result<&MatchPlayer>
+    fn find_player<F>(&self, predicate: F, error_message: String) -> Result<&MatchPlayer, BotError>
     where
         F: Fn(&&MatchPlayer) -> bool,
     {

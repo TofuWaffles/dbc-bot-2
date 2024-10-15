@@ -810,37 +810,81 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
         }
         Some(user) => user,
     };
-    let tournament_id = ctx
+    display_user_profile_helper(ctx, msg, user).await?;
+    Ok(())
+}
+
+async fn display_user_profile_helper(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    user: Player
+) -> Result<(), BotError>{
+    let tournament = ctx
         .data()
         .database
         .get_active_tournaments_from_player(&ctx.author().id)
         .await?
         .first()
-        .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
+        .cloned();
+    let tournament_id = tournament.as_ref().map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = image_api
         .profile_image(&user, tournament_id.to_string())
         .await?;
+    let current_match = ctx.data().database.get_current_match(user.user(ctx).await?.id.as_ref()).await?;
+    let (round, seq) = match current_match {
+        Some(cm) => {
+            (cm.round()?.to_string(), cm.sequence()?.to_string())
+        }
+        None => ("None".to_string(),"None".to_string())
+    };
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
             .author(ctx.get_author_img(&log::Model::PLAYER))
-            .description("Testing generating images of a match")
+            .description("Here is some of your data")
             .color(Color::DARK_GOLD)
-            .fields(vec![(
-                "Player 1",
-                format!(
-                    "{}\n{}\n{}\n{}",
-                    user.discord_name, user.discord_id, user.player_name, user.player_tag
-                ),
-                true,
-            )]);
+            .fields(vec![
+                ("Tournament", tournament.map_or_else(||"None".to_string(), |t| t.name.clone()), true),
+                ("Round", round, true),
+                ("Match", seq, true)
+            ]);
         CreateReply::default()
             .reply(true)
             .embed(embed)
-            .attachment(CreateAttachment::bytes(image, "Test_match_image.png"))
+            .attachment(CreateAttachment::bytes(image, "profile_image.png"))
     };
     msg.edit(*ctx, reply).await?;
+    Ok(())
+}
+
+#[poise::command(context_menu_command = "User Profile")]
+async fn user_profile(ctx: BotContext<'_>, user: poise::serenity_prelude::User) -> Result<(), BotError>{
+    let msg = ctx.send(CreateReply::default().ephemeral(true).embed(CreateEmbed::new().title("Loading"))).await?;
+    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await{
+        Ok(Some(player)) => player,
+        Ok(None) => {
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("Profile Not Found")
+                    .description("The user has not registered their profile yet. Please run the /menu command to register their profile."),
+                None
+            ).await?;
+            return Ok(());
+        },
+        Err(e) => {
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("Error")
+                    .description("An error occurred while fetching the user profile. Please try again later."),
+                None
+            ).await?;
+            return Err(e.into());
+        }
+    };
+    display_user_profile_helper(&ctx, &msg, player).await?;
     Ok(())
 }
 

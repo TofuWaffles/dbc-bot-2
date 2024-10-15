@@ -1185,7 +1185,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 }
 
 pub trait MatchDatabase {
-    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i32, BotError>;
+    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i64, BotError>;
     type Error;
     /// Creates a match associated with a tournament.
     async fn create_match(
@@ -1448,7 +1448,7 @@ impl MatchDatabase for PgDatabase {
         Ok(brackets)
     }
 
-    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i32, BotError>{
+    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i64, BotError>{
         let count = sqlx::query!(
             r#"
             SELECT COUNT(*)
@@ -1464,7 +1464,7 @@ impl MatchDatabase for PgDatabase {
         .fetch_one(&self.pool)
         .await?
         .count;
-        Ok(count.unwrap_or(0) as i32)
+        Ok(count.unwrap_or(0))
     }
 }
 pub trait BattleDatabase {
@@ -1688,6 +1688,7 @@ impl BattleDatabase for PgDatabase {
 
 #[allow(async_fn_in_trait)]
 pub trait Database {
+    async fn participants(&self, tournament_id: i32, round: i32) -> Result<i64, Self::Error>;
     type Error;
     async fn add_map(&self, map: &BrawlMap) -> Result<(), Self::Error>;
 }
@@ -1713,4 +1714,20 @@ impl Database for PgDatabase {
         .await?;
         Ok(())
     }
+
+    async fn participants(&self, tournament_id: i32, round: i32) -> Result<i64, Self::Error>{
+        let count = sqlx::query!(
+            r#"
+            SELECT COUNT(*)
+            FROM tournament_players
+            WHERE tournament_id = $1
+            "#,
+            tournament_id
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .count;
+        Ok(count.unwrap_or(0) as i64)
+    }
+    
 }
