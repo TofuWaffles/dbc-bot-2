@@ -226,7 +226,7 @@ async fn profile_image(
     let tournament_id = ctx
         .data()
         .database
-        .get_active_tournaments_from_player(&ctx.author().id.to_string())
+        .get_active_tournaments_from_player(&ctx.author().id)
         .await?
         .first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());

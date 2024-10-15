@@ -1,6 +1,9 @@
+use super::checks::is_manager;
 use super::{checks::is_marshal_or_higher, CommandsContainer};
-use crate::database::models::{Match, PlayerType, Tournament, TournamentStatus};
-use crate::database::{MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::models::{BrawlMap, Match, PlayerType, Tournament, TournamentStatus};
+use crate::database::{Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::utils::discord::{modal, select_channel, select_options, select_role};
+use crate::utils::error::CommonError::*;
 use crate::{
     log::{self, Log},
     utils::shorthand::BotContextExt,
@@ -8,12 +11,18 @@ use crate::{
 };
 use anyhow::anyhow;
 use chrono::DateTime;
+use futures::StreamExt;
+use poise::serenity_prelude::{
+    CreateActionRow, CreateButton, CreateSelectMenu, CreateSelectMenuKind, CreateSelectMenuOption,
+    Mentionable, ReactionType,
+};
+use poise::ReplyHandle;
 use poise::{
     serenity_prelude::{CreateEmbed, User},
     CreateReply,
 };
 use prettytable::{row, Table};
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 
 /// CommandsContainer for the Marshal commands
 pub struct MarshalCommands;
@@ -32,6 +41,7 @@ impl CommandsContainer for MarshalCommands {
             get_match(),
             set_map(),
             disqualify(),
+            marshal_menu(),
         ]
     }
 }
@@ -40,7 +50,7 @@ impl CommandsContainer for MarshalCommands {
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = ctx
         .data()
@@ -101,7 +111,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
 )]
 #[instrument]
 async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournaments = ctx
         .data()
@@ -153,7 +163,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError
     let msg = ctx
         .send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps...")))
         .await?;
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
         .data()
         .database
@@ -220,7 +230,7 @@ async fn get_match(
     match_id: Option<String>,
     player: Option<User>,
 ) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let bracket;
 
     match match_id {
@@ -232,7 +242,7 @@ async fn get_match(
                 let player_active_tournaments = ctx
                     .data()
                     .database
-                    .get_player_active_tournaments(&guild_id, &player.id.to_string())
+                    .get_player_active_tournaments(&guild_id, &player.id)
                     .await?;
                 if player_active_tournaments.is_empty() {
                     ctx.send(
@@ -250,10 +260,7 @@ async fn get_match(
                 bracket = ctx
                     .data()
                     .database
-                    .get_match_by_player(
-                        player_active_tournaments[0].tournament_id,
-                        &player.id.to_string(),
-                    )
+                    .get_match_by_player(player_active_tournaments[0].tournament_id, &player.id)
                     .await?;
             }
             None => {
@@ -319,7 +326,7 @@ async fn get_match(
 /// Manually pause a tournament and prevent any progress on it.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn pause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = match ctx
         .data()
@@ -364,7 +371,7 @@ async fn pause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(),
 /// Unpause a tournament so that progress can be made on it again.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = match ctx
         .data()
@@ -414,7 +421,7 @@ async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(
 /// Disqualify a player from a given tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
         .data()
         .database
@@ -431,7 +438,7 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
     let bracket = match ctx
         .data()
         .database
-        .get_match_by_player(tournament.tournament_id, &player.id.to_string())
+        .get_match_by_player(tournament.tournament_id, &player.id)
         .await?
     {
         Some(bracket) => bracket,
@@ -449,10 +456,13 @@ async fn disqualify(ctx: BotContext<'_>, tournament_id: i32, player: User) -> Re
         }
     };
 
-    let opponent = bracket.get_opponent(&player.id.to_string())?;
+    let opponent = bracket
+        .get_opponent(&player.id.to_string())?
+        .to_user(&ctx)
+        .await?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent.discord_id, "n/a")
+        .set_winner(&bracket.match_id, &opponent.id, "n/a")
         .await?;
 
     ctx.send(
@@ -495,7 +505,7 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
             CreateReply::default().embed(CreateEmbed::default().description("Running commands...")),
         )
         .await?;
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = match ctx
         .data()
@@ -562,10 +572,10 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
 
         for player in bracket.match_players.iter() {
             let match_id = Match::generate_id(tournament_id, bracket.round()?, bracket.sequence()?);
-
+            let player = player.to_user(&ctx).await?;
             ctx.data()
                 .database
-                .enter_match(&match_id, &player.discord_id, PlayerType::Player)
+                .enter_match(&match_id, &player.id, PlayerType::Player)
                 .await?;
         }
     }
@@ -656,6 +666,316 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
             "0-0",
         ))
     }
-
     Ok(next_round_brackets)
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn get_battle_logs(
+    ctx: BotContext<'_>,
+    player: User,
+    match_id: Option<String>,
+) -> Result<(), BotError> {
+    Ok(())
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn update_map(ctx: BotContext<'_>) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .content("Fetching the map from Brawlify")
+                .ephemeral(true),
+        )
+        .await?;
+    let response = ctx.data().apis.brawlify.get_maps().await?;
+    let data = response.handler(&ctx, &msg).await?;
+    if let Some(maps) = data {
+        let db = &ctx.data().database;
+        let list = maps.list.to_owned();
+        for map in list.into_iter() {
+            let m: BrawlMap = map.into();
+            db.add_map(&m).await?;
+        }
+        ctx.prompt(
+            &msg,
+            CreateEmbed::new()
+                .title("Updated successfully")
+                .description("All maps have been updated"),
+            None,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
+    ctx.defer_ephemeral().await?;
+    let msg = ctx
+        .send(CreateReply::default().ephemeral(true).embed(
+            CreateEmbed::new().description("Running the command that only Marshal can see..."),
+        ))
+        .await?;
+
+    let guild = ctx.guild_id().ok_or(NotInAGuild)?;
+    let tournaments = ctx.data().database.get_all_tournaments(&guild).await?;
+    if tournaments.is_empty() {
+        let embed = CreateEmbed::new()
+            .title("No tournaments found")
+            .description("There are no tournaments found in this server.");
+        ctx.prompt(&msg, embed, None).await?;
+        return Ok(());
+    }
+    let embed = {
+        let fields: Vec<(String, String, bool)> = tournaments
+            .iter()
+            .map(|t| (format!("{}", t.name), format!("{}", t.tournament_id), true))
+            .collect();
+        CreateEmbed::new()
+            .title("Select a tournament")
+            .description("Here are some of the tournaments that you can manage.")
+            .fields(fields)
+    };
+    let tid = select_options(&ctx, &msg, embed, None, &tournaments).await?;
+    let tournament = tournaments
+        .into_iter()
+        .find(|t| t.tournament_id.to_string() == tid)
+        .unwrap();
+    let buttons = {
+        vec![
+            CreateButton::new("properties")
+                .label("Properties")
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("players")
+                .label("Players")
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+        ]
+    };
+    ctx.prompt(
+        &msg,
+        CreateEmbed::new()
+            .title(format!("Tournament Menu for {}", tournament.name))
+            .description("Below are the information about the tournament")
+            .fields(vec![
+                ("Tournament", tournament.name.clone(), true),
+                ("ID", tournament.tournament_id.to_string(), true),
+                ("Mode", tournament.mode.to_string(), true),
+                ("Status", tournament.status.to_string(), true),
+                (
+                    "Round",
+                    format!("{}/{}", tournament.current_round, tournament.rounds),
+                    true,
+                ),
+                ("Wins required", tournament.wins_required.to_string(), true),
+                ("Map", tournament.map.name.clone(), true),
+            ]),
+        buttons,
+    )
+    .await?;
+    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    while let Some(interactions) = &ic.next().await {
+        match interactions.data.custom_id.as_str() {
+            "properties" => {
+                interactions.defer(&ctx.http()).await?;
+                tournament_property_page(&ctx, &msg, &tournament).await?;
+            }
+            "players" => {
+                interactions.defer(&ctx.http()).await?;
+                player_page(&ctx, &msg, &tournament).await?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+async fn tournament_property_page(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    t: &Tournament,
+) -> Result<(), BotError> {
+    async fn update(ctx: &BotContext<'_>, t: &Tournament) -> Result<Tournament, BotError> {
+        ctx.data()
+            .database
+            .get_tournament(&ctx.guild_id().ok_or(NotInAGuild)?, t.tournament_id)
+            .await?
+            .ok_or(TournamentNotExists(t.tournament_id.to_string()).into())
+    }
+    let mut t = t.clone();
+    let manager = is_manager(ctx.clone()).await?;
+    let buttons = |t: &Tournament|{
+        vec![
+            CreateButton::new("pause")
+                .label(if t.is_paused() { "Resume" } else { "Pause" })
+                .emoji(ReactionType::Unicode(String::from(
+                    ["⏸️", "▶️"][t.is_paused() as usize],
+                )))
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("win")
+                .label("Win")
+                .emoji(ReactionType::Unicode("🏆".to_string()))
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("mode")
+                .label("Mode")
+                .emoji(ReactionType::Unicode("🎮".to_string()))
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("map")
+                .label("Map")
+                .emoji(ReactionType::Unicode("🗺️".to_string()))
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("advanced")
+                .label("Advance")
+                .emoji(ReactionType::Unicode("🛡️".to_string()))
+                .style(poise::serenity_prelude::ButtonStyle::Primary)
+                .disabled(!manager),
+        ]
+    };
+    let embed = |t: &Tournament| {
+        CreateEmbed::new()
+            .title("Tournament configuration")
+            .description(format!("**These configurations are currently applied for {tname}`{tid}`**",tname = t.name,tid = t.tournament_id))
+            .fields(vec![
+                ("Tournament status", t.status.to_string(), true),
+                ("Wins required per round", t.wins_required.to_string(), true),
+                ("Current round", format!("{}/{}", t.current_round, t.rounds), true),
+                ("Mode", t.mode.to_string(), true),
+                ("Map", t.map.name.clone(), true),
+            ])
+    };
+    ctx.prompt(&msg, embed(&t), buttons(&t)).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interactions) = &ic.next().await {
+        match interactions.data.custom_id.as_str() {
+            "pause" => {
+                interactions.defer(ctx.http()).await?;
+                
+                let status = if t.is_paused() {
+                    TournamentStatus::Started
+                } else {
+                    TournamentStatus::Paused
+                };
+                ctx.data()
+                    .database
+                    .set_tournament_status(t.tournament_id, status)
+                    .await?;
+            }
+            "win" => {
+                #[derive(poise::Modal)]
+                struct WinModal {
+                    #[name = "Minimum wins required to win a match"]
+                    #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
+                    wins_required: Option<String>,
+                }
+                let embed = CreateEmbed::new()
+                    .title("Win requirement")
+                    .description("Enter the number of wins required to win a match");
+                let res = modal::<WinModal>(ctx, msg, embed).await?;
+                let wins: i32 = res.wins_required.unwrap_or("3".to_string()).parse()?;
+                ctx.data()
+                    .database
+                    .set_wins_required(&t.tournament_id, &wins)
+                    .await?;
+            }
+            "mode" => {
+                interactions.defer(ctx.http()).await?;
+                let mode = ctx.mode_selection(msg).await?;
+                ctx.data().database.set_mode(t.tournament_id, mode).await?;
+            }
+            "map" => {
+                interactions.defer(ctx.http()).await?;
+                let map = ctx.map_selection(msg, &t.mode).await?;
+                ctx.data()
+                    .database
+                    .set_map(t.tournament_id, &map.into())
+                    .await?;
+            }
+            "advanced" => {
+                interactions.defer(ctx.http()).await?;
+                return advance_page(ctx, msg, &t).await;
+            }
+            _ => {}
+        }
+        t = update(ctx, &t).await?;
+        ctx.prompt(&msg, embed(&t), buttons(&t)).await?;
+    }
+    Ok(())
+}
+
+async fn advance_page(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    t: &Tournament,
+) -> Result<(), BotError> {
+    let reply = {
+        let embed = {
+            let ac = t.announcement_channel(ctx).await?;
+            let nc = t.notification_channel(ctx).await?;
+            let pr = t.player_role(ctx).await?;
+            CreateEmbed::new()
+                .title("Tournament configuration")
+                .description(format!(
+                    r#"
+**These configurations are applied for {tname}`{tid}`**
+Choose one of the setting below if you want to carry out the changes!
+Current configuration:
+"#,
+                    tname = t.name,
+                    tid = t.tournament_id
+                ))
+                .fields(vec![
+                    ("Announcement Channel", ac.mention().to_string(), true),
+                    ("Notification Channel", nc.mention().to_string(), true),
+                    ("Participant Role", pr.mention().to_string(), true),
+                ])
+        };
+        let components = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
+            "select",
+            CreateSelectMenuKind::String {
+                options: vec![
+                    CreateSelectMenuOption::new("Announcement Channel", "announcement"),
+                    CreateSelectMenuOption::new("Notification Channel", "notification"),
+                    CreateSelectMenuOption::new("Participant Role", "participant"),
+                ],
+            },
+        ))];
+        CreateReply::default()
+            .ephemeral(true)
+            .embed(embed)
+            .components(components)
+    };
+    msg.edit(*ctx, reply.clone()).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interaction) = &ic.next().await {
+        match interaction.data.custom_id.as_str() {
+            "announcement" => {
+                interaction.defer(ctx.http()).await?;
+                let embed = CreateEmbed::new();
+                select_channel(ctx, msg, embed).await?;
+            }
+            "notification" => {
+                interaction.defer(ctx.http()).await?;
+                let embed = CreateEmbed::new();
+                select_channel(ctx, msg, embed).await?;
+            }
+            "participant" => {
+                interaction.defer(ctx.http()).await?;
+                let embed = CreateEmbed::new();
+                select_role(ctx, msg, embed).await?;
+            }
+            _ => continue,
+        }
+        msg.edit(*ctx, reply.clone()).await?;
+    }
+    Ok(())
+}
+
+
+async fn player_page(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, t: &Tournament) -> Result<(), BotError>{
+    let embed = {
+        CreateEmbed::new()
+            .title(format!("Players' insight of {}", t.name))
+            .description("")
+    };
+
+    Ok(()) 
 }

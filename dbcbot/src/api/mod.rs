@@ -1,9 +1,12 @@
 pub mod brawlify;
 pub mod images;
 pub mod official_brawl_stars;
+use crate::{utils::shorthand::BotContextExt, BotContext};
+use poise::ReplyHandle;
 
 use crate::BotError;
 use anyhow::anyhow;
+use poise::serenity_prelude::CreateEmbed;
 use reqwest::{Response, StatusCode};
 use serde::de::DeserializeOwned;
 
@@ -56,6 +59,34 @@ where
                 response.status(),
                 response
             )),
+        }
+    }
+
+    pub async fn handler(
+        &self,
+        ctx: &BotContext<'_>,
+        msg: &ReplyHandle<'_>,
+    ) -> Result<Option<&M>, BotError> {
+        match self {
+            Self::Ok(ref data) => Ok(Some(data)),
+            Self::NotFound => {
+                ctx.prompt(
+                    msg,
+                    CreateEmbed::default().description("Resource not found."),
+                    None,
+                )
+                .await?;
+                Ok(None)
+            }
+            Self::Maintenance => {
+                ctx.prompt(
+                    msg,
+                    CreateEmbed::default().description("API is currently under maintenance."),
+                    None,
+                )
+                .await?;
+                Ok(None)
+            }
         }
     }
 }

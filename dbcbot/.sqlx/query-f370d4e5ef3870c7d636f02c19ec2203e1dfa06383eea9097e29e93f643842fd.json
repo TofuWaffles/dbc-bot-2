@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT \n                m.match_id, \n                m.winner, \n                m.score,\n                m.start,\n                m.end\n            FROM\n                matches AS m\n            INNER JOIN \n                match_players AS mp\n            ON \n                m.match_id = mp.match_id\n            WHERE \n                mp.discord_id = $1\n            ORDER BY \n                m.match_id DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "match_id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "score",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "start",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "end",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f370d4e5ef3870c7d636f02c19ec2203e1dfa06383eea9097e29e93f643842fd"
+}

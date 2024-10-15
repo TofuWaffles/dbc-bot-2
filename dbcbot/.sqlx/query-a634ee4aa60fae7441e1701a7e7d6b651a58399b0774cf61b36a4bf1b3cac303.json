@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tournaments\n            SET status = 'paused'\n            WHERE tournament_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a634ee4aa60fae7441e1701a7e7d6b651a58399b0774cf61b36a4bf1b3cac303"
+}

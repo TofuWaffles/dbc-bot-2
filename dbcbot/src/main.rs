@@ -146,14 +146,14 @@ async fn run() -> Result<(), BotError> {
                         Err(e) => error!("Error sending generic error message to user: {}", e)
                     }
                     let guild_id = match ctx.guild_id() {
-                        Some(guild_id) => guild_id.to_string(),
+                        Some(guild_id) => guild_id,
                         None => {
                             warn!("No guild id in this error context. Cannot send error message to log channel.");
                             return;
                         },
                     };
 
-                    let player_tournaments = match ctx.data().database.get_player_active_tournaments(&guild_id, &ctx.author().id.to_string()).await {
+                    let player_tournaments = match ctx.data().database.get_player_active_tournaments(&guild_id, &ctx.author().id).await {
                         Ok(tournament) => tournament,
                         Err(e) => {
                             error!("Error getting player active tournament for user {}. Cannot send error message to log channel: {}", ctx.author().id, e);
@@ -169,7 +169,7 @@ async fn run() -> Result<(), BotError> {
                         ("User", &user_field, false),
                         ("Tournaments", &tournaments_field, false),
                     ];
-
+                    
                     discord_log_error(
                         ctx,
                         &error.to_string(),

@@ -1,10 +1,16 @@
-use crate::{database, BotError};
+use crate::{
+    database,
+    utils::{discord::UserExt, shorthand::BotContextExt},
+    BotContext, BotError,
+};
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 
 use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
+
+use super::official_brawl_stars::TeamPlayer;
 
 #[derive(Debug, Clone)]
 pub struct ImagesAPI {
@@ -99,17 +105,75 @@ impl ImagesAPI {
 
     pub async fn battle_log(
         self,
+        ctx: &BotContext<'_>,
         record: database::models::BattleRecord,
-        _matchid: database::models::Match,
+        matchid: database::models::Match,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/images/battle_log", self.base_url);
+        let winner = matchid
+            .winner(ctx)
+            .await?
+            .ok_or(anyhow!("Winner is not yet determined"))?
+            .full(ctx)
+            .await?
+            .ok_or(anyhow!("Winner profile is not found in the database!"))?;
+
+        let team: Vec<TeamPlayer> = record.battles[0]
+            .battle_class
+            .teams()
+            .into_iter()
+            .flatten()
+            .collect();
+        let p1 = team
+            .iter()
+            .find(|p| p.tag == winner.player_tag)
+            .ok_or(anyhow!("Winner not found in the battle log"))?;
+        let p1ext = ctx
+            .get_player_from_tag(&p1.tag)
+            .await?
+            .ok_or(anyhow!("#{} is not found in the database", p1.tag))?;
+        let p2 = team
+            .iter()
+            .find(|p| p.tag != winner.player_tag)
+            .ok_or(anyhow!("Loser not found in the battle log"))?;
+        let p2ext = ctx
+            .get_player_from_tag(&p2.tag)
+            .await?
+            .ok_or(anyhow!("#{} is not found in the database", p1.tag))?;
         let data: Vec<Value> = record
             .battles
             .into_iter()
             .map(|battle| {
-                let _player1 = &battle.battle_class.teams[0][0];
-                let _player2 = &battle.battle_class.teams[1][0];
-                serde_json::json!({})
+                serde_json::json!({
+                    "battle_time": battle.battle_time,
+                    "type": battle.battle_class.battle_type,
+                    "result": battle.battle_class.result.to_string(),
+                    "duration": battle.battle_class.duration,
+                    "map": battle.event.map,
+                    "mode": battle.battle_class.mode,
+                    "player1": {
+                        "discord_id": p1ext.discord_id,
+                        "discord_name": p1ext.discord_name,
+                        "player_tag": p1.tag,
+                        "player_name": p1.name,
+                        "icon": p1ext.icon,
+                        "brawler": {
+                            "name": p1.brawler.name,
+                            "id": p1.brawler.id,
+                        }
+                    },
+                    "player2": {
+                        "discord_id": p2ext.discord_id,
+                        "discord_name": p2ext.discord_name,
+                        "player_tag": p2.tag,
+                        "player_name": p2.name,
+                        "icon": p2ext.icon,
+                        "brawler": {
+                            "name": p2.brawler.name,
+                            "id": p2.brawler.id,
+                        }
+                    }
+                })
             })
             .collect();
         let payloads = serde_json::json!({"battle_logs": data});

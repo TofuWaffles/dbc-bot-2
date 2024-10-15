@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use std::{str::FromStr, time::SystemTime};
 use strum::Display;
-
+use crate::utils::error::CommonError::*;
 use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 #[allow(dead_code)]
 pub enum State {
@@ -51,10 +51,7 @@ impl Log for BotContext<'_> {
     async fn get_log_channel(&self) -> Result<ChannelId, BotError> {
         let guild_id = self
             .guild_id()
-            .ok_or(anyhow!(
-                "Error getting log channel: Attempted to get log channel outside of a guild"
-            ))?
-            .to_string();
+            .ok_or(NotInAGuild)?;
 
         let log_channel = ChannelId::from_str(
             &self
@@ -181,10 +178,7 @@ pub async fn discord_log_error(
 ) -> Result<(), BotError> {
     let guild_id = ctx
         .guild_id()
-        .ok_or(anyhow!(
-            "Error sending error log: Attempted to perform an info log outside of a guild"
-        ))?
-        .to_string();
+        .ok_or(NotInAGuild)?;
 
     let log_channel = ChannelId::from_str(
         &ctx.data()

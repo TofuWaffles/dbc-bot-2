@@ -12,19 +12,16 @@ use prettytable::{row, Table};
 use serde_json::json;
 use tokio::join;
 use tracing::{info, instrument};
-
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::{api::APIResult, commands::checks::is_config_set};
-
 use crate::commands::checks::is_tournament_paused;
-
 use crate::database::models::Tournament;
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};
 use crate::utils::shorthand::BotContextExt;
-
 use crate::{BotContext, BotData, BotError};
+use crate::utils::error::CommonError::*;
 
 use super::CommandsContainer;
 
@@ -85,13 +82,14 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     info!("User {} has entered the menu home", ctx.author().name);
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     ctx.mail_notification().await?;
     let mut player_active_tournaments = ctx
         .data()
         .database
         .get_player_active_tournaments(
-            &ctx.guild_id().unwrap().to_string(),
-            &ctx.author().id.to_string(),
+            &guild_id,
+            &ctx.author().id
         )
         .await?;
 
@@ -213,7 +211,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     .database
                     .get_match_by_player(
                         player_active_tournaments[0].tournament_id,
-                        &ctx.author().to_string(),
+                        &ctx.author().id
                     )
                     .await?;
                 return submit(
@@ -221,8 +219,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     msg,
                     &player_active_tournaments[0],
                     &game_match.unwrap(),
-                )
-                .await;
+                ).await;
             }
             "mail" => {
                 interaction.defer(ctx.http()).await?;
@@ -251,7 +248,7 @@ async fn user_display_match(
     let current_match = match ctx
         .data()
         .database
-        .get_current_match(&ctx.author().id.to_string())
+        .get_current_match(&ctx.author().id)
         .await?
     {
         Some(m) => m,
@@ -282,7 +279,9 @@ async fn user_display_match(
                         "Error displaying a bye round to user: No player found in match {}",
                         &current_match.match_id
                     ))?
-                    .discord_id,
+                    .to_user(ctx)
+                    .await?
+                    .id,
                 "bye",
             )
             .await?;
@@ -303,7 +302,7 @@ async fn user_display_match(
     let discord_id = ctx.author().id;
     ctx.data()
         .database
-        .get_current_match(&discord_id.to_string())
+        .get_current_match(&discord_id)
         .await?;
     let p1 = ctx
         .get_player_from_discord_id(None)
@@ -398,23 +397,24 @@ async fn user_display_match(
                 None,
             ).await?;
 
-                let player = current_match.get_player(&ctx.author().id.to_string())?;
-                let opponent = current_match.get_opponent(&ctx.author().id.to_string())?;
+                let player = ctx.author();
+                let opponent = current_match.get_opponent(player.id.to_string().as_str())?;
+                let opponent_user = opponent.to_user(ctx).await?;
 
                 ctx.data()
                     .database
-                    .set_ready(&current_match.match_id.clone(), &player.discord_id)
+                    .set_ready(&current_match.match_id.clone(), &player.id)
                     .await?;
 
                 let notification_message = if opponent.ready {
                     format!(
-                        r#"<@{}> <@{}>.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
-                        player.discord_id, opponent.discord_id
+                        r#"@{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                        player.mention(), opponent_user.mention()
                     )
                 } else {
                     format!(
-                        r#"<@{}>.\n\nYour opponent <@{}> is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
-                        opponent.discord_id, player.discord_id
+                        r#"{}.\n\nYour opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
+                        opponent.discord_id, player.mention()
                     )
                 };
 
@@ -448,14 +448,14 @@ async fn user_display_tournaments(
         "User {} has entered the tournaments menu",
         ctx.author().name
     );
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournaments: Vec<Tournament> = ctx
         .data()
         .database
         .get_active_tournaments(&guild_id)
         .await?
         .into_iter()
-        .filter(|tournament| tournament.status == TournamentStatus::Pending)
+        .filter(|tournament| tournament.is_pending())
         .collect();
 
     let mut table = Table::new();
@@ -524,7 +524,7 @@ async fn user_display_tournaments(
         .database
         .enter_tournament(
             selected_tournament.parse::<i32>()?,
-            &ctx.author().id.to_string(),
+            &ctx.author().id,
         )
         .await
     {
@@ -813,7 +813,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
     let tournament_id = ctx
         .data()
         .database
-        .get_active_tournaments_from_player(&ctx.author().id.to_string())
+        .get_active_tournaments_from_player(&ctx.author().id)
         .await?
         .first()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
@@ -845,7 +845,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
 }
 
 async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-    let discord_id = ctx.author().id.to_string();
+    let discord_id = ctx.author().id;
     let embed = CreateEmbed::new()
         .title("Deregister Profile")
         .description("Are you sure you want to deregister?")
@@ -875,7 +875,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
 }
 
 async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-    let discord_id = ctx.author().id.to_string();
+    let discord_id = ctx.author().id;
     let tournaments = ctx
         .data()
         .database
@@ -1070,7 +1070,7 @@ async fn submit(
         record.execute(ctx).await?;
         Ok(())
     }
-    let caller = ctx.author().id.to_string();
+    let caller = ctx.author().id;
     let current_match = match ctx.data().database.get_current_match(&caller).await? {
         Some(m) => m,
         None => {
@@ -1087,7 +1087,7 @@ async fn submit(
     };
 
     let caller_tag = ctx
-        .get_player_from_discord_id(caller.clone())
+        .get_player_from_discord_id(caller.get().to_string())
         .await?
         .ok_or(anyhow!("Player not found in the database"))?
         .player_tag;
@@ -1161,12 +1161,12 @@ async fn submit(
         .1?
         .ok_or(anyhow!("Player not found in the database"))?,
         Some((false, score)) => {
-            let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?;
+            let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?.to_user(ctx).await?;
             join!(
                 ctx.data()
                     .database
-                    .set_winner(&bracket.match_id, &opponent_id.discord_id, &score),
-                ctx.get_player_from_discord_id(opponent_id.discord_id.to_string())
+                    .set_winner(&bracket.match_id, &opponent_id.id, &score),
+                ctx.get_player_from_discord_id(opponent_id.id.to_string())
             )
             .1?
             .ok_or(anyhow!("Player not found in the database"))?
@@ -1248,13 +1248,13 @@ async fn finish_tournament(
     bracket: &Match,
     winner: &Player,
 ) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let announcement_channel_id = ctx
         .data()
         .database
         .get_config(&guild_id)
         .await?
-        .unwrap()
+        .ok_or(anyhow!("Config not found for {}", guild_id.to_string()))?
         .announcement_channel_id;
     let tournament_id = bracket.tournament()?;
     let tournament = ctx
@@ -1262,7 +1262,7 @@ async fn finish_tournament(
         .database
         .get_tournament(&guild_id, tournament_id)
         .await?
-        .unwrap();
+        .ok_or(TournamentNotExists(tournament_id.to_string()))?;
 
     ChannelId::new(announcement_channel_id.parse::<u64>()?)
         .send_message(

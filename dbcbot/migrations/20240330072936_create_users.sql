@@ -6,6 +6,6 @@ CREATE TABLE IF NOT EXISTS users (
     player_name VARCHAR(255) NOT NULL,
     icon INT NOT NULL,
     trophies INT NOT NULL,
-    brawlers JSONB NOT NULL
+    brawlers JSONB NOT NULL,
     deleted BOOLEAN NOT NULL DEFAULT FALSE
 );

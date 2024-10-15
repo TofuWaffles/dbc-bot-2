@@ -1,6 +1,6 @@
 use poise::serenity_prelude as serenity;
 use tracing::{info, instrument};
-
+use crate::utils::error::CommonError::*;
 use super::CommandsContainer;
 use crate::database::ConfigDatabase;
 use crate::{BotContext, BotData, BotError};
@@ -26,17 +26,9 @@ async fn set_manager(
     ctx: BotContext<'_>,
     #[description = "The Manager role"] role: serenity::Role,
 ) -> Result<(), BotError> {
-    if ctx.guild().is_none() {
-        ctx.send(
-            poise::CreateReply::default()
-                .content("This command can only be used in a server.")
-                .ephemeral(true),
-        )
-        .await?;
-    }
 
-    let guild_id = ctx.guild_id().unwrap().to_string();
-    let manager_role_id = role.id.to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+    let manager_role_id = role.id;
 
     ctx.data()
         .database

@@ -3,6 +3,7 @@ pub mod marshal_commands;
 pub mod owner_commands;
 pub mod test_commands;
 pub mod user_commands;
+
 /// A way to group commands together while side-stepping the need to use global variables.
 ///
 /// Implemenations of this trait can return a list of their commands from within their own module.
@@ -46,6 +47,7 @@ pub trait CommandsContainer {
 
 /// Common checks (e.g. role checks) used by various commands.
 mod checks {
+    use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
     use anyhow::anyhow;
@@ -61,11 +63,7 @@ mod checks {
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        let guild_id = ctx
-            .guild()
-            .ok_or(anyhow!("This command can only be used in a server."))?
-            .id
-            .to_string();
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
 
@@ -81,11 +79,9 @@ mod checks {
             }
         };
 
-        let guild_id_u64: u64 = GuildId::from_str(&guild_id)?.get();
-
         if ctx
             .author()
-            .has_role(ctx, guild_id_u64, manager_role_id)
+            .has_role(ctx, guild_id, manager_role_id)
             .await?
         {
             return Ok(true);
@@ -104,16 +100,14 @@ mod checks {
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
-            .guild()
-            .ok_or(anyhow!("This command can only be used in a server."))?
-            .id
-            .to_string();
+            .guild_id()
+            .ok_or(NotInAGuild)?;
 
-        let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
+        let manager_role = ctx.data().database.get_manager_role(&guild_id).await?;
 
-        let marshal_role_option = ctx.data().database.get_config(&guild_id).await?;
+        let marshal_role = ctx.data().database.get_config(&guild_id).await?;
 
-        if manager_role_option.is_none() || marshal_role_option.is_none() {
+        if manager_role.is_none() || marshal_role.is_none() {
             ctx.send(
                 CreateReply::default()
                     .content("Either the manager role or the bot configuration has not been set up for this server. Please ask a bot owner to set it up.")
@@ -122,22 +116,19 @@ mod checks {
             .await?;
             return Ok(false);
         }
-
-        let guild_id_u64: u64 = GuildId::from_str(&guild_id)?.get();
-
         let manager_role_id =
-            RoleId::from_str(&manager_role_option.unwrap().manager_role_id)?.get();
+            RoleId::from_str(&manager_role.unwrap().manager_role_id)?.get();
 
         let marshal_role_id =
-            RoleId::from_str(&marshal_role_option.unwrap().marshal_role_id)?.get();
+            RoleId::from_str(&marshal_role.unwrap().marshal_role_id)?.get();
 
         if ctx
             .author()
-            .has_role(ctx, guild_id_u64, manager_role_id)
+            .has_role(ctx, guild_id, manager_role_id)
             .await?
             || ctx
                 .author()
-                .has_role(ctx, guild_id_u64, marshal_role_id)
+                .has_role(ctx, guild_id, marshal_role_id)
                 .await?
         {
             return Ok(true);
@@ -155,11 +146,7 @@ mod checks {
 
     /// Checks if the configuration has been set up for the guild.
     pub async fn is_config_set(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        let guild_id = ctx
-            .guild()
-            .ok_or(anyhow!("This command can only be used in a server."))?
-            .id
-            .to_string();
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let config = ctx.data().database.get_config(&guild_id).await?;
 
@@ -183,13 +170,12 @@ mod checks {
     pub async fn is_tournament_paused(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx
             .guild_id()
-            .ok_or(anyhow!("This command can only be used in a server."))?
-            .to_string();
+            .ok_or(NotInAGuild)?;
 
         let tournaments = ctx
             .data()
             .database
-            .get_player_active_tournaments(&guild_id, &ctx.author().id.to_string())
+            .get_player_active_tournaments(&guild_id, &ctx.author().id)
             .await?;
 
         match tournaments.first() {

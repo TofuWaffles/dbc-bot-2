@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\"\nFROM tournaments AS t\nINNER JOIN tournament_players AS tp ON t.tournament_id = tp.tournament_id\nINNER JOIN brawl_maps AS b ON t.map = b.id\nWHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.discord_id = $2;\n            ",
+  "query": "\n            SELECT\n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                b.id as \"map_id\", \n                b.name as \"map_name\",\n                b.disabled as \"map_disabled\"\nFROM tournaments AS t\nINNER JOIN tournament_players AS tp ON t.tournament_id = tp.tournament_id\nINNER JOIN brawl_maps AS b ON t.map = b.id\nWHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.discord_id = $2;\n            ",
   "describe": {
     "columns": [
       {
@@ -119,6 +119,11 @@
         "ordinal": 14,
         "name": "map_name",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 15,
+        "name": "map_disabled",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -142,8 +147,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "48f4c15f87e8fe257b62dfa11b75a7de1e1beb1a0769fcb5d84e2249628e686b"
+  "hash": "db33f2ccf2fe8f3475db5c5f30a6beb8092e884f48ce8bc9391886d826ab47a6"
 }

@@ -133,6 +133,7 @@ impl From<BrawlMap> for database::models::BrawlMap {
         database::models::BrawlMap {
             id: value.id,
             name: value.name,
+            disabled: value.disabled,
         }
     }
 }
@@ -248,6 +249,28 @@ impl From<FullGameMode> for GameMode {
             color: value.color,
             link: value.link,
             image_url: value.image_url,
+        }
+    }
+}
+
+impl From<FullGameMode> for Mode{
+    fn from(value: FullGameMode) -> Self {
+        match value.name.as_str() {
+            "Bounty" => Mode::bounty,
+            "Brawl Ball" => Mode::brawlBall,
+            "Gem Grab" => Mode::gemGrab,
+            "Heist" => Mode::heist,
+            "Hot Zone" => Mode::hotZone,
+            "Siege" => Mode::siege,
+            "Solo Showdown" => Mode::soloShowdown,
+            "Duo Showdown" => Mode::duoShowdown,
+            "Trio Showdown" => Mode::trioShowdown,
+            "Takedown" => Mode::takedown,
+            "Lone Star" => Mode::loneStar,
+            "Big Game" => Mode::bigGame,
+            "Robo Rumble" => Mode::roboRumble,
+            "Boss Fight" => Mode::bossFight,
+            _ => Mode::unknown,
         }
     }
 }

@@ -1,3 +1,4 @@
+use crate::utils::error::CommonError::*;
 use super::discord::select_options;
 use crate::database::*;
 use crate::{
@@ -11,6 +12,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
+use poise::serenity_prelude::UserId;
 use poise::{
     serenity_prelude::{
         ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
@@ -154,7 +156,14 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         buttons: impl Into<Option<Vec<CreateButton>>>,
     ) -> Result<(), BotError> {
         let components = match buttons.into() {
-            Some(buttons) => vec![CreateActionRow::Buttons(buttons)],
+            Some(buttons) => {
+                let chunked_buttons: Vec<Vec<CreateButton>> =
+                    buttons.chunks(5).map(|c| c.to_vec()).collect();
+                chunked_buttons
+                    .iter()
+                    .map(|chunk| CreateActionRow::Buttons(chunk.to_vec()))
+                    .collect()
+            }
             _ => vec![],
         };
         let builder = CreateReply::default()
@@ -167,11 +176,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     async fn get_config(&self) -> Result<Option<GuildConfig>, BotError> {
         let guild_id = self
             .guild_id()
-            .ok_or(anyhow!("Not running this in a guild"))?;
+            .ok_or(NotInAGuild)?;
         let config = self
             .data()
             .database
-            .get_config(&guild_id.to_string())
+            .get_config(&guild_id)
             .await?;
         Ok(config)
     }
@@ -180,9 +189,9 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         &self,
         discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::Player>, BotError> {
-        let id = match discord_id.into() {
-            Some(id) => id,
-            None => self.author().id.to_string(),
+        let id = match discord_id.into(){
+            Some(id) => UserId::from(id.parse::<u64>()?),
+            None => self.author().id,
         };
         let player = self.data().database.get_player_by_discord_id(&id).await?;
         Ok(player)
@@ -213,13 +222,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     /// - The command is not executed within a guild context.
     /// - There is an issue fetching the tournament data from the database.
     async fn get_current_round(&self, tournament_id: i32) -> Result<i32, BotError> {
-        let guild_id = self
-            .guild_id()
-            .ok_or(anyhow!("Not running this command in a guild"))?;
+        let guild_id = self.guild_id().ok_or(NotInAGuild)?;
         let round = self
             .data()
             .database
-            .get_tournament(&guild_id.to_string(), tournament_id)
+            .get_tournament(&guild_id, tournament_id)
             .await?
             .map_or_else(|| 0, |t| t.current_round);
         Ok(round)
@@ -392,20 +399,6 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             String::from("select"),
             String::from("next"),
         );
-        let buttons = CreateActionRow::Buttons(vec![
-            CreateButton::new(prev.clone())
-                .label("⬅️")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(select.clone())
-                .label("Select")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(any.clone())
-                .label("Any")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(next.clone())
-                .label("➡️")
-                .style(ButtonStyle::Primary),
-        ]);
         let reply = |map: BrawlMap| {
             let embed = CreateEmbed::default()
                 .title(map.name.to_string())
@@ -418,9 +411,24 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .image(map.image_url)
                 .thumbnail(map.game_mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+            let buttons = CreateActionRow::Buttons(vec![
+                CreateButton::new(prev.clone())
+                    .label("⬅️")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new(select.clone())
+                    .label("Select")
+                    .style(ButtonStyle::Primary)
+                    .disabled(!map.disabled),
+                CreateButton::new(any.clone())
+                    .label("Any")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new(next.clone())
+                    .label("➡️")
+                    .style(ButtonStyle::Primary),
+            ]);
             CreateReply::default()
                 .embed(embed)
-                .components(vec![buttons.clone()])
+                .components(vec![buttons])
         };
         let mut page_number: usize = 0;
         msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
@@ -448,7 +456,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
                 .await?;
         }
-        Err(anyhow!("User did not respond in time"))
+        Err(NoSelection.into())
     }
 
     async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {
@@ -464,30 +472,32 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             String::from("select"),
             String::from("next"),
         );
-        let buttons = CreateActionRow::Buttons(vec![
-            CreateButton::new(prev.clone())
-                .label("⬅️")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(select.clone())
-                .label("Select")
-                .style(ButtonStyle::Primary),
-            CreateButton::new(next.clone())
-                .label("➡️")
-                .style(ButtonStyle::Primary),
-        ]);
+        
         let reply = |mode: FullGameMode| {
             let embed = CreateEmbed::default()
                 .title(mode.name.to_string())
                 .description(format!(
                     "Description: **{}**\nAvailability: **{}**",
                     mode.description,
-                    ["Yes", "No"][(mode.disabled) as usize]
+                    ["Yes", "No"][!(mode.disabled) as usize]
                 ))
                 .thumbnail(mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
+            let buttons = CreateActionRow::Buttons(vec![
+                CreateButton::new(prev.clone())
+                    .label("⬅️")
+                    .style(ButtonStyle::Primary),
+                CreateButton::new(select.clone())
+                    .label("Select")
+                    .style(ButtonStyle::Primary)
+                    .disabled(!mode.disabled),
+                CreateButton::new(next.clone())
+                    .label("➡️")
+                    .style(ButtonStyle::Primary),
+            ]);
             CreateReply::default()
                 .embed(embed)
-                .components(vec![buttons.clone()])
+                .components(vec![buttons])
         };
         let mut page_number: usize = 0;
         let mut selected = modes.list[page_number].to_owned();
@@ -511,6 +521,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             selected = modes.list[page_number].to_owned();
             msg.edit(*self, reply(selected.to_owned())).await?;
         }
-        Err(anyhow!("User did not respond in time"))
+        Err(NoSelection.into())
     }
 }
+

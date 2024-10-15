@@ -1,15 +1,16 @@
-use crate::{database::models::Selectable, BotContext, BotError};
+use crate::{
+    database::{self, models::Selectable},
+    BotContext, BotError,
+};
 use anyhow::anyhow;
 use futures::StreamExt;
 use poise::{
     serenity_prelude::{
-        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector,
-        ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
-        CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind,
-        CreateSelectMenuOption, GuildChannel, Role, RoleId, User, UserId,
+        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector, ComponentInteractionDataKind::{ChannelSelect, RoleSelect}, CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind, CreateSelectMenuOption, Guild, GuildChannel, GuildId, PartialGuild, Role, RoleId, User, UserId
     },
     CreateReply, ReplyHandle,
 };
+use crate::utils::error::CommonError::*;
 
 pub trait DiscordTrait {
     async fn to_user(ctx: &BotContext<'_>, id: &str) -> Result<User, BotError> {
@@ -20,7 +21,7 @@ pub trait DiscordTrait {
         let roldid = RoleId::new(id.parse()?);
         let guild = ctx
             .guild()
-            .ok_or(anyhow!("Please use this command in a guild"))?;
+            .ok_or(NotInAGuild)?;
         let role = guild.roles.get(&roldid).ok_or(anyhow!("Role not found"))?;
         Ok(role.clone())
     }
@@ -31,6 +32,31 @@ pub trait DiscordTrait {
             .await?
             .guild()
             .ok_or(anyhow!("Channel not found"))
+    }
+
+    async fn to_guild(ctx: &BotContext<'_>, id: &str) -> Result<PartialGuild, BotError> {
+        GuildId::new(id.parse()?)
+            .to_partial_guild(ctx.http())
+            .await
+            .map_err(|_|GuildNotExists(id.to_string()).into())
+    }
+}
+
+pub trait UserExt {
+    type Error;
+    async fn full(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<Option<database::models::Player>, Self::Error>;
+}
+
+impl UserExt for User {
+    type Error = BotError;
+    async fn full(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<Option<database::models::Player>, Self::Error> {
+        ctx.get_player_from_discord_id(self.id.to_string()).await
     }
 }
 
@@ -51,19 +77,12 @@ pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
     Ok(())
 }
 
-pub async fn select_channel<S>(
+pub async fn select_channel(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    title: S,
-    description: S,
+    embed: CreateEmbed,
 ) -> Result<Channel, BotError>
-where
-    S: Into<String> + Send + 'static,
 {
-    let embed = CreateEmbed::default()
-        .title(title)
-        .description(description)
-        .color(Colour::GOLD);
     let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
         "channel",
         CreateSelectMenuKind::Channel {
@@ -81,22 +100,15 @@ where
             return Ok(channel);
         }
     }
-    Err(anyhow!("No channel selected"))
+    Err(NoSelection.into())
 }
 
-pub async fn select_role<S>(
+pub async fn select_role(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    title: S,
-    description: S,
+    embed: CreateEmbed
 ) -> Result<Role, BotError>
-where
-    S: Into<String> + Send + 'static,
 {
-    let embed = CreateEmbed::default()
-        .title(title.into())
-        .description(description.into())
-        .color(Colour::GOLD);
     let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
         "role",
         CreateSelectMenuKind::Role {
@@ -119,7 +131,7 @@ where
             return Ok(role);
         }
     }
-    Err(anyhow!("No role selected"))
+    Err(NoSelection.into())
 }
 
 pub async fn select_options<T: Selectable>(
@@ -160,7 +172,7 @@ pub async fn select_options<T: Selectable>(
             }
         }
     }
-    Err(anyhow!("No option selected"))
+    Err(NoSelection.into())
 }
 
 pub async fn modal<T: poise::modal::Modal>(
@@ -191,8 +203,8 @@ pub async fn modal<T: poise::modal::Modal>(
             ctx, mci, None, None,
         )
         .await?
-        .ok_or(anyhow!("Modal interaction from <@{}> returned None. This may mean that the modal has timed out.", ctx.author().id.to_string()))?;
+        .ok_or(NoSelection)?;
         return Ok(response);
     }
-    Err(anyhow!("No name entered"))
+    Err(NoSelection.into())
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT \n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                bm.id as \"map_id\", \n                bm.name as \"map_name\"\n            FROM tournaments t\n            INNER JOIN brawl_maps bm \n            ON t.map = bm.id\n            WHERE t.guild_id = $1\n            ORDER BY t.created_at DESC\n            ",
+  "query": "\n            SELECT\n                t.tournament_id, \n                t.guild_id, t.name, \n                t.status as \"status: TournamentStatus\", \n                t.rounds, t.current_round, \n                t.created_at, t.start_time, \n                t.mode as \"mode: Mode\", \n                t.wins_required, \n                t.tournament_role_id, \n                t.announcement_channel_id, \n                t.notification_channel_id, \n                bm.id as \"map_id\", \n                bm.name as \"map_name\",\n                bm.disabled as \"map_disabled\"\n            FROM tournaments AS t \n            JOIN tournament_players AS tp\n            ON tp.tournament_id = t.tournament_id\n            JOIN brawl_maps AS bm\n            ON t.map = bm.id\n            WHERE tp.discord_id = $1\n            AND t.status != 'inactive';\n            ",
   "describe": {
     "columns": [
       {
@@ -119,6 +119,11 @@
         "ordinal": 14,
         "name": "map_name",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 15,
+        "name": "map_disabled",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -141,8 +146,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "05f0ba5618657f3b537cb727639aa49475f603a447a7f38c554f0c1a2dfc7060"
+  "hash": "2c3e62149bc119c25728a79444bd2ce612171b97c6936d4c0233ee2cbf00e730"
 }

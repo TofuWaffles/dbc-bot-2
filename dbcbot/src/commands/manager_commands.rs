@@ -10,7 +10,7 @@ use crate::{
     log, BotContext, BotData, BotError,
 };
 use anyhow::anyhow;
-
+use crate::utils::error::CommonError::*;
 use models::{Match, MatchPlayer, Player, PlayerType, TournamentStatus};
 use poise::serenity_prelude::{Channel, Role};
 use poise::Modal;
@@ -139,7 +139,7 @@ async fn set_config(
 ) -> Result<(), BotError> {
     let id = announcement_channel.id().to_string();
     let announcement_channel_id = match announcement_channel.guild() {
-        Some(guild) => guild.id.to_string(),
+        Some(guild) => guild.id,
         None => {
             ctx.prompt(
                 msg,
@@ -160,12 +160,12 @@ async fn set_config(
             )
             .await?;
             error!("Invalid announcement channel entered by {}", ctx.author());
-            return Ok(());
+            return Err(ChannelNotExists(id).into());
         }
     };
     let id = log_channel.id().to_string();
     let log_channel_id = match log_channel.guild() {
-        Some(guild) => guild.id.to_string(),
+        Some(guild) => guild.id,
         None => {
             ctx.prompt(
                 msg,
@@ -184,21 +184,18 @@ async fn set_config(
             )
             .await?;
             error!("Invalid log channel entered by {}", ctx.author());
-            return Ok(());
+            return Err(ChannelNotExists(id).into());
         }
     };
 
-    let marshal_role_id = marshal_role.id.to_string();
-
+    let marshal_role_id = marshal_role.id;
+    
     ctx.data()
         .database
-        .set_config(
-            &ctx.guild_id()
-                .ok_or(anyhow!("This command must be used within a server"))?
-                .to_string(),
-            &marshal_role_id,
-            &log_channel_id,
-            &announcement_channel_id,
+        .set_config(ctx.guild_id().ok_or(NotInAGuild)?.as_ref(),
+            marshal_role_id.as_ref(),
+            log_channel_id.as_ref(),
+            announcement_channel_id.as_ref(),
         )
         .await?;
     ctx.prompt(
@@ -237,8 +234,8 @@ async fn create_tournament(
     notification_channel: serenity::Channel,
     wins_required: i32,
 ) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
-    let role_id = role.id.to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+    let role_id = role.id;
     let new_tournament_id = ctx
         .data()
         .database
@@ -247,9 +244,9 @@ async fn create_tournament(
             &name,
             &mode,
             None,
-            role_id,
-            &announcement_channel.id().to_string(),
-            &notification_channel.id().to_string(),
+            &role_id,
+            &announcement_channel.id(),
+            &notification_channel.id(),
             wins_required,
         )
         .await?;
@@ -302,7 +299,7 @@ async fn start_tournament(
         None => 2,
     };
 
-    let guild_id = ctx.guild_id().unwrap().to_string();
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = match ctx
         .data()
@@ -370,9 +367,10 @@ async fn start_tournament(
 
     for bracket in matches {
         for player in bracket.match_players {
+            let player = player.to_user(&ctx).await?;
             ctx.data()
                 .database
-                .enter_match(&bracket.match_id, &player.discord_id, PlayerType::Player)
+                .enter_match(&bracket.match_id, &player.id, PlayerType::Player)
                 .await?;
         }
     }
@@ -538,29 +536,32 @@ Log channel: <#{log}>.
     };
     preset(ctx, msg).await?;
     let (m, a, l) = loop {
+        let membed = CreateEmbed::default()
+            .title("Select Marshal Role")
+            .description(
+                "Please select the role that will be able to manage the tournament system.",
+            );
         let marshal_role = select_role(
             ctx,
             msg,
-            "Select Marshal Role",
-            "Please select the role that will be able to manage the tournament system.",
+            membed
         )
         .await?;
         splash(ctx, msg).await?;
-        let announcement_channel = select_channel(
-            ctx,
-            msg,
-            "Select Announcement Channel",
+        let aembed = CreateEmbed::default()
+            .title("Select Announcement Channel")
+            .description(
             "Please select the channel where the bot will announce the progress of the tournament.",
-        )
-        .await?;
+        );
+
+        let announcement_channel = select_channel(ctx, msg, aembed).await?;
         splash(ctx, msg).await?;
-        let log_channel = select_channel(
-            ctx,
-            msg,
-            "Select Log Channel",
-            "Please select the channel where the bot will log all the actions it takes.",
-        )
-        .await?;
+        let lembed = CreateEmbed::default()
+            .title("Select Log Channel")
+            .description(
+                "Please select the channel where the bot will log all the actions it takes.",
+            );
+        let log_channel = select_channel(ctx, msg, lembed).await?;
         if ctx
             .confirmation(
                 msg,
@@ -632,20 +633,24 @@ async fn step_by_step_create_tournament(
         )
         .await?;
         splash(ctx, msg).await?;
-        let announcement_channel = select_channel(
-            ctx,
-            msg,
-            "Select Announcement Channel",
+        let aembed = CreateEmbed::default()
+            .title("Select Announcement Channel")
+            .description(
             "Please select the channel where the bot will announce the progress of the tournament.",
-        )
-        .await?;
+        );
+        let announcement_channel = select_channel(ctx, msg, aembed).await?;
         splash(ctx, msg).await?;
-        let notification_channel = select_channel(ctx, msg, "Select Notification Channel", "Please select the channel where the bot will send notifications to players about their progress and matches.").await?;
+        let nembed = CreateEmbed::default()
+            .title("Select Notification Channel")
+            .description("Please select the channel where the bot will send notifications to players about their progress and matches.");
+        let notification_channel = select_channel(ctx, msg, nembed).await?;
+        let rembed = CreateEmbed::default()
+            .title("Select Role")
+            .description("Please select the role for the tournament.");
         let role = select_role(
             ctx,
             msg,
-            "Select Role",
-            "Please select the role for the tournament.",
+            rembed
         )
         .await?;
         if ctx
@@ -693,10 +698,7 @@ async fn step_by_step_start_tournament(
         #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
         wins_required: Option<String>,
     }
-    let guild_id = ctx
-        .guild_id()
-        .ok_or(anyhow!("No guild id found"))?
-        .to_string();
+    let guild_id = ctx.guild_id().ok_or(anyhow!("No guild id found"))?;
     let tournaments = ctx.data().database.get_all_tournaments(&guild_id).await?;
     let id = select_options::<Tournament>(
         ctx,

@@ -146,7 +146,7 @@ class Asset:
 
     @staticmethod
     async def icon(id: int | str) -> Tuple[Optional[Image.Image], Optional[Exception]]:
-        url = f"https://cdn-old.brawlify.com/profile/{id}.png"
+        url = f"https://cdn.brawlify.com/profile-icons/regular/{id}.png"
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)

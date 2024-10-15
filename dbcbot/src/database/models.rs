@@ -1,14 +1,15 @@
-use std::vec;
-
+use super::BattleDatabase;
+use crate::api::official_brawl_stars::TeamPlayer;
 use crate::utils::discord::DiscordTrait;
+use crate::utils::error::CommonError;
+use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotContextExt;
 use crate::{api::official_brawl_stars::Brawler, BotContext, BotError};
 use anyhow::{anyhow, Result};
 use poise::serenity_prelude::{GuildChannel, Role, User, UserId};
 use serde::{Deserialize, Serialize};
+use std::vec;
 use strum::{Display, EnumIter, IntoEnumIterator};
-
-use super::BattleDatabase;
 
 /// Types that can be selected by the user in a dropdown menu.
 pub trait Selectable {
@@ -26,6 +27,7 @@ pub struct ManagerRoleConfig {
 
 impl DiscordTrait for ManagerRoleConfig {}
 impl ManagerRoleConfig {
+
     pub async fn to_manager(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
         Self::to_role(ctx, &self.manager_role_id).await
     }
@@ -57,7 +59,7 @@ impl GuildConfig {
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
-#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display, Default)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Display, Default, Clone)]
 #[sqlx(type_name = "tournament_status", rename_all = "snake_case")]
 pub enum TournamentStatus {
     #[strum(to_string = "Open")]
@@ -72,7 +74,7 @@ pub enum TournamentStatus {
 }
 
 /// A tournament within the database.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Tournament {
     pub tournament_id: i32,
     pub name: String,
@@ -97,16 +99,28 @@ impl Tournament {
         &self,
         ctx: &BotContext<'_>,
     ) -> Result<GuildChannel, BotError> {
-        Self::to_channel(ctx, &self.announcement_channel_id).await
+        Ok(Self::to_channel(ctx, &self.announcement_channel_id)
+            .await
+            .map_err(|_| ChannelNotExists(self.announcement_channel_id.clone()))?)
     }
     pub async fn notification_channel(
         &self,
         ctx: &BotContext<'_>,
     ) -> Result<GuildChannel, BotError> {
-        Self::to_channel(ctx, &self.notification_channel_id).await
+        Ok(Self::to_channel(ctx, &self.announcement_channel_id)
+            .await
+            .map_err(|_| ChannelNotExists(self.notification_channel_id.clone()))?)
     }
     pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
-        Self::to_role(ctx, &self.tournament_role_id).await
+        Ok(Self::to_role(ctx, &self.tournament_role_id)
+            .await
+            .map_err(|_| RoleNotExists(self.tournament_role_id.clone()))?)
+    }
+    pub fn is_paused(&self) -> bool {
+        self.status == TournamentStatus::Paused
+    }
+    pub fn is_pending(&self) -> bool {
+        self.status == TournamentStatus::Pending
     }
 }
 
@@ -144,7 +158,7 @@ impl Player {
     }
 
     pub fn icon(&self) -> String {
-        format!("https://cdn-old.brawlify.com/profile/{}.png", self.icon)
+        format!("https://cdn.brawlify.com/profile-icon/regular/{}.png", self.icon)
     }
 }
 /// A relational object that links a Discord user to a tournament they've joined.
@@ -242,34 +256,34 @@ impl Match {
         self.match_players
             .iter()
             .find(predicate)
-            .ok_or_else(|| anyhow!(error_message))
+            .ok_or(UserNotExists(error_message).into())
     }
 
     pub fn tournament(&self) -> Result<i32, BotError> {
-        self.match_id
+        Ok(self
+            .match_id
             .split('.')
             .nth(0)
-            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find tournament in match ID")))?
-            .parse::<i32>()
-            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse tournament from match ID")))
+            .ok_or(TournamentNotExists(self.match_id.clone()))?
+            .parse::<i32>()?)
     }
 
     pub fn round(&self) -> Result<i32, BotError> {
-        self.match_id
+        Ok(self
+            .match_id
             .split('.')
             .nth(1)
-            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find round in match ID")))?
-            .parse::<i32>()
-            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse round from match ID")))
+            .ok_or(RoundNotExists(self.match_id.clone()))?
+            .parse::<i32>()?)
     }
 
     pub fn sequence(&self) -> Result<i32, BotError> {
-        self.match_id
+        Ok(self
+            .match_id
             .split('.')
             .nth(2)
-            .ok_or_else(|| BotError::from(anyhow!("Error: Unable to find match in match ID")))?
-            .parse::<i32>()
-            .map_err(|_| BotError::from(anyhow!("Error: Unable to parse match from match ID")))
+            .ok_or(MatchNotExists(self.match_id.clone()))?
+            .parse::<i32>()?)
     }
 
     pub async fn winner(&self, ctx: &BotContext<'_>) -> Result<Option<User>, BotError> {
@@ -392,6 +406,11 @@ pub struct BattleClass {
     pub teams: serde_json::Value,
 }
 
+impl BattleClass {
+    pub fn teams(&self) -> Vec<Vec<TeamPlayer>> {
+        serde_json::from_value(self.teams.clone()).unwrap_or_default()
+    }
+}
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
 pub struct Event {
     #[serde(default)]
@@ -409,6 +428,8 @@ pub struct BrawlMap {
     pub id: i32,
     #[serde(default)]
     pub name: String,
+    #[serde(default)]
+    pub disabled: bool,
 }
 
 impl Default for BrawlMap {
@@ -416,6 +437,7 @@ impl Default for BrawlMap {
         BrawlMap {
             id: 0,
             name: "Any".to_string(),
+            disabled: false,
         }
     }
 }
