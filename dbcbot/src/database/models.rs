@@ -122,19 +122,19 @@ impl Tournament {
     }
 
     pub async fn count_players_in_current_round(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
-        Ok(ctx
+        ctx
             .data()
             .database
             .participants(self.tournament_id, self.rounds)
-            .await?)
+            .await
     }
 
     pub async fn count_finished_matches(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
-        Ok(ctx
+        ctx
             .data()
             .database
             .count_finished_matches(self.tournament_id, self.rounds)
-            .await?)
+            .await
     }
 
 }

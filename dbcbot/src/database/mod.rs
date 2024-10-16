@@ -1660,9 +1660,9 @@ impl BattleDatabase for PgDatabase {
                 battle_class: BattleClass {
                     id: battle_class.id,
                     battle_id: battle_class.battle_id,
-                    mode: battle_class.mode.clone(),
-                    battle_type: battle_class.battle_type.clone(),
-                    result: battle_class.result.clone(),
+                    mode: battle_class.mode,
+                    battle_type: battle_class.battle_type,
+                    result: battle_class.result,
                     duration: battle_class.duration,
                     trophy_change: battle_class.trophy_change,
                     teams: battle_class.teams.clone(),
@@ -1719,10 +1719,13 @@ impl Database for PgDatabase {
         let count = sqlx::query!(
             r#"
             SELECT COUNT(*)
-            FROM tournament_players
-            WHERE tournament_id = $1
+            FROM match_players
+            INNER JOIN matches
+            ON match_players.match_id = matches.match_id
+            WHERE SPLIT_PART(matches.match_id, '.', 1)::int = $1 AND SPLIT_PART(matches.match_id, '.', 2)::int = $2
             "#,
-            tournament_id
+            tournament_id,
+            round
         )
         .fetch_one(&self.pool)
         .await?

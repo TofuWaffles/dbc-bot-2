@@ -50,9 +50,9 @@ mod checks {
     use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
-    use anyhow::anyhow;
+    
     use poise::{
-        serenity_prelude::{GuildId, RoleId},
+        serenity_prelude::{RoleId},
         CreateReply,
     };
 

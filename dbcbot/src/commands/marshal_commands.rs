@@ -12,7 +12,6 @@ use crate::{
 use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
-use poise::serenity_prelude::model::guild;
 use poise::serenity_prelude::{
     CreateActionRow, CreateAttachment, CreateButton, CreateSelectMenu, CreateSelectMenuKind,
     CreateSelectMenuOption, Mentionable, ReactionType, UserId,
@@ -40,6 +39,7 @@ impl CommandsContainer for MarshalCommands {
             pause_tournament(),
             unpause_tournament(),
             get_match(),
+            get_battle_logs(),
             set_map(),
             disqualify_slash(),
             marshal_menu(),
@@ -519,7 +519,7 @@ async fn disqualify(
 
     let opponent = bracket
         .get_opponent(&player.id.to_string())?
-        .to_user(&ctx)
+        .to_user(ctx)
         .await?;
     ctx.data()
         .database
@@ -568,7 +568,7 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
-    let tournament = match ctx
+    let _tournament = match ctx
         .data()
         .database
         .get_tournament(&guild_id, tournament_id)
@@ -604,9 +604,9 @@ async fn next_round_helper(
     ];
 
     for (predicate, title, message) in conditions {
-        if predicate(&tournament) {
+        if predicate(tournament) {
             ctx.prompt(
-                &msg,
+                msg,
                 CreateEmbed::new().title(title).description(message),
                 None,
             )
@@ -646,7 +646,7 @@ async fn next_round_helper(
                 bracket.round()?,
                 bracket.sequence()?,
             );
-            let player = player.to_user(&ctx).await?;
+            let player = player.to_user(ctx).await?;
             ctx.data()
                 .database
                 .enter_match(&match_id, &player.id, PlayerType::Player)
@@ -660,13 +660,13 @@ async fn next_round_helper(
         .await?;
     if ctx
         .confirmation(
-            &msg,
+            msg,
             CreateEmbed::default().description("Do you want to select map for next round?"),
         )
         .await?
     {
         let mode = tournament.mode;
-        let map = ctx.map_selection(&msg, &mode).await?;
+        let map = ctx.map_selection(msg, &mode).await?;
         ctx.data()
             .database
             .set_map(tournament.tournament_id, &(map.into()))
@@ -781,7 +781,7 @@ async fn get_battle_logs(
             .apis
             .images
             .clone()
-            .battle_log(&ctx, record, current_match)
+            .battle_log(ctx, record, current_match)
             .await?;
         let reply =
             { CreateReply::default().attachment(CreateAttachment::bytes(img, "battle_log.png")) };
@@ -848,7 +848,7 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     let embed = {
         let fields: Vec<(String, String, bool)> = tournaments
             .iter()
-            .map(|t| (format!("{}", t.name), format!("{}", t.tournament_id), true))
+            .map(|t| (t.name.to_string(), format!("{}", t.tournament_id), true))
             .collect();
         CreateEmbed::new()
             .title("Select a tournament")
@@ -921,7 +921,7 @@ async fn tournament_property_page(
             .ok_or(TournamentNotExists(t.tournament_id.to_string()).into())
     }
     let mut t = t.clone();
-    let manager = is_manager(ctx.clone()).await?;
+    let manager = is_manager(*ctx).await?;
     let buttons = |t: &Tournament| {
         vec![
             CreateButton::new("pause")
@@ -969,7 +969,7 @@ async fn tournament_property_page(
                 ("Map", t.map.name.clone(), true),
             ])
     };
-    ctx.prompt(&msg, embed(&t), buttons(&t)).await?;
+    ctx.prompt(msg, embed(&t), buttons(&t)).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interactions) = &ic.next().await {
         match interactions.data.custom_id.as_str() {
@@ -1023,7 +1023,7 @@ async fn tournament_property_page(
             _ => {}
         }
         t = update(ctx, &t).await?;
-        ctx.prompt(&msg, embed(&t), buttons(&t)).await?;
+        ctx.prompt(msg, embed(&t), buttons(&t)).await?;
     }
     Ok(())
 }

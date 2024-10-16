@@ -881,7 +881,7 @@ async fn user_profile(ctx: BotContext<'_>, user: poise::serenity_prelude::User) 
                     .description("An error occurred while fetching the user profile. Please try again later."),
                 None
             ).await?;
-            return Err(e.into());
+            return Err(e);
         }
     };
     display_user_profile_helper(&ctx, &msg, player).await?;
