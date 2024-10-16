@@ -1,5 +1,5 @@
-use super::checks::is_manager;
 use super::{checks::is_marshal_or_higher, CommandsContainer};
+use crate::commands::checks::is_manager;
 use crate::database::models::{BrawlMap, Match, PlayerType, Tournament, TournamentStatus};
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
