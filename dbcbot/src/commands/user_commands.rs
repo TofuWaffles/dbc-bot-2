@@ -1,9 +1,19 @@
 use std::i64;
 
+use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
+use crate::commands::checks::is_tournament_paused;
+use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
 use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::log::{self, Log};
+use crate::mail::MailBotCtx;
+use crate::utils::discord::{modal, select_options};
+use crate::utils::error::CommonError::*;
+use crate::utils::shorthand::BotContextExt;
+use crate::{api::APIResult, commands::checks::is_config_set};
+use crate::{BotContext, BotData, BotError};
 use anyhow::anyhow;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
@@ -12,16 +22,6 @@ use prettytable::{row, Table};
 use serde_json::json;
 use tokio::join;
 use tracing::{info, instrument};
-use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
-use crate::{api::APIResult, commands::checks::is_config_set};
-use crate::commands::checks::is_tournament_paused;
-use crate::database::models::Tournament;
-use crate::log::{self, Log};
-use crate::mail::MailBotCtx;
-use crate::utils::discord::{modal, select_options};
-use crate::utils::shorthand::BotContextExt;
-use crate::{BotContext, BotData, BotError};
-use crate::utils::error::CommonError::*;
 
 use super::CommandsContainer;
 
@@ -87,10 +87,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
     let mut player_active_tournaments = ctx
         .data()
         .database
-        .get_player_active_tournaments(
-            &guild_id,
-            &ctx.author().id
-        )
+        .get_player_active_tournaments(&guild_id, &ctx.author().id)
         .await?;
 
     if player_active_tournaments.is_empty() {
@@ -163,7 +160,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
         ));
     }
     let mut ic = ctx.create_interaction_collector(msg).await?;
-    while let Some(interaction) = &ic.next().await {
+    if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 interaction.defer(ctx.http()).await?;
@@ -211,7 +208,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     .database
                     .get_match_by_player(
                         player_active_tournaments[0].tournament_id,
-                        &ctx.author().id
+                        &ctx.author().id,
                     )
                     .await?;
                 return submit(
@@ -219,7 +216,8 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     msg,
                     &player_active_tournaments[0],
                     &game_match.unwrap(),
-                ).await;
+                )
+                .await;
             }
             "mail" => {
                 interaction.defer(ctx.http()).await?;
@@ -227,9 +225,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     msg.delete(*ctx).await?;
                 }
             }
-            _ => {
-                continue;
-            }
+            _ => {}
         }
     }
 
@@ -265,7 +261,7 @@ async fn user_display_match(
         }
     };
 
-    if !current_match.is_valid() {
+    if !current_match.is_not_bye() {
         // Automatically advance the player to the next round if the opponent is a dummy
         // (a bye round)
         ctx.data()
@@ -296,14 +292,13 @@ async fn user_display_match(
                 ("Round", &current_match.round()?.to_string(), true),
             ])
             , None).await?;
+
+        return Ok(());
     }
 
     let player = current_match.get_player(&ctx.author().id.to_string())?;
     let discord_id = ctx.author().id;
-    ctx.data()
-        .database
-        .get_current_match(&discord_id)
-        .await?;
+    ctx.data().database.get_current_match(&discord_id).await?;
     let p1 = ctx
         .get_player_from_discord_id(None)
         .await?
@@ -375,6 +370,13 @@ async fn user_display_match(
                         .style(ButtonStyle::Success),
                 );
             }
+            if current_match.winner(ctx).await?.is_none() {
+                buttons.push(
+                    CreateButton::new("match_menu_forfeit")
+                        .label("Forfeit")
+                        .style(ButtonStyle::Danger),
+                );
+            }
             buttons
         };
         CreateReply::default()
@@ -384,7 +386,7 @@ async fn user_display_match(
     };
     msg.edit(*ctx, reply).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
-    while let Some(interaction) = &ic.next().await {
+    if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_ready" => {
                 interaction.defer(ctx.http()).await?;
@@ -409,12 +411,14 @@ async fn user_display_match(
                 let notification_message = if opponent.ready {
                     format!(
                         r#"@{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
-                        player.mention(), opponent_user.mention()
+                        player.mention(),
+                        opponent_user.mention()
                     )
                 } else {
                     format!(
                         r#"{}.\n\nYour opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
-                        opponent.discord_id, player.mention()
+                        opponent.discord_id,
+                        player.mention()
                     )
                 };
 
@@ -426,15 +430,62 @@ async fn user_display_match(
             }
             "mail" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.compose(msg, p2.user(ctx).await?.id, current_match.match_id.clone())
-                    .await?;
+                ctx.compose(
+                    msg,
+                    p2.user(ctx).await?.id,
+                    current_match.clone().match_id.clone(),
+                )
+                .await?;
             }
-            _ => {
-                continue;
+            "match_menu_forfeit" => {
+                interaction.defer(ctx.http()).await?;
+                user_forfeit(ctx, msg, current_match).await?;
             }
+            _ => {}
         }
     }
     Ok(())
+}
+
+#[instrument(skip(msg))]
+async fn user_forfeit(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    bracket: Match,
+) -> Result<(), BotError> {
+    let forfeit = ctx.confirmation(msg, CreateEmbed::new()
+                     .title("⚠️Forfeit Match⚠️")
+                     .description("Warning: Forfeiting the match means that you will drop out of the tournament and your opponent will automatically win. This action is NOT reversable.\n\nAre you sure you want to continue?"))
+                    .await?;
+
+    if forfeit {
+        let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
+        ctx.data()
+            .database
+            .set_winner(
+                &bracket.match_id,
+                &opponent.to_user(ctx).await?.id,
+                &bracket.score,
+            )
+            .await?;
+        msg.edit(
+            *ctx,
+            CreateReply::default()
+                .content("You've successfully forfeited the match. Hope to see you in the next tournament, partner!")
+                .ephemeral(true),
+        )
+        .await?;
+    } else {
+        msg.edit(
+            *ctx,
+            CreateReply::default()
+                .content("Cancelled forfeiting the match.")
+                .ephemeral(true),
+        )
+        .await?;
+    }
+
+    return Ok(());
 }
 
 /// Display all active (and not started) tournaments to the user who has not yet joined a
@@ -522,10 +573,7 @@ async fn user_display_tournaments(
     match ctx
         .data()
         .database
-        .enter_tournament(
-            selected_tournament.parse::<i32>()?,
-            &ctx.author().id,
-        )
+        .enter_tournament(selected_tournament.parse::<i32>()?, &ctx.author().id)
         .await
     {
         Ok(_) => {
@@ -817,8 +865,8 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
 async fn display_user_profile_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    user: Player
-) -> Result<(), BotError>{
+    user: Player,
+) -> Result<(), BotError> {
     let tournament = ctx
         .data()
         .database
@@ -826,17 +874,21 @@ async fn display_user_profile_helper(
         .await?
         .first()
         .cloned();
-    let tournament_id = tournament.as_ref().map_or_else(||"None".to_string(), |t| t.tournament_id.to_string());
+    let tournament_id = tournament
+        .as_ref()
+        .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
     let image_api = ImagesAPI::new();
     let image = image_api
         .profile_image(&user, tournament_id.to_string())
         .await?;
-    let current_match = ctx.data().database.get_current_match(user.user(ctx).await?.id.as_ref()).await?;
+    let current_match = ctx
+        .data()
+        .database
+        .get_current_match(user.user(ctx).await?.id.as_ref())
+        .await?;
     let (round, seq) = match current_match {
-        Some(cm) => {
-            (cm.round()?.to_string(), cm.sequence()?.to_string())
-        }
-        None => ("None".to_string(),"None".to_string())
+        Some(cm) => (cm.round()?.to_string(), cm.sequence()?.to_string()),
+        None => ("None".to_string(), "None".to_string()),
     };
     let reply = {
         let embed = CreateEmbed::new()
@@ -845,9 +897,13 @@ async fn display_user_profile_helper(
             .description("Here is some of your data")
             .color(Color::DARK_GOLD)
             .fields(vec![
-                ("Tournament", tournament.map_or_else(||"None".to_string(), |t| t.name.clone()), true),
+                (
+                    "Tournament",
+                    tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
+                    true,
+                ),
                 ("Round", round, true),
-                ("Match", seq, true)
+                ("Match", seq, true),
             ]);
         CreateReply::default()
             .reply(true)
@@ -859,9 +915,18 @@ async fn display_user_profile_helper(
 }
 
 #[poise::command(context_menu_command = "User Profile")]
-async fn user_profile(ctx: BotContext<'_>, user: poise::serenity_prelude::User) -> Result<(), BotError>{
-    let msg = ctx.send(CreateReply::default().ephemeral(true).embed(CreateEmbed::new().title("Loading"))).await?;
-    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await{
+async fn user_profile(
+    ctx: BotContext<'_>,
+    user: poise::serenity_prelude::User,
+) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Loading")),
+        )
+        .await?;
+    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
         Ok(Some(player)) => player,
         Ok(None) => {
             ctx.prompt(
@@ -872,15 +937,16 @@ async fn user_profile(ctx: BotContext<'_>, user: poise::serenity_prelude::User) 
                 None
             ).await?;
             return Ok(());
-        },
+        }
         Err(e) => {
             ctx.prompt(
                 &msg,
-                CreateEmbed::new()
-                    .title("Error")
-                    .description("An error occurred while fetching the user profile. Please try again later."),
-                None
-            ).await?;
+                CreateEmbed::new().title("Error").description(
+                    "An error occurred while fetching the user profile. Please try again later.",
+                ),
+                None,
+            )
+            .await?;
             return Err(e);
         }
     };
@@ -1205,7 +1271,10 @@ async fn submit(
         .1?
         .ok_or(anyhow!("Player not found in the database"))?,
         Some((false, score)) => {
-            let opponent_id = &bracket.get_opponent(&ctx.author().id.to_string())?.to_user(ctx).await?;
+            let opponent_id = &bracket
+                .get_opponent(&ctx.author().id.to_string())?
+                .to_user(ctx)
+                .await?;
             join!(
                 ctx.data()
                     .database

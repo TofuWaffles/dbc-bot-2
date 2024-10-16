@@ -3,6 +3,7 @@ use crate::database::models::{BrawlMap, Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
+use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
@@ -10,7 +11,6 @@ use crate::{
     log, BotContext, BotData, BotError,
 };
 use anyhow::anyhow;
-use crate::utils::error::CommonError::*;
 use models::{Match, MatchPlayer, Player, PlayerType, TournamentStatus};
 use poise::serenity_prelude::{Channel, Role};
 use poise::Modal;
@@ -189,10 +189,11 @@ async fn set_config(
     };
 
     let marshal_role_id = marshal_role.id;
-    
+
     ctx.data()
         .database
-        .set_config(ctx.guild_id().ok_or(NotInAGuild)?.as_ref(),
+        .set_config(
+            ctx.guild_id().ok_or(NotInAGuild)?.as_ref(),
             marshal_role_id.as_ref(),
             log_channel_id.as_ref(),
             announcement_channel_id.as_ref(),
@@ -541,12 +542,7 @@ Log channel: <#{log}>.
             .description(
                 "Please select the role that will be able to manage the tournament system.",
             );
-        let marshal_role = select_role(
-            ctx,
-            msg,
-            membed
-        )
-        .await?;
+        let marshal_role = select_role(ctx, msg, membed).await?;
         splash(ctx, msg).await?;
         let aembed = CreateEmbed::default()
             .title("Select Announcement Channel")
@@ -647,12 +643,7 @@ async fn step_by_step_create_tournament(
         let rembed = CreateEmbed::default()
             .title("Select Role")
             .description("Please select the role for the tournament.");
-        let role = select_role(
-            ctx,
-            msg,
-            rembed
-        )
-        .await?;
+        let role = select_role(ctx, msg, rembed).await?;
         if ctx
             .confirmation(
                 msg,

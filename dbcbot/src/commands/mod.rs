@@ -50,11 +50,7 @@ mod checks {
     use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
-    
-    use poise::{
-        serenity_prelude::{RoleId},
-        CreateReply,
-    };
+    use poise::{serenity_prelude::RoleId, CreateReply};
 
     use crate::{
         database::{models::TournamentStatus, ConfigDatabase, TournamentDatabase},
@@ -99,9 +95,7 @@ mod checks {
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        let guild_id = ctx
-            .guild_id()
-            .ok_or(NotInAGuild)?;
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role = ctx.data().database.get_manager_role(&guild_id).await?;
 
@@ -116,11 +110,9 @@ mod checks {
             .await?;
             return Ok(false);
         }
-        let manager_role_id =
-            RoleId::from_str(&manager_role.unwrap().manager_role_id)?.get();
+        let manager_role_id = RoleId::from_str(&manager_role.unwrap().manager_role_id)?.get();
 
-        let marshal_role_id =
-            RoleId::from_str(&marshal_role.unwrap().marshal_role_id)?.get();
+        let marshal_role_id = RoleId::from_str(&marshal_role.unwrap().marshal_role_id)?.get();
 
         if ctx
             .author()
@@ -168,9 +160,7 @@ mod checks {
     ///
     /// The check still returns true if the user is not in a tournament.
     pub async fn is_tournament_paused(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        let guild_id = ctx
-            .guild_id()
-            .ok_or(NotInAGuild)?;
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let tournaments = ctx
             .data()

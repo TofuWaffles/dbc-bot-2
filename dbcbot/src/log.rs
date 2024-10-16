@@ -1,10 +1,10 @@
 use crate::database::*;
+use crate::utils::error::CommonError::*;
+use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 use anyhow::anyhow;
 use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage};
 use std::{str::FromStr, time::SystemTime};
 use strum::Display;
-use crate::utils::error::CommonError::*;
-use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 #[allow(dead_code)]
 pub enum State {
     SUCCESS = Color::DARK_GREEN.0 as isize,
@@ -49,9 +49,7 @@ pub trait Log {
 }
 impl Log for BotContext<'_> {
     async fn get_log_channel(&self) -> Result<ChannelId, BotError> {
-        let guild_id = self
-            .guild_id()
-            .ok_or(NotInAGuild)?;
+        let guild_id = self.guild_id().ok_or(NotInAGuild)?;
 
         let log_channel = ChannelId::from_str(
             &self
@@ -176,9 +174,7 @@ pub async fn discord_log_error(
     title: &str,
     mut fields: Vec<(&str, &str, bool)>,
 ) -> Result<(), BotError> {
-    let guild_id = ctx
-        .guild_id()
-        .ok_or(NotInAGuild)?;
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let log_channel = ChannelId::from_str(
         &ctx.data()

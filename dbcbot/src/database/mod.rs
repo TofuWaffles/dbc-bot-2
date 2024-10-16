@@ -209,8 +209,10 @@ pub trait UserDatabase {
     async fn get_user_by_player(&self, player: Player) -> Result<Option<Player>, Self::Error>;
 
     /// Retrieves a user from the database with a given discord id.
-    async fn get_user_by_discord_id(&self, discord_id: &UserId)
-        -> Result<Option<Player>, Self::Error>;
+    async fn get_user_by_discord_id(
+        &self,
+        discord_id: &UserId,
+    ) -> Result<Option<Player>, Self::Error>;
 
     /// Sets the ready status of a player of a specified match to true.
     async fn set_ready(&self, match_id: &str, discord_id: &UserId) -> Result<(), Self::Error>;
@@ -553,7 +555,10 @@ pub trait TournamentDatabase {
     ///
     /// This will get all active tournaments that have their status set to either "pending",
     /// "started", or "paused".
-    async fn get_active_tournaments(&self, guild_id: &GuildId) -> Result<Vec<Tournament>, Self::Error>;
+    async fn get_active_tournaments(
+        &self,
+        guild_id: &GuildId,
+    ) -> Result<Vec<Tournament>, Self::Error>;
 
     /// Retrieves all active tournaments that the player has currently entered.
     ///
@@ -822,7 +827,10 @@ impl TournamentDatabase for PgDatabase {
         Ok(tournaments)
     }
 
-    async fn get_active_tournaments(&self, guild_id: &GuildId) -> Result<Vec<Tournament>, Self::Error> {
+    async fn get_active_tournaments(
+        &self,
+        guild_id: &GuildId,
+    ) -> Result<Vec<Tournament>, Self::Error> {
         let tournaments = sqlx::query!(
             r#"
             SELECT
@@ -1185,7 +1193,8 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 }
 
 pub trait MatchDatabase {
-    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i64, BotError>;
+    async fn count_finished_matches(&self, tournament_id: i32, round: i32)
+        -> Result<i64, BotError>;
     type Error;
     /// Creates a match associated with a tournament.
     async fn create_match(
@@ -1448,7 +1457,11 @@ impl MatchDatabase for PgDatabase {
         Ok(brackets)
     }
 
-    async fn count_finished_matches(&self, tournament_id: i32, round: i32) -> Result<i64, BotError>{
+    async fn count_finished_matches(
+        &self,
+        tournament_id: i32,
+        round: i32,
+    ) -> Result<i64, BotError> {
         let count = sqlx::query!(
             r#"
             SELECT COUNT(*)
@@ -1715,7 +1728,7 @@ impl Database for PgDatabase {
         Ok(())
     }
 
-    async fn participants(&self, tournament_id: i32, round: i32) -> Result<i64, Self::Error>{
+    async fn participants(&self, tournament_id: i32, round: i32) -> Result<i64, Self::Error> {
         let count = sqlx::query!(
             r#"
             SELECT COUNT(*)
@@ -1732,5 +1745,4 @@ impl Database for PgDatabase {
         .count;
         Ok(count.unwrap_or(0) as i64)
     }
-    
 }

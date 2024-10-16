@@ -1,9 +1,9 @@
-use poise::serenity_prelude as serenity;
-use tracing::{info, instrument};
-use crate::utils::error::CommonError::*;
 use super::CommandsContainer;
 use crate::database::ConfigDatabase;
+use crate::utils::error::CommonError::*;
 use crate::{BotContext, BotData, BotError};
+use poise::serenity_prelude as serenity;
+use tracing::{info, instrument};
 
 pub struct OwnerCommands;
 
@@ -26,7 +26,6 @@ async fn set_manager(
     ctx: BotContext<'_>,
     #[description = "The Manager role"] role: serenity::Role,
 ) -> Result<(), BotError> {
-
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let manager_role_id = role.id;
 

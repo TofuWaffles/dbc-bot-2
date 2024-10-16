@@ -4,6 +4,7 @@ use crate::database::ConfigDatabase;
 use crate::log::Log;
 use crate::mail::model::MailType;
 use crate::utils::discord::{modal, select_options};
+use crate::utils::error::CommonError::*;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
@@ -14,7 +15,6 @@ use poise::serenity_prelude::{
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
-use crate::utils::error::CommonError::*;
 pub trait MailDatabase {
     type Error;
     async fn store(&self, mail: Mail) -> Result<(), Self::Error>;
@@ -375,11 +375,7 @@ async fn inbox_helper(
 async fn report(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, mail: &Mail) -> Result<(), BotError> {
     const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-    let marshal = ctx
-        .data()
-        .database
-        .get_marshal_role(&guild_id)
-        .await?;
+    let marshal = ctx.data().database.get_marshal_role(&guild_id).await?;
     let log = ctx.get_log_channel().await?;
     let thread = CreateThread::new(mail.recipient_id()?.to_string())
         .kind(ChannelType::PublicThread)

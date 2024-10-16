@@ -1,6 +1,6 @@
-use crate::utils::error::CommonError::*;
 use super::discord::select_options;
 use crate::database::*;
+use crate::utils::error::CommonError::*;
 use crate::{
     api::{
         brawlify::{BrawlMap, FullBrawler, FullGameMode},
@@ -174,14 +174,8 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Ok(())
     }
     async fn get_config(&self) -> Result<Option<GuildConfig>, BotError> {
-        let guild_id = self
-            .guild_id()
-            .ok_or(NotInAGuild)?;
-        let config = self
-            .data()
-            .database
-            .get_config(&guild_id)
-            .await?;
+        let guild_id = self.guild_id().ok_or(NotInAGuild)?;
+        let config = self.data().database.get_config(&guild_id).await?;
         Ok(config)
     }
 
@@ -189,7 +183,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         &self,
         discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::Player>, BotError> {
-        let id = match discord_id.into(){
+        let id = match discord_id.into() {
             Some(id) => UserId::from(id.parse::<u64>()?),
             None => self.author().id,
         };
@@ -472,7 +466,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
             String::from("select"),
             String::from("next"),
         );
-        
+
         let reply = |mode: FullGameMode| {
             let embed = CreateEmbed::default()
                 .title(mode.name.to_string())
@@ -524,4 +518,3 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Err(NoSelection.into())
     }
 }
-

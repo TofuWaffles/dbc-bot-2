@@ -1,8 +1,5 @@
-
-
-
 #[derive(Debug)]
-pub enum CommonError{
+pub enum CommonError {
     NoSelection,
     NotInAGuild,
     RoleNotExists(String),
@@ -40,7 +37,7 @@ impl std::fmt::Display for CommonError {
 impl std::error::Error for CommonError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use CommonError::*;
-        match self{
+        match self {
             NoSelection => Some(self),
             NotInAGuild => Some(self),
             RoleNotExists(_) => Some(self),

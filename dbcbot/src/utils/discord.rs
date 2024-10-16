@@ -1,3 +1,4 @@
+use crate::utils::error::CommonError::*;
 use crate::{
     database::{self, models::Selectable},
     BotContext, BotError,
@@ -6,11 +7,13 @@ use anyhow::anyhow;
 use futures::StreamExt;
 use poise::{
     serenity_prelude::{
-        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector, ComponentInteractionDataKind::{ChannelSelect, RoleSelect}, CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind, CreateSelectMenuOption, GuildChannel, GuildId, PartialGuild, Role, RoleId, User, UserId
+        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector,
+        ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
+        CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind,
+        CreateSelectMenuOption, GuildChannel, GuildId, PartialGuild, Role, RoleId, User, UserId,
     },
     CreateReply, ReplyHandle,
 };
-use crate::utils::error::CommonError::*;
 
 pub trait DiscordTrait {
     async fn to_user(ctx: &BotContext<'_>, id: &str) -> Result<User, BotError> {
@@ -19,9 +22,7 @@ pub trait DiscordTrait {
 
     async fn to_role(ctx: &BotContext<'_>, id: &str) -> Result<Role, BotError> {
         let roldid = RoleId::new(id.parse()?);
-        let guild = ctx
-            .guild()
-            .ok_or(NotInAGuild)?;
+        let guild = ctx.guild().ok_or(NotInAGuild)?;
         let role = guild.roles.get(&roldid).ok_or(anyhow!("Role not found"))?;
         Ok(role.clone())
     }
@@ -38,7 +39,7 @@ pub trait DiscordTrait {
         GuildId::new(id.parse()?)
             .to_partial_guild(ctx.http())
             .await
-            .map_err(|_|GuildNotExists(id.to_string()).into())
+            .map_err(|_| GuildNotExists(id.to_string()).into())
     }
 }
 
@@ -81,8 +82,7 @@ pub async fn select_channel(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     embed: CreateEmbed,
-) -> Result<Channel, BotError>
-{
+) -> Result<Channel, BotError> {
     let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
         "channel",
         CreateSelectMenuKind::Channel {
@@ -106,9 +106,8 @@ pub async fn select_channel(
 pub async fn select_role(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    embed: CreateEmbed
-) -> Result<Role, BotError>
-{
+    embed: CreateEmbed,
+) -> Result<Role, BotError> {
     let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
         "role",
         CreateSelectMenuKind::Role {
@@ -199,11 +198,9 @@ pub async fn modal<T: poise::modal::Modal>(
         .filter(move |mci| mci.data.custom_id == "open_modal")
         .await
     {
-        let response = poise::execute_modal_on_component_interaction::<T>(
-            ctx, mci, None, None,
-        )
-        .await?
-        .ok_or(NoSelection)?;
+        let response = poise::execute_modal_on_component_interaction::<T>(ctx, mci, None, None)
+            .await?
+            .ok_or(NoSelection)?;
         return Ok(response);
     }
     Err(NoSelection.into())

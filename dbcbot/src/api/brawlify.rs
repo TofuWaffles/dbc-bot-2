@@ -253,7 +253,7 @@ impl From<FullGameMode> for GameMode {
     }
 }
 
-impl From<FullGameMode> for Mode{
+impl From<FullGameMode> for Mode {
     fn from(value: FullGameMode) -> Self {
         match value.name.as_str() {
             "Bounty" => Mode::bounty,

@@ -25,7 +25,6 @@ pub struct ManagerRoleConfig {
 
 impl DiscordTrait for ManagerRoleConfig {}
 impl ManagerRoleConfig {
-
     pub async fn to_manager(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
         Self::to_role(ctx, &self.manager_role_id).await
     }
@@ -121,22 +120,22 @@ impl Tournament {
         self.status == TournamentStatus::Pending
     }
 
-    pub async fn count_players_in_current_round(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
-        ctx
-            .data()
+    pub async fn count_players_in_current_round(
+        &self,
+        ctx: &BotContext<'_>,
+    ) -> Result<i64, BotError> {
+        ctx.data()
             .database
             .participants(self.tournament_id, self.rounds)
             .await
     }
 
     pub async fn count_finished_matches(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
-        ctx
-            .data()
+        ctx.data()
             .database
             .count_finished_matches(self.tournament_id, self.rounds)
             .await
     }
-
 }
 
 impl Selectable for Tournament {
@@ -173,7 +172,10 @@ impl Player {
     }
 
     pub fn icon(&self) -> String {
-        format!("https://cdn.brawlify.com/profile-icon/regular/{}.png", self.icon)
+        format!(
+            "https://cdn.brawlify.com/profile-icon/regular/{}.png",
+            self.icon
+        )
     }
 }
 /// A relational object that links a Discord user to a tournament they've joined.
@@ -194,7 +196,7 @@ impl TournamentPlayer {
 /// A match within the database, associated with a particular tournament.
 ///
 /// Also known as a bracket to avoid conflicting with the Rust keyword.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Match {
     pub match_id: String,
     pub match_players: Vec<MatchPlayer>,
@@ -308,7 +310,7 @@ impl Match {
         }
     }
 
-    pub fn is_valid(&self) -> bool {
+    pub fn is_not_bye(&self) -> bool {
         self.match_players.len() == 2
     }
 }
