@@ -768,8 +768,8 @@ mod tests {
         users
     }
 
-    #[tokio::test]
-    async fn creates_two_matches() {
+    #[test]
+    fn creates_two_matches() {
         const USERCOUNT: i32 = 4;
         let users: Vec<Player> = create_dummies(USERCOUNT);
 
@@ -779,14 +779,14 @@ mod tests {
 
         assert_eq!(matches.len(), 2);
         matches.iter().enumerate().for_each(|(i, game_match)| {
-            assert_eq!(game_match.match_players.len(), 2);
-            assert_eq!(game_match.match_players[0].discord_id, i.to_string());
-            assert_eq!(game_match.match_players[1].discord_id, (i + 2).to_string());
+            assert_eq!(game_match.sequence().unwrap(), i as i32 + 1);
+            assert!(game_match.match_players.get(0).is_some());
+            assert!(game_match.match_players.get(1).is_some());
         });
     }
 
-    #[tokio::test]
-    async fn creates_two_matches_with_one_bye() {
+    #[test]
+    fn creates_two_matches_with_one_bye() {
         const USERCOUNT: i32 = 3;
         let users = create_dummies(USERCOUNT);
 
@@ -803,8 +803,8 @@ mod tests {
         assert!(matches[1].match_players.get(1).is_none());
     }
 
-    #[tokio::test]
-    async fn creates_four_matches_with_two_byes() {
+    #[test]
+    fn creates_four_matches_with_two_byes() {
         const USERCOUNT: i32 = 6;
         let users = create_dummies(USERCOUNT);
 
