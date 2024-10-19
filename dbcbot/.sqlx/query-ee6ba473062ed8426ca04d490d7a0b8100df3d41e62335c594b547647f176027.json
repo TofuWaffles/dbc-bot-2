@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT tp.tournament_id\n            FROM tournament_players AS tp\n            JOIN tournaments AS t\n            ON tp.tournament_id = t.tournament_id\n            WHERE tp.discord_id = $1 AND t.status != 'inactive'\n            LIMIT 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ee6ba473062ed8426ca04d490d7a0b8100df3d41e62335c594b547647f176027"
+}
