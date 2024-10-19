@@ -138,11 +138,11 @@ pub struct Icon {
 //official_brawl_stars
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-struct MapEvent{
-  id: i32,
-  map: String,
+pub struct MapEvent{
+  pub id: i32,
+  pub map: String,
   #[serde(default)]
-  mode: Mode
+  pub mode: Mode
 }
 
 impl MapEvent{
