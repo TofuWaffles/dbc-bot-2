@@ -321,22 +321,21 @@ async fn user_display_match(
                     ("Tournament", tournament.name.clone(), true),
                     ("Match ID", current_match.match_id.to_owned(), true),
                     ("Round", current_match.round()?.to_string(), true),
+                    ("Game Mode", format!("{}", tournament.mode), true),
+                    ("Map", tournament.map.name, true),
                     (
                         "Player 1",
-                        format!(
-                            "<@{}>",
-                            current_match
-                                .match_players
-                                .first()
-                                .ok_or(anyhow!(
-                                    "Error displaying player 1 for match {}: no player found",
-                                    current_match.match_id
-                                ))?
-                                .to_user(ctx)
-                                .await?
-                                .mention()
-                        )
-                        .to_string(),
+                        current_match
+                            .match_players
+                            .first()
+                            .ok_or(anyhow!(
+                                "Error displaying player 1 for match {}: no player found",
+                                current_match.match_id
+                            ))?
+                            .to_user(ctx)
+                            .await?
+                            .mention()
+                            .to_string(),
                         false,
                     ),
                     (

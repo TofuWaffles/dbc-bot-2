@@ -80,11 +80,11 @@ async fn create_tournament_slash(
     #[description = "Role for the tournament"] role: serenity::Role,
     #[description = "Announcement channel for the tournament"] announcement: serenity::Channel,
     #[description = "Notification channel for the tournament"] notification: serenity::Channel,
-    #[description = "Number of wins required to win a match. Default: 3"] wins_required: Option<
+    #[description = "Number of wins required to win a match. Default: 2"] wins_required: Option<
         i32,
     >,
 ) -> Result<(), BotError> {
-    let wins_required = wins_required.unwrap_or(3).max(1);
+    let wins_required = wins_required.unwrap_or(2).max(1);
     let msg = ctx
         .send(
             CreateReply::default()
