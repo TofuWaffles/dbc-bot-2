@@ -135,6 +135,31 @@ pub struct Icon {
     pub id: i32,
 }
 
+//official_brawl_stars
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct MapEvent{
+  id: i32,
+  map: String,
+  #[serde(default)]
+  mode: Mode
+}
+
+impl MapEvent{
+  fn into(self, battle_id: i64)->database::models::Event{
+    database::models::Event{
+      id: 0, 
+      map: database::models::BrawlMap{
+        id: self.id,
+        name: self.map,
+        disabled: false
+      },
+      mode: self.mode,
+      battle_id
+    } 
+  }
+}
+
 #[derive(Default, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Club {
@@ -166,19 +191,19 @@ impl From<BattleLog> for database::models::BattleRecord {
 #[serde(rename_all = "camelCase")]
 pub struct BattleLogItem {
     pub battle_time: String,
-    pub event: database::models::Event,
+    pub event: MapEvent,
     pub battle: Battle,
 }
 
 impl From<BattleLogItem> for database::models::Battle {
     fn from(value: BattleLogItem) -> Self {
+        let id = BattleDateTime::from_str(&value.battle_time) .map_or_else(|_| 0, |f| f.datetime);
         Self {
             id: 0,
             record_id: 0,
-            battle_time: BattleDateTime::from_str(&value.battle_time)
-                .map_or_else(|_| 0, |f| f.datetime),
+            battle_time: id,
             battle_class: value.battle.into(),
-            event: value.event.clone(),
+            event: value.event.into(id)
         }
     }
 }
