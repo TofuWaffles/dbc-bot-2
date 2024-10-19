@@ -450,7 +450,7 @@ async fn disqualify_slash(
     context_menu_command = "Disqualify current round"
 )]
 async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), BotError> {
-    let tournament_id = match ctx.data().database.get_tournament_id(&player.id).await? {
+    let tournament_id = match ctx.data().database.get_tournament_id_by_player(&player.id).await? {
         Some(t) => t,
         None => {
             ctx.send(
@@ -656,7 +656,7 @@ async fn next_round_helper(
 
     ctx.data()
         .database
-        .next_round(tournament.tournament_id)
+        .set_current_round(tournament.tournament_id, tournament.current_round + 1)
         .await?;
     if ctx
         .confirmation(

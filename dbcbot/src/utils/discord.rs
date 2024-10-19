@@ -182,7 +182,7 @@ pub async fn modal<T: poise::modal::Modal>(
     let builder = {
         let components = vec![serenity::CreateActionRow::Buttons(vec![
             serenity::CreateButton::new("open_modal")
-                .label("Open modal")
+                .label("Continue")
                 .style(poise::serenity_prelude::ButtonStyle::Success),
         ])];
 

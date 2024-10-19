@@ -120,6 +120,16 @@ pub struct PlayerProfile {
     pub highest_trophies: i32,
     pub brawlers: Vec<Brawler>,
 }
+
+impl PlayerProfile {
+    pub fn icon(&self) -> String {
+        format!(
+            "https://cdn.brawlify.com/profile-icon/regular/{}.png",
+            self.icon.id
+        )
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Icon {
     pub id: i32,

@@ -185,7 +185,10 @@ impl ConfigDatabase for PgDatabase {
 }
 pub trait UserDatabase {
     type Error;
-    async fn get_tournament_id(&self, discord_id: &UserId) -> Result<Option<i32>, Self::Error>;
+    async fn get_tournament_id_by_player(
+        &self,
+        discord_id: &UserId,
+    ) -> Result<Option<i32>, Self::Error>;
 
     /// Adds a user to the database.
     async fn create_user(&self, user: &Player) -> Result<(), Self::Error>;
@@ -204,9 +207,6 @@ pub trait UserDatabase {
         &self,
         player_tag: &str,
     ) -> Result<Option<Player>, Self::Error>;
-
-    /// Retrieves a user from the database with a given player.
-    async fn get_user_by_player(&self, player: Player) -> Result<Option<Player>, Self::Error>;
 
     /// Retrieves a user from the database with a given discord id.
     async fn get_user_by_discord_id(
@@ -265,7 +265,8 @@ impl UserDatabase for PgDatabase {
         sqlx::query!(
             r#"
             UPDATE users
-            SET deleted = true
+            SET deleted = true,
+                player_tag = ''
             WHERE discord_id = $1
             "#,
             discord_id.to_string()
@@ -289,24 +290,6 @@ impl UserDatabase for PgDatabase {
             LIMIT 1
             "#,
             discord_id.to_string()
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(user)
-    }
-
-    async fn get_user_by_player(&self, player: Player) -> Result<Option<Player>, Self::Error> {
-        let user = sqlx::query_as!(
-            Player,
-            r#"
-            SELECT *
-            FROM users 
-            WHERE discord_id = $1 
-                AND player_tag = $2
-            LIMIT 1
-            "#,
-            player.discord_id,
-            player.player_tag
         )
         .fetch_optional(&self.pool)
         .await?;
@@ -390,12 +373,17 @@ impl UserDatabase for PgDatabase {
         Ok(())
     }
 
-    async fn get_tournament_id(&self, discord_id: &UserId) -> Result<Option<i32>, Self::Error> {
+    async fn get_tournament_id_by_player(
+        &self,
+        discord_id: &UserId,
+    ) -> Result<Option<i32>, Self::Error> {
         let tournament_id = sqlx::query!(
             r#"
-            SELECT tournament_id
-            FROM tournament_players
-            WHERE discord_id = $1
+            SELECT tp.tournament_id
+            FROM tournament_players AS tp
+            JOIN tournaments AS t
+            ON tp.tournament_id = t.tournament_id
+            WHERE tp.discord_id = $1 AND t.status != 'inactive'
             LIMIT 1
             "#,
             discord_id.to_string()
@@ -409,7 +397,7 @@ impl UserDatabase for PgDatabase {
 
     async fn get_current_match(&self, discord_id: &UserId) -> Result<Option<Match>, Self::Error> {
         let tournament_id = self
-            .get_tournament_id(discord_id)
+            .get_tournament_id_by_player(discord_id)
             .await?
             .ok_or_else(|| anyhow!("No tournament found for player"))?;
         let current_round = self.current_round(tournament_id).await?;
@@ -435,7 +423,7 @@ impl UserDatabase for PgDatabase {
             LIMIT 1
             "#,
             discord_id.to_string(),
-            format!("%.{}.%", current_round)
+            format!("{}.{}.%", tournament_id, current_round)
         )
         .fetch_optional(&self.pool)
         .await?
@@ -615,11 +603,11 @@ pub trait TournamentDatabase {
     /// when the number of contestants are known.
     async fn set_rounds(&self, tournament_id: i32, rounds: i32) -> Result<(), Self::Error>;
 
-    /// Increments the current round of a tournament by 1.
+    /// Updates the current round of the tournament
     ///
     /// The caller is responsible to check if calls to this method will make a tournament's current
     /// round exceed its total number of rounds.
-    async fn next_round(&self, tournament_id: i32) -> Result<(), Self::Error>;
+    async fn set_current_round(&self, tournament_id: i32, round: i32) -> Result<(), Self::Error>;
 
     ///Pauses a tournament
     async fn pause(&self, tournament_id: i32) -> Result<(), Self::Error>;
@@ -1082,14 +1070,15 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         Ok(())
     }
 
-    async fn next_round(&self, tournament_id: i32) -> Result<(), Self::Error> {
+    async fn set_current_round(&self, tournament_id: i32, round: i32) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
                 UPDATE tournaments
-                SET current_round = current_round + 1
-                WHERE tournament_id = $1
+                SET current_round = $1
+                WHERE tournament_id = $2
                 "#,
-            tournament_id
+            round,
+            tournament_id,
         )
         .execute(&self.pool)
         .await?;

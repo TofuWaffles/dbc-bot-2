@@ -2,8 +2,9 @@
 CREATE TYPE player_type AS ENUM ('player', 'dummy', 'pending');
 
 CREATE TABLE IF NOT EXISTS match_players (
-    match_id VARCHAR(255) PRIMARY KEY,
+    match_id VARCHAR(255),
     discord_id VARCHAR(255) REFERENCES users(discord_id) NOT NULL,
     player_type player_type NOT NULL,
-    ready BOOLEAN NOT NULL
+    ready BOOLEAN NOT NULL,
+    PRIMARY KEY (match_id, discord_id)
 );

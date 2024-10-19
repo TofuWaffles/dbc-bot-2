@@ -251,13 +251,12 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         msg.edit(*self, reply).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
+            interactions.defer(self.http()).await?;
             match interactions.data.custom_id.as_str() {
                 "confirm" => {
-                    interactions.defer(self.http()).await?;
                     return Ok(true);
                 }
                 "cancel" => {
-                    interactions.defer(self.http()).await?;
                     return Ok(false);
                 }
                 _ => {

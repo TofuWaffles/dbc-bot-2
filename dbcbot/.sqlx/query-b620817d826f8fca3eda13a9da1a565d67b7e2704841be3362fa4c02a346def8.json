@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE users\n            SET deleted = true,\n                player_tag = ''\n            WHERE discord_id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b620817d826f8fca3eda13a9da1a565d67b7e2704841be3362fa4c02a346def8"
+}

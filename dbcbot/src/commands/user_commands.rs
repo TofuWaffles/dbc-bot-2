@@ -61,21 +61,22 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         .await?;
     let interaction_collector = ctx.create_interaction_collector(&msg).await?;
 
-    return match user {
-        Some(_) => user_display_menu(&ctx, &msg).await,
-        None => {
-            ctx.prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("Registration Page Menu")
-                    .description("Loading registration page...")
-                    .color(Color::BLUE),
-                None,
-            )
-            .await?;
-            user_display_registration(&ctx, &msg, interaction_collector).await
+    if let Some(user) = user {
+        if !user.deleted {
+            return user_display_menu(&ctx, &msg).await;
         }
-    };
+    }
+
+    ctx.prompt(
+        &msg,
+        CreateEmbed::new()
+            .title("Registration Page Menu")
+            .description("Loading registration page...")
+            .color(Color::BLUE),
+        None,
+    )
+    .await?;
+    return user_display_registration(&ctx, &msg, interaction_collector).await;
 }
 
 /// Display the main menu to the registered user.
@@ -655,7 +656,9 @@ async fn user_display_registration(
     }
 
     if let Some(interaction) = interaction_collector.next().await {
-        interaction.defer(ctx.http()).await?;
+        interaction
+            .create_response(ctx, CreateInteractionResponse::Acknowledge)
+            .await?;
         match interaction.data.custom_id.as_str() {
             "player_profile_registration" => {
                 let embed = CreateEmbed::new()
@@ -721,10 +724,7 @@ async fn user_display_registration(
                 CreateEmbed::new()
                     .title(format!("**{} ({})**", player.name, player.tag))
                     .description("**Please confirm that this is your profile**")
-                    .thumbnail(format!(
-                        "https://cdn-old.brawlify.com/profile/{}.png",
-                        player.icon.id
-                    ))
+                    .thumbnail(player.icon())
                     .fields(vec![
                         ("Trophies", player.trophies.to_string(), true),
                         (
@@ -817,11 +817,11 @@ async fn user_display_registration(
 }
 
 async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-    let user = match ctx
+    let player = match ctx
         .get_player_from_discord_id(ctx.author().id.to_string())
         .await?
     {
-        Some(player) => ctx.data().database.get_user_by_player(player).await?,
+        Some(player) => player,
         None => {
             ctx.prompt(
                 msg,
@@ -838,27 +838,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
             return Ok(());
         }
     };
-    let user = match user {
-        None => {
-            ctx.prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Profile Not Found")
-                    .description("You have not registered your profile yet. Please run the /menu command to register your profile."),
-                None
-                ).await?;
-            ctx.log(
-                "Player not found in the database!",
-                "User who runs this command does not own any profile!",
-                log::State::FAILURE,
-                log::Model::PLAYER,
-            )
-            .await?;
-            return Ok(());
-        }
-        Some(user) => user,
-    };
-    display_user_profile_helper(ctx, msg, user).await?;
+    display_user_profile_helper(ctx, msg, player).await?;
     Ok(())
 }
 
@@ -881,30 +861,17 @@ async fn display_user_profile_helper(
     let image = image_api
         .profile_image(&user, tournament_id.to_string())
         .await?;
-    let current_match = ctx
-        .data()
-        .database
-        .get_current_match(user.user(ctx).await?.id.as_ref())
-        .await?;
-    let (round, seq) = match current_match {
-        Some(cm) => (cm.round()?.to_string(), cm.sequence()?.to_string()),
-        None => ("None".to_string(), "None".to_string()),
-    };
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
             .author(ctx.get_author_img(&log::Model::PLAYER))
             .description("Here is some of your data")
             .color(Color::DARK_GOLD)
-            .fields(vec![
-                (
-                    "Tournament",
-                    tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
-                    true,
-                ),
-                ("Round", round, true),
-                ("Match", seq, true),
-            ]);
+            .fields(vec![(
+                "Tournament",
+                tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
+                true,
+            )]);
         CreateReply::default()
             .reply(true)
             .embed(embed)

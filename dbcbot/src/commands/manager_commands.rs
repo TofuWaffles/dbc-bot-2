@@ -367,6 +367,10 @@ async fn start_tournament(
     let matches_count = matches.len();
 
     for bracket in matches {
+        ctx.data()
+            .database
+            .create_match(tournament_id, bracket.round()?, bracket.sequence()?)
+            .await?;
         for player in bracket.match_players {
             let player = player.to_user(&ctx).await?;
             ctx.data()
@@ -376,6 +380,10 @@ async fn start_tournament(
         }
     }
 
+    ctx.data()
+        .database
+        .set_current_round(tournament_id, 1)
+        .await?;
     ctx.data()
         .database
         .set_tournament_status(tournament_id, TournamentStatus::Started)
