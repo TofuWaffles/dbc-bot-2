@@ -438,7 +438,9 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 }
                 "any" => {
                     interactions.defer(self.http()).await?;
-                    return Ok(BrawlMap::default());
+                    let selected = BrawlMap::default();
+                    println!("Selected: {:?}", selected);
+                    return Ok(selected);
                 }
                 "next" => {
                     page_number = (page_number + 1).min(filtered_maps.len() - 1);
@@ -472,7 +474,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .description(format!(
                     "Description: **{}**\nAvailability: **{}**",
                     mode.description,
-                    ["Yes", "No"][!(mode.disabled) as usize]
+                    ["Yes", "No"][(mode.disabled) as usize]
                 ))
                 .thumbnail(mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
@@ -483,7 +485,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 CreateButton::new(select.clone())
                     .label("Select")
                     .style(ButtonStyle::Primary)
-                    .disabled(!mode.disabled),
+                    .disabled(mode.disabled),
                 CreateButton::new(next.clone())
                     .label("➡️")
                     .style(ButtonStyle::Primary),

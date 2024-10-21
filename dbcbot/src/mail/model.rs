@@ -76,6 +76,6 @@ impl Selectable for Mail {
     }
 
     fn label(&self) -> String {
-        self.subject.clone()
+        format!("{} - {}",self.subject.clone(),self.sender.clone())
     }
 }

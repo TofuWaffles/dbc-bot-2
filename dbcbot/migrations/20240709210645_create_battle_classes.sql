@@ -1,11 +1,11 @@
 -- Add migration script here
 
 CREATE TYPE battle_type AS ENUM (
-    'friendly', 'ranked'
+    'friendly', 'ranked', 'unknown'
 );
 
 CREATE TYPE result AS ENUM (
-    'victory', 'defeat', 'draw'
+    'victory', 'defeat', 'draw', 'unknown'
 );
 CREATE TABLE IF NOT EXISTS battle_classes (
     id BIGSERIAL PRIMARY KEY,

@@ -1,5 +1,4 @@
-use std::i64;
-
+use crate::api::official_brawl_stars::MapEvent;
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::commands::checks::is_tournament_paused;
 use crate::database::models::Tournament;
@@ -142,14 +141,15 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             CreateButton::new("menu_match")
                 .label("View Match")
                 .style(ButtonStyle::Primary),
-            CreateButton::new("leave_tournament")
-                .label("Leave Tournament")
-                .style(ButtonStyle::Danger),
             CreateButton::new("profile")
                 .label("Profile")
                 .style(ButtonStyle::Primary),
             CreateButton::new("submit")
                 .label("Submit")
+                .style(ButtonStyle::Primary),
+            CreateButton::new("mail")
+                .label("Mail")
+                .emoji(ReactionType::Unicode("📧".to_string()))
                 .style(ButtonStyle::Primary),
         ];
         ctx.prompt(msg, embed, buttons).await?;
@@ -304,8 +304,9 @@ async fn user_display_match(
         .get_player_from_discord_id(None)
         .await?
         .ok_or(anyhow!("Player 1 is not found in the database"))?;
+    let opp = current_match.get_opponent(&ctx.author().id.to_string())?;
     let p2 = ctx
-        .get_player_from_discord_id(player.discord_id.clone())
+        .get_player_from_discord_id(opp.discord_id.clone())
         .await?
         .ok_or(anyhow!("Player 2 is not found in the database"))?;
 
@@ -410,14 +411,14 @@ async fn user_display_match(
 
                 let notification_message = if opponent.ready {
                     format!(
-                        r#"@{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                        r#"{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
                         player.mention(),
                         opponent_user.mention()
                     )
                 } else {
                     format!(
-                        r#"{}.\n\nYour opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
-                        opponent.discord_id,
+                        r#"Hey {}, your opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
+                        opponent.to_user(ctx).await?.mention(),
                         player.mention()
                     )
                 };
@@ -1062,8 +1063,7 @@ async fn submit(
         let filtered_logs = logs
             .iter()
             .filter(|log| {
-                (log.unix() > game_match.start.unwrap_or(i64::MIN)
-                    || log.unix() < game_match.end.unwrap_or(i64::MAX))
+                tournament.map.eq(&(log.event.clone().into(0).map))
                     && (log.battle.mode.eq(&tournament.mode) || log.event.mode.eq(&tournament.mode))
                     && log
                         .battle
@@ -1072,8 +1072,8 @@ async fn submit(
                         .eq(&BattleType::friendly.to_string().to_lowercase())
                     && {
                         let mut log_tags = vec![
-                            log.battle.teams[0][0].tag.clone(),
-                            log.battle.teams[1][0].tag.clone(),
+                            format!("{}", &log.battle.teams[0][0].tag),
+                            format!("{}", &log.battle.teams[1][0].tag),
                         ];
                         log_tags.sort();
                         tags.iter()
@@ -1251,11 +1251,6 @@ async fn submit(
             .ok_or(anyhow!("Player not found in the database"))?
         }
     };
-    // Final round. Announce the winner and finish the tournament
-    if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, &target).await?;
-        return Ok(());
-    }
 
     let (adv, elim) = (
         &target,
@@ -1277,6 +1272,11 @@ async fn submit(
             .result_image(adv, &elim, &score),
         target.user(ctx)
     );
+    // Final round. Announce the winner and finish the tournament
+    if bracket.round()? == tournament.rounds {
+        finish_tournament(ctx, bracket, &image?, &target).await?;
+        return Ok(());
+    }
 
     let embed = CreateEmbed::new()
         .title("Match submission!")
@@ -1325,6 +1325,7 @@ async fn submit(
 async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
+    image: &[u8],
     winner: &Player,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
@@ -1343,14 +1344,22 @@ async fn finish_tournament(
         .await?
         .ok_or(TournamentNotExists(tournament_id.to_string()))?;
 
-    ChannelId::new(announcement_channel_id.parse::<u64>()?)
-        .send_message(
-            ctx,
-            CreateMessage::default().content(format!(
+    let reply = {
+        let embed = CreateEmbed::new()
+            .title("Tournament Finished!")
+            .description(format!(
                 "Congratulations to <@{}> for winning Tournament {}",
                 winner.discord_id, tournament.name
-            )),
-        )
+            ))
+            .thumbnail(winner.icon())
+            .color(Color::DARK_GREEN);
+        CreateMessage::default()
+            .embed(embed)
+            .add_file(CreateAttachment::bytes(image, "result.png"))
+    };
+
+    ChannelId::new(announcement_channel_id.parse::<u64>()?)
+        .send_message(ctx, reply)
         .await?;
 
     ctx.data()

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO battles (id, record_id, battle_time)\n            VALUES ($1, $2, $3)\n            RETURNING id\n            ",
+  "query": "\n            INSERT INTO battles (record_id, battle_time)\n            VALUES ($1, $2)\n            RETURNING id\n            ",
   "describe": {
     "columns": [
       {
@@ -12,7 +12,6 @@
     "parameters": {
       "Left": [
         "Int8",
-        "Int8",
         "Int8"
       ]
     },
@@ -20,5 +19,5 @@
       false
     ]
   },
-  "hash": "d127e5d0cd0f833f631975417978cc0005664c9ae8ec2b900c674dfd5adec379"
+  "hash": "4a0be1e31f3c9ba13af2512178442850cfb6c8de6d484bd19c3955ab9095e47e"
 }

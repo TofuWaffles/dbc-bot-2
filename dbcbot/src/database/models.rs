@@ -441,7 +441,7 @@ pub struct Event {
     pub battle_id: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, Clone)]
 pub struct BrawlMap {
     #[serde(default)]
     pub id: i32,
@@ -458,6 +458,19 @@ impl Default for BrawlMap {
             name: "Any".to_string(),
             disabled: false,
         }
+    }
+}
+
+impl PartialEq for BrawlMap{
+    fn eq(&self, other: &Self) -> bool {
+        match self.id{
+            0 => true,
+            _ => self.id == other.id
+        }
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
     }
 }
 
@@ -617,7 +630,7 @@ impl Mode {
 #[derive(
     Debug, Default, sqlx::Type, Serialize, Deserialize, PartialEq, Eq, Clone, Copy, Display,
 )]
-#[sqlx(type_name = "type", rename_all = "camelCase")]
+#[sqlx(type_name = "battle_type", rename_all = "camelCase")]
 pub enum BattleType {
     #[strum(to_string = "Ranked")]
     ranked,
@@ -625,6 +638,7 @@ pub enum BattleType {
     friendly,
     #[strum(to_string = "Unknown")]
     #[default]
+    #[serde(other)]
     unknown,
 }
 #[allow(non_camel_case_types)]
@@ -641,5 +655,6 @@ pub enum BattleResult {
     draw,
     #[strum(to_string = "Unknown")]
     #[default]
+    #[serde(other)]
     unknown,
 }

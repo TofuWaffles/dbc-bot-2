@@ -1,5 +1,5 @@
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
     database::{
@@ -106,6 +106,7 @@ impl BrawlStarsAPI {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
+    #[serde(deserialize_with = "deserialize_tag")]
     pub tag: String,
     pub name: String,
     pub club: Option<Club>,
@@ -146,7 +147,7 @@ pub struct MapEvent{
 }
 
 impl MapEvent{
-  fn into(self, battle_id: i64)->database::models::Event{
+  pub fn into(self, battle_id: i64)->database::models::Event{
     database::models::Event{
       id: 0, 
       map: database::models::BrawlMap{
@@ -252,11 +253,25 @@ impl From<Battle> for database::models::BattleClass {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TeamPlayer {
+    #[serde(deserialize_with = "deserialize_tag")]
     pub tag: String,
     pub name: String,
     pub brawler: Brawler,
 }
 
+fn deserialize_tag<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let tag = String::deserialize(deserializer)?;
+    
+    // Strip the leading '#' if present
+    if let Some(stripped) = tag.trim().strip_prefix('#') {
+        Ok(stripped.to_string())
+    } else {
+        Ok(tag)
+    }
+}
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BrawlerList {

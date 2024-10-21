@@ -1504,13 +1504,12 @@ impl BattleDatabase for PgDatabase {
     async fn add_battle(&self, battle: &Battle, record_id: i64) -> Result<i64, Self::Error> {
         let query = sqlx::query!(
             r#"
-            INSERT INTO battles (id, record_id, battle_time)
-            VALUES ($1, $2, $3)
+            INSERT INTO battles (record_id, battle_time)
+            VALUES ($1, $2)
             RETURNING id
             "#,
-            battle.battle_time,
             record_id,
-            battle.battle_time,
+            battle.battle_time
         )
         .fetch_one(&self.pool)
         .await?;
