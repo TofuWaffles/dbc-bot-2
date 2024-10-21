@@ -416,7 +416,11 @@ async fn user_display_match(
                     )
                 } else {
                     format!(
-                        r#"{}.\n\nYour opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!"#,
+                        r#"
+                        <@{}>.
+
+                        Your opponent {} is ready for battle. Let us know when you're ready by clicking the ready button in the menu (type /menu to open the menu). See you on the battlefield!
+                        "#,
                         opponent.discord_id,
                         player.mention()
                     )
