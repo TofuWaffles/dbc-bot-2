@@ -324,6 +324,7 @@ async fn user_display_match(
                     ("Round", current_match.round()?.to_string(), true),
                     ("Game Mode", format!("{}", tournament.mode), true),
                     ("Map", tournament.map.name, true),
+                    ("Wins required", tournament.wins_required.to_string(), true),
                     (
                         "Player 1",
                         current_match
