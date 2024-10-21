@@ -217,6 +217,7 @@ impl BattleLogItem {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Battle {
+    #[serde(default)]
     pub mode: Mode,
     #[serde(rename = "type")]
     pub battle_type: String,

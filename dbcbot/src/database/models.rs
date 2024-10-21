@@ -82,6 +82,7 @@ pub struct Tournament {
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
     pub tournament_role_id: String,
+    #[serde(default)]
     pub mode: Mode,
     pub map: BrawlMap,
     pub wins_required: i32,
@@ -415,6 +416,7 @@ pub struct BattleClass {
     pub id: i64,
     #[serde(default)]
     pub battle_id: i64,
+    #[serde(default)]
     pub mode: Mode,
     pub battle_type: BattleType,
     pub result: BattleResult,
@@ -544,6 +546,7 @@ pub enum Mode {
     knockOut5V5,
     #[name = "Unknown"]
     #[default]
+    #[serde(other)]
     #[strum(to_string = "Unknown")]
     unknown,
 }
