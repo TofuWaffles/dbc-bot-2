@@ -251,8 +251,7 @@ async fn user_display_match(
         // This is a bye round, so do nothing.
         ctx.prompt(msg,
             CreateEmbed::new().title("Match Information.")
-            .description(
-                "You have no opponents for the current round. See you in the next round, partner!",
+            .description( "You have no opponents for the current round. See you in the next round, partner!",
             )
             .fields(vec![
                 ("Tournament", &tournament.name, true),
