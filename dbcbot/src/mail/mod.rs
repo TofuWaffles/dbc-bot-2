@@ -14,6 +14,8 @@ use poise::serenity_prelude::{
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
+use crate::mail::model::MailType;
+
 pub trait MailDatabase {
     type Error;
     async fn store(&self, mail: Mail) -> Result<(), Self::Error>;
