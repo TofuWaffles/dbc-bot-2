@@ -360,12 +360,12 @@ impl UserDatabase for PgDatabase {
         sqlx::query!(
             r#"
             UPDATE matches
-            SET winner = $1
-            WHERE match_id = $2 AND score = $3
+            SET winner = $1, score = $2
+            WHERE match_id = $3
             "#,
             discord_id.to_string(),
+            score,
             match_id,
-            score
         )
         .execute(&self.pool)
         .await?;
