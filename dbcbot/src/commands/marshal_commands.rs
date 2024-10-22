@@ -420,7 +420,12 @@ async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(
 }
 
 /// Disqualify a player from a given tournament.
-#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "is_marshal_or_higher",
+    rename = "disqualify"
+)]
 async fn disqualify_slash(
     ctx: BotContext<'_>,
     tournament_id: i32,
@@ -450,7 +455,12 @@ async fn disqualify_slash(
     context_menu_command = "Disqualify current round"
 )]
 async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), BotError> {
-    let tournament_id = match ctx.data().database.get_tournament_id_by_player(&player.id).await? {
+    let tournament_id = match ctx
+        .data()
+        .database
+        .get_tournament_id_by_player(&player.id)
+        .await?
+    {
         Some(t) => t,
         None => {
             ctx.send(

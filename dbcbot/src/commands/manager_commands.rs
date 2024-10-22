@@ -49,7 +49,13 @@ impl CommandsContainer for ManagerCommands {
 /// - Notification Channel: The channel where the bot will send notifications to players about their
 /// progress and matches.
 /// - Log Channel: The channel where the bot will log all the actions it takes.
-#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_manager",
+    rename = "set_config"
+)]
 #[instrument]
 async fn set_config_slash(
     ctx: BotContext<'_>,
@@ -71,7 +77,13 @@ async fn set_config_slash(
 
 /// Create a new tournament.
 ///
-#[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_manager",
+    rename = "create_tournament"
+)]
 #[instrument]
 async fn create_tournament_slash(
     ctx: BotContext<'_>,
@@ -111,7 +123,8 @@ async fn create_tournament_slash(
     prefix_command,
     guild_only,
     check = "is_manager",
-    check = "is_config_set"
+    check = "is_config_set",
+    rename = "start_tournament",
 )]
 #[instrument]
 async fn start_tournament_slash(
