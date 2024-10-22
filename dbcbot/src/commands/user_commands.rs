@@ -402,7 +402,11 @@ async fn user_display_match(
 
                 let notification_message = if opponent.ready {
                     format!(
-                        r#"{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                        r#"
+                        {}-{}.
+
+                        Both players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!
+                        "#,
                         player.mention(),
                         opponent_user.mention()
                     )
