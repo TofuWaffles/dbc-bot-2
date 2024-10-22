@@ -124,7 +124,7 @@ async fn create_tournament_slash(
     guild_only,
     check = "is_manager",
     check = "is_config_set",
-    rename = "start_tournament",
+    rename = "start_tournament"
 )]
 #[instrument]
 async fn start_tournament_slash(

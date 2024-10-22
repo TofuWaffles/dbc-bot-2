@@ -1,11 +1,10 @@
-use crate::api::official_brawl_stars::MapEvent;
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::commands::checks::is_tournament_paused;
 use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
-use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{ConfigDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};
@@ -98,13 +97,13 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             CreateButton::new("profile")
                 .label("Profile")
                 .style(ButtonStyle::Primary),
-            CreateButton::new("deregister")
-                .label("Deregister")
-                .style(ButtonStyle::Danger),
             CreateButton::new("mail")
                 .label("Mail")
                 .emoji(ReactionType::Unicode("📧".to_string()))
                 .style(ButtonStyle::Primary),
+            CreateButton::new("deregister")
+                .label("Deregister")
+                .style(ButtonStyle::Danger),
         ];
         ctx.prompt(
             msg,
@@ -143,9 +142,6 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .style(ButtonStyle::Primary),
             CreateButton::new("profile")
                 .label("Profile")
-                .style(ButtonStyle::Primary),
-            CreateButton::new("submit")
-                .label("Submit")
                 .style(ButtonStyle::Primary),
             CreateButton::new("mail")
                 .label("Mail")
@@ -208,24 +204,6 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
                 return leave_tournament(ctx, msg).await;
-            }
-            "submit" => {
-                interaction.defer(ctx.http()).await?;
-                let game_match = ctx
-                    .data()
-                    .database
-                    .get_match_by_player(
-                        player_active_tournaments[0].tournament_id,
-                        &ctx.author().id,
-                    )
-                    .await?;
-                return submit(
-                    ctx,
-                    msg,
-                    &player_active_tournaments[0],
-                    &game_match.unwrap(),
-                )
-                .await;
             }
             "mail" => {
                 interaction.defer(ctx.http()).await?;
@@ -330,7 +308,7 @@ async fn user_display_match(
                     ("Match ID", current_match.match_id.to_owned(), true),
                     ("Round", current_match.round()?.to_string(), true),
                     ("Game Mode", format!("{}", tournament.mode), true),
-                    ("Map", tournament.map.name, true),
+                    ("Map", tournament.map.name.clone(), true),
                     ("Wins required", tournament.wins_required.to_string(), true),
                     (
                         "Player 1",
@@ -379,6 +357,11 @@ async fn user_display_match(
                         .style(ButtonStyle::Success),
                 );
             }
+            buttons.push(
+                CreateButton::new("submit")
+                    .label("Submit")
+                    .style(ButtonStyle::Primary),
+            );
             if current_match.winner(ctx).await?.is_none() {
                 buttons.push(
                     CreateButton::new("match_menu_forfeit")
@@ -419,7 +402,11 @@ async fn user_display_match(
 
                 let notification_message = if opponent.ready {
                     format!(
-                        r#"{}-{}.\n\nBoth players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!"#,
+                        r#"
+                        {}-{}.
+
+                        Both players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!
+                        "#,
                         player.mention(),
                         opponent_user.mention()
                     )
@@ -449,6 +436,10 @@ async fn user_display_match(
             "match_menu_forfeit" => {
                 interaction.defer(ctx.http()).await?;
                 user_forfeit(ctx, msg, current_match).await?;
+            }
+            "submit" => {
+                interaction.defer(ctx.http()).await?;
+                return submit(ctx, msg, &tournament, &current_match).await;
             }
             _ => {}
         }
@@ -764,7 +755,7 @@ async fn user_display_registration(
                     ctx.prompt(msg,
                             CreateEmbed::new()
                                 .title("Registration Success!")
-                                .description("Your profile has been successfully registered! Please run this command again to access Player menu!"),
+                                .description("Your profile has been successfully registered! Please run the /menu command again to access the Player menu and join a tournament!"),
                             None).await?;
                     ctx.log(
                         "Registration success!",
