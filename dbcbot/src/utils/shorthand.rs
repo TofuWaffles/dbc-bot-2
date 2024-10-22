@@ -237,12 +237,12 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     ) -> Result<bool, BotError> {
         let reply = {
             let buttons = CreateActionRow::Buttons(vec![
-                CreateButton::new("confirm")
-                    .label("Confirm")
-                    .style(ButtonStyle::Danger),
                 CreateButton::new("cancel")
                     .label("Cancel")
-                    .style(ButtonStyle::Primary),
+                    .style(ButtonStyle::Danger),
+                CreateButton::new("confirm")
+                    .label("Confirm")
+                    .style(ButtonStyle::Success),
             ]);
             CreateReply::default()
                 .embed(embed)
