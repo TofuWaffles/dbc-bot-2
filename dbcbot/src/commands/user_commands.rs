@@ -263,6 +263,22 @@ async fn user_display_match(
         return Ok(());
     }
 
+    if let Some(ref winner) = current_match.winner {
+        ctx.prompt(msg,
+            CreateEmbed::new().title("Match Information.")
+            .description(
+                format!("Congratulations to <@{}> for winning the current match! Hope to see you in the next round!", winner),
+            )
+            .fields(vec![
+                ("Tournament", &tournament.name, true),
+                ("Match ID", &current_match.match_id, true),
+                ("Round", &current_match.round()?.to_string(), true),
+            ])
+            , None).await?;
+
+        return Ok(());
+    }
+
     let player = current_match.get_player(&ctx.author().id.to_string())?;
     let discord_id = ctx.author().id;
     ctx.data().database.get_current_match(&discord_id).await?;
