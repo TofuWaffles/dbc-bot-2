@@ -567,7 +567,7 @@ Disqualified by: {disqualified_by}."#,
     Ok(())
 }
 
-/// List all currently active tournaments.
+/// Progress the tournament into the next round
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
@@ -578,7 +578,7 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
-    let _tournament = match ctx
+    let tournament = match ctx
         .data()
         .database
         .get_tournament(&guild_id, tournament_id)
@@ -598,9 +598,12 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
         }
     };
 
-    Ok(())
+    next_round_helper(&ctx, &msg, &tournament).await
 }
 
+/// Helper function to progress the tournament to the next round.
+///
+/// Will automatically fail if the tournament is on its final round or if it's no longer active.
 async fn next_round_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
