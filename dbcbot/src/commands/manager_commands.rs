@@ -12,7 +12,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use models::{Match, MatchPlayer, Player, PlayerType, TournamentStatus};
-use poise::serenity_prelude::{Channel, Role};
+use poise::serenity_prelude::{Channel, Role, UserId};
 use poise::Modal;
 use poise::{
     serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
@@ -384,6 +384,11 @@ async fn start_tournament(
             .database
             .create_match(tournament_id, bracket.round()?, bracket.sequence()?)
             .await?;
+        if bracket.match_players.len() == 1 {
+            ctx.data()
+                .database
+                .set_winner(&bracket.match_id, &UserId::new(bracket.match_players[0].discord_id.parse::<u64>()?), "bye");
+        }
         for player in bracket.match_players {
             let player = player.to_user(&ctx).await?;
             ctx.data()

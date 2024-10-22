@@ -248,25 +248,7 @@ async fn user_display_match(
     };
 
     if !current_match.is_not_bye() {
-        // Automatically advance the player to the next round if the opponent is a dummy
-        // (a bye round)
-        ctx.data()
-            .database
-            .set_winner(
-                &current_match.match_id,
-                &current_match
-                    .match_players
-                    .first()
-                    .ok_or(anyhow!(
-                        "Error displaying a bye round to user: No player found in match {}",
-                        &current_match.match_id
-                    ))?
-                    .to_user(ctx)
-                    .await?
-                    .id,
-                "bye",
-            )
-            .await?;
+        // This is a bye round, so do nothing.
         ctx.prompt(msg,
             CreateEmbed::new().title("Match Information.")
             .description(
