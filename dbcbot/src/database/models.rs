@@ -461,11 +461,11 @@ impl Default for BrawlMap {
     }
 }
 
-impl PartialEq for BrawlMap{
+impl PartialEq for BrawlMap {
     fn eq(&self, other: &Self) -> bool {
-        match self.id{
+        match self.id {
             0 => true,
-            _ => self.id == other.id
+            _ => self.id == other.id,
         }
     }
 

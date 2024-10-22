@@ -4,7 +4,7 @@ use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
-use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{ConfigDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};

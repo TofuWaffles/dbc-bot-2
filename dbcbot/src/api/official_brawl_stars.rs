@@ -139,26 +139,26 @@ pub struct Icon {
 //official_brawl_stars
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct MapEvent{
-  pub id: i32,
-  pub map: String,
-  #[serde(default)]
-  pub mode: Mode
+pub struct MapEvent {
+    pub id: i32,
+    pub map: String,
+    #[serde(default)]
+    pub mode: Mode,
 }
 
-impl MapEvent{
-  pub fn into(self, battle_id: i64)->database::models::Event{
-    database::models::Event{
-      id: 0, 
-      map: database::models::BrawlMap{
-        id: self.id,
-        name: self.map,
-        disabled: false
-      },
-      mode: self.mode,
-      battle_id
-    } 
-  }
+impl MapEvent {
+    pub fn into(self, battle_id: i64) -> database::models::Event {
+        database::models::Event {
+            id: 0,
+            map: database::models::BrawlMap {
+                id: self.id,
+                name: self.map,
+                disabled: false,
+            },
+            mode: self.mode,
+            battle_id,
+        }
+    }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -198,13 +198,13 @@ pub struct BattleLogItem {
 
 impl From<BattleLogItem> for database::models::Battle {
     fn from(value: BattleLogItem) -> Self {
-        let id = BattleDateTime::from_str(&value.battle_time) .map_or_else(|_| 0, |f| f.datetime);
+        let id = BattleDateTime::from_str(&value.battle_time).map_or_else(|_| 0, |f| f.datetime);
         Self {
             id: 0,
             record_id: 0,
             battle_time: id,
             battle_class: value.battle.into(),
-            event: value.event.into(id)
+            event: value.event.into(id),
         }
     }
 }
@@ -264,7 +264,7 @@ where
     D: Deserializer<'de>,
 {
     let tag = String::deserialize(deserializer)?;
-    
+
     // Strip the leading '#' if present
     if let Some(stripped) = tag.trim().strip_prefix('#') {
         Ok(stripped.to_string())
