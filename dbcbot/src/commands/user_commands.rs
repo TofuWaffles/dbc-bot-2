@@ -1,4 +1,3 @@
-use crate::api::official_brawl_stars::MapEvent;
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::commands::checks::is_tournament_paused;
 use crate::database::models::Tournament;
@@ -98,13 +97,13 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             CreateButton::new("profile")
                 .label("Profile")
                 .style(ButtonStyle::Primary),
-            CreateButton::new("deregister")
-                .label("Deregister")
-                .style(ButtonStyle::Danger),
             CreateButton::new("mail")
                 .label("Mail")
                 .emoji(ReactionType::Unicode("📧".to_string()))
                 .style(ButtonStyle::Primary),
+            CreateButton::new("deregister")
+                .label("Deregister")
+                .style(ButtonStyle::Danger),
         ];
         ctx.prompt(
             msg,
@@ -764,7 +763,7 @@ async fn user_display_registration(
                     ctx.prompt(msg,
                             CreateEmbed::new()
                                 .title("Registration Success!")
-                                .description("Your profile has been successfully registered! Please run this command again to access Player menu!"),
+                                .description("Your profile has been successfully registered! Please run the /menu command again to access the Player menu and join a tournament!"),
                             None).await?;
                     ctx.log(
                         "Registration success!",
