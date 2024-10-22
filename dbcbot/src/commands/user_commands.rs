@@ -137,7 +137,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     false,
                 ),
             ]);
-        let buttons = vec![
+        let mut buttons = vec![
             CreateButton::new("menu_match")
                 .label("View Match")
                 .style(ButtonStyle::Primary),
@@ -152,6 +152,13 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .emoji(ReactionType::Unicode("📧".to_string()))
                 .style(ButtonStyle::Primary),
         ];
+        if player_active_tournaments[0].status == TournamentStatus::Pending {
+            buttons.push(
+                CreateButton::new("leave_tournament")
+                    .label("Leave Tournament")
+                    .style(ButtonStyle::Danger),
+            );
+        }
         ctx.prompt(msg, embed, buttons).await?;
     } else {
         return Err(anyhow!(
@@ -983,7 +990,7 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
     let selected_tournament = tournaments
         .iter()
         .find(|t| t.tournament_id == selected_tournament_id.parse::<i32>().unwrap())
-        .unwrap();
+        .ok_or(anyhow!("The tournament with id {} was not found in the list of the player's tournaments when player tried to leave.", selected_tournament_id))?;
     let description = format!(
         r#"Confirm that you want to leave the following tournament:
 Tournament name: {}"#,
