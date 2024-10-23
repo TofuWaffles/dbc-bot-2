@@ -68,7 +68,7 @@ where
         msg: &ReplyHandle<'_>,
     ) -> Result<Option<&M>, BotError> {
         match self {
-            Self::Ok(ref data) => Ok(Some(data)),
+            Self::Ok(data) => Ok(Some(data)),
             Self::NotFound => {
                 ctx.prompt(
                     msg,

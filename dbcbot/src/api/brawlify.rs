@@ -108,9 +108,15 @@ where
         items.sort();
         items
     }
+
+    pub fn pop(&mut self) -> Option<T> {
+        self.list.pop()
+    }
+
+
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[serde(rename_all = "camelCase")]
 pub struct BrawlMap {
     pub id: i32,
@@ -192,7 +198,7 @@ impl Wrapper<BrawlMap> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[serde(rename_all = "camelCase")]
 pub struct Environment {
     pub id: i32,
@@ -202,7 +208,7 @@ pub struct Environment {
     pub image_url: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Eq, Ord)]
 #[serde(rename_all = "camelCase")]
 pub struct GameMode {
     pub id: Option<i32>,

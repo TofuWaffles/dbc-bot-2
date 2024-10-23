@@ -1,8 +1,8 @@
 use super::CommandsContainer;
 use crate::api::images::ImagesAPI;
 use crate::api::APIResult;
-use crate::database::models::Mode;
-use crate::database::TournamentDatabase;
+use crate::database::models::{BrawlMap, Mode};
+use crate::database::{Database, TournamentDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::shorthand::BotContextExt;
@@ -26,6 +26,7 @@ impl CommandsContainer for TestCommands {
             choose_map_command(),
             choose_gamemode_command(),
             send_mail(),
+            add_maps(),
         ]
     }
 }
@@ -336,3 +337,29 @@ pub async fn send_mail(
     ctx.compose(&msg, recipient.id, None).await?;
     Ok(())
 }
+
+/// Test add all maps to the database
+#[poise::command(slash_command)]
+pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
+    let reply= {
+        let embed = CreateEmbed::default()
+            .title("Adding maps to the database")
+            .description("This command will add all maps to the database.")
+            .footer(CreateEmbedFooter::new("This may take a while."));
+        CreateReply::default().ephemeral(true).embed(embed).reply(true)
+    };
+    let msg = ctx.send(reply).await?;
+    let raw =  ctx.data().apis.brawlify.get_maps().await?;
+    let mut maps = match raw.handler(&ctx, &msg).await?{
+        Some(maps) => maps.to_owned(),
+        None => return ctx.prompt(&msg, CreateEmbed::default().description("No maps were added!"), None).await,
+    };
+    
+    while let Some(map) = maps.pop(){
+        let brawl_map = BrawlMap::from(map);
+        ctx.data().database.add_map(&brawl_map).await?;
+    }
+    ctx.prompt(&msg, CreateEmbed::default().description("All maps were added!"), None).await?;
+    Ok(())
+}
+

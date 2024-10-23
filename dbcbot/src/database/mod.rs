@@ -1712,7 +1712,7 @@ impl Database for PgDatabase {
             map.name,
             map.disabled
         )
-        .fetch_one(&self.pool)
+        .execute(&self.pool)
         .await?;
         Ok(())
     }
