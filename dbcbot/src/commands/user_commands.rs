@@ -933,6 +933,13 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
                 log::Model::PLAYER,
             )
             .await?;
+            ctx.prompt(
+                msg,
+                CreateEmbed::new()
+                .title("Deregistration Success")
+                .description("You have successfully deregistered your profile. You can re-register by running /menu again."),
+        None
+            ).await?;
         }
         false => {
             ctx.prompt(
