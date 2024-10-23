@@ -1,6 +1,6 @@
 use crate::{
     database,
-    utils::{discord::UserExt, shorthand::BotContextExt},
+    utils::{discord::UserExt, shorthand::BotContextExt, time::BattleDateTime},
     BotContext, BotError,
 };
 use anyhow::anyhow;
@@ -109,7 +109,7 @@ impl ImagesAPI {
         record: database::models::BattleRecord,
         matchid: database::models::Match,
     ) -> Result<Vec<u8>, BotError> {
-        let url = format!("{}/images/battle_log", self.base_url);
+        let url = format!("{}/image/battle_log", self.base_url);
         let winner = matchid
             .winner(ctx)
             .await?
@@ -145,7 +145,7 @@ impl ImagesAPI {
             .into_iter()
             .map(|battle| {
                 serde_json::json!({
-                    "battle_time": battle.battle_time,
+                    "battle_time": BattleDateTime::new(battle.battle_time).to_rfc2822(),
                     "type": battle.battle_class.battle_type,
                     "result": battle.battle_class.result.to_string(),
                     "duration": battle.battle_class.duration,

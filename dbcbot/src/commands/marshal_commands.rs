@@ -633,6 +633,7 @@ async fn next_round_helper(
         .database
         .get_matches_by_tournament(tournament.tournament_id, Some(tournament.current_round))
         .await?;
+    
 
     let (with_winners, without_winners): (Vec<Match>, Vec<Match>) = brackets
         .into_iter()
@@ -643,10 +644,8 @@ async fn next_round_helper(
         ctx.send(CreateReply::default().content("Unable to advance to the next round. Some players have not finished their matches yet!").ephemeral(true)).await?;
         return Ok(());
     }
-
     let round = tournament.current_round + 1;
     let mut next_round_brackets = generate_next_round(with_winners, round)?;
-    println!("{:#?}", next_round_brackets);
     let new_brackets_count = next_round_brackets.len();
     while let Some(bracket) = next_round_brackets.pop() {
         ctx.data()
@@ -720,6 +719,7 @@ Advanced by: {}."#,
 
 /// Generates the matches for the next round.
 fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, BotError> {
+    println!("Initial brackets: {:#?}", brackets.clone());
     let mut next_round_brackets = Vec::with_capacity(brackets.len() / 2);
     let tournament_id = brackets[0].tournament()?;
     let mut brackets_iter = brackets.into_iter();
@@ -749,6 +749,7 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
             return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", prev_bracket_1.match_id, prev_bracket_2.match_id));
         }
 
+        println!("Adding match with sequence {:#?} and players {:#?}, {:#?}", cur_sequence, player_1, player_2);
         next_round_brackets.push(Match::new(
             tournament_id,
             round,
