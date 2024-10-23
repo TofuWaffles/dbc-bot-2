@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT \n                    e.id,\n                    e.mode AS \"mode: Mode\",\n                    e.map,\n                    e.battle_id\n                FROM events AS e\n                WHERE battle_id = ANY($1)\n                ",
+  "query": "\n            SELECT \n                e.id, e.mode AS \"mode: Mode\", e.map, e.battle_id\n            FROM events AS e\n            WHERE battle_id = ANY($1)\n            ",
   "describe": {
     "columns": [
       {
@@ -66,5 +66,5 @@
       true
     ]
   },
-  "hash": "d2141a23baae3083fad1c5b9c1a88b7d84a992b669d15f9e66c7d3424e5a14f7"
+  "hash": "7c72b2e6c049d5290d3543eb36b6cf57fdd1355265ddbb1e31773b95ed5e9388"
 }

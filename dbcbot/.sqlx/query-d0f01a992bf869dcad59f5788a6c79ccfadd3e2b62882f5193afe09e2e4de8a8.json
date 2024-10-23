@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT \n                    bc.id,\n                    bc.battle_id,\n                    bc.mode AS \"mode: Mode\",\n                    bc.battle_type AS \"battle_type: BattleType\",\n                    bc.result AS \"result: BattleResult\",\n                    bc.duration,\n                    bc.trophy_change,\n                    bc.teams\n                FROM battle_classes AS bc\n                WHERE battle_id = ANY($1)\n                ",
+  "query": "\n            SELECT \n                bc.id, bc.battle_id, bc.mode AS \"mode: Mode\",\n                bc.battle_type AS \"battle_type: BattleType\", \n                bc.result AS \"result: BattleResult\",\n                bc.duration, bc.trophy_change, bc.teams\n            FROM battle_classes AS bc\n            WHERE battle_id = ANY($1)\n            ",
   "describe": {
     "columns": [
       {
@@ -113,5 +113,5 @@
       false
     ]
   },
-  "hash": "923edb6f7672bf36b8b75ac1fec0a95a19981cd951f0b83a38569dd06f598513"
+  "hash": "d0f01a992bf869dcad59f5788a6c79ccfadd3e2b62882f5193afe09e2e4de8a8"
 }

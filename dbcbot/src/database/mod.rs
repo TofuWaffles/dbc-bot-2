@@ -1,4 +1,5 @@
 use crate::info;
+use crate::mail::model::MailType;
 use crate::BotError;
 use anyhow::anyhow;
 use models::*;
@@ -8,7 +9,7 @@ use poise::serenity_prelude::RoleId;
 use poise::serenity_prelude::UserId;
 use sqlx::PgPool;
 use tokio::join;
-use crate::mail::model::MailType;
+use tokio::try_join;
 /// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
@@ -1583,78 +1584,87 @@ impl BattleDatabase for PgDatabase {
         // Fetch all battles based on record_id
         let battles = sqlx::query!(
             r#"
-            SELECT *
-            FROM battles
-            WHERE record_id = $1
-            "#,
+        SELECT *
+        FROM battles
+        WHERE record_id = $1
+        "#,
             record_id
         )
         .fetch_all(&self.pool)
         .await?;
+
         let battle_ids: Vec<i64> = battles.iter().map(|b| b.id).collect();
-        let (battle_classes, events) = join!(
+
+        // Fetch battle classes and events in parallel, using try_join for immediate error handling
+        let (battle_classes, events) = try_join!(
             sqlx::query!(
                 r#"
-                SELECT 
-                    bc.id,
-                    bc.battle_id,
-                    bc.mode AS "mode: Mode",
-                    bc.battle_type AS "battle_type: BattleType",
-                    bc.result AS "result: BattleResult",
-                    bc.duration,
-                    bc.trophy_change,
-                    bc.teams
-                FROM battle_classes AS bc
-                WHERE battle_id = ANY($1)
-                "#,
+            SELECT 
+                bc.id, bc.battle_id, bc.mode AS "mode: Mode",
+                bc.battle_type AS "battle_type: BattleType", 
+                bc.result AS "result: BattleResult",
+                bc.duration, bc.trophy_change, bc.teams
+            FROM battle_classes AS bc
+            WHERE battle_id = ANY($1)
+            "#,
                 &battle_ids
             )
             .fetch_all(&self.pool),
             sqlx::query!(
                 r#"
-                SELECT 
-                    e.id,
-                    e.mode AS "mode: Mode",
-                    e.map,
-                    e.battle_id
-                FROM events AS e
-                WHERE battle_id = ANY($1)
-                "#,
+            SELECT 
+                e.id, e.mode AS "mode: Mode", e.map, e.battle_id
+            FROM events AS e
+            WHERE battle_id = ANY($1)
+            "#,
                 &battle_ids
             )
             .fetch_all(&self.pool)
-        );
-        let battle_classes = battle_classes?;
-        let events = events?;
-        let mut map_ids: Vec<i64> = vec![];
-        for event in events.iter() {
-            let id: i32 = event.map.ok_or(anyhow!("No map found"))?;
-            map_ids.push(id as i64);
-        }
+        )?;
 
+        // Collect map IDs from events
+        let map_ids: Vec<i32> = events
+            .iter()
+            .filter_map(|event| Some(event.map.unwrap_or(BrawlMap::default().id)))
+            .collect();
+
+        // Fetch maps based on map_ids
         let maps: Vec<BrawlMap> = sqlx::query_as!(
             BrawlMap,
             r#"
-            SELECT bm.id, bm.name, bm.disabled
-            FROM events AS e
-            JOIN brawl_maps AS bm
-            ON e.map = bm.id
-            WHERE e.battle_id = ANY($1)
-            "#,
+        SELECT bm.id, bm.name, bm.disabled
+        FROM brawl_maps AS bm
+        WHERE bm.id = ANY($1)
+        "#,
             &map_ids
         )
         .fetch_all(&self.pool)
         .await?;
+
+        // Convert maps into a HashMap for quick lookup
+        let map_lookup: std::collections::HashMap<i32, BrawlMap> =
+            maps.into_iter().map(|map| (map.id, map)).collect();
+
         let mut battles_with_details = Vec::new();
+
         for record in battles {
             let battle_class = battle_classes
                 .iter()
                 .find(|bc| bc.battle_id == record.id)
                 .ok_or_else(|| anyhow!("Battle class not found for battle id: {}", record.id))?;
+
             let event = events
                 .iter()
                 .find(|e| e.battle_id.unwrap() == record.id)
                 .ok_or_else(|| anyhow!("Event not found for battle id: {}", record.id))?;
+
+            // Handle map lookup safely
+            let map = map_lookup
+                .get(&event.map.unwrap_or_default())
+                .unwrap_or(&BrawlMap::default())
+                .clone();
+
+            // Construct the Battle struct
             let battle = Battle {
                 id: record.id,
                 battle_time: record.battle_time,
@@ -1671,12 +1681,8 @@ impl BattleDatabase for PgDatabase {
                 },
                 event: Event {
                     id: event.id,
-                    mode: event.mode.unwrap() as Mode,
-                    map: maps
-                        .iter()
-                        .find(|m| m.id == event.map.unwrap_or(0))
-                        .unwrap()
-                        .clone(),
+                    mode: event.mode.unwrap(),
+                    map,
                     battle_id: event.battle_id.unwrap(),
                 },
             };

@@ -2,6 +2,7 @@ pub mod model;
 
 use crate::database::ConfigDatabase;
 use crate::log::Log;
+use crate::mail::model::MailType;
 use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::*;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
@@ -14,7 +15,6 @@ use poise::serenity_prelude::{
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
-use crate::mail::model::MailType;
 
 pub trait MailDatabase {
     type Error;

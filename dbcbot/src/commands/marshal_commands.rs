@@ -646,6 +646,7 @@ async fn next_round_helper(
 
     let round = tournament.current_round + 1;
     let mut next_round_brackets = generate_next_round(with_winners, round)?;
+    println!("{:#?}", next_round_brackets);
     let new_brackets_count = next_round_brackets.len();
     while let Some(bracket) = next_round_brackets.pop() {
         ctx.data()

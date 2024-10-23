@@ -384,10 +384,16 @@ async fn start_tournament(
             .database
             .create_match(tournament_id, bracket.round()?, bracket.sequence()?)
             .await?;
+        // Bye round. Immediately set the winner
         if bracket.match_players.len() == 1 {
             ctx.data()
                 .database
-                .set_winner(&bracket.match_id, &UserId::new(bracket.match_players[0].discord_id.parse::<u64>()?), "bye");
+                .set_winner(
+                    &bracket.match_id,
+                    &UserId::new(bracket.match_players[0].discord_id.parse::<u64>()?),
+                    "bye",
+                )
+                .await?;
         }
         for player in bracket.match_players {
             let player = player.to_user(&ctx).await?;
