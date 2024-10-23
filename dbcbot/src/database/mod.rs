@@ -1,4 +1,5 @@
 use crate::info;
+use crate::mail::model::MailType;
 use crate::BotError;
 use anyhow::anyhow;
 use models::*;
@@ -8,7 +9,6 @@ use poise::serenity_prelude::RoleId;
 use poise::serenity_prelude::UserId;
 use sqlx::PgPool;
 use tokio::join;
-use crate::mail::model::MailType;
 /// Models for the database.
 ///
 /// These models are specific to the current database design and schema.
