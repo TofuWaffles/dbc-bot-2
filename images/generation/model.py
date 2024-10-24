@@ -176,6 +176,8 @@ class Asset:
         except KeyError as e:
             return None, e
         except httpx.HTTPStatusError as e:
+            print("An error occurred while fetching the mode icon.")
+            print(e)
             return None, e
         except Exception as e:
             return None, e

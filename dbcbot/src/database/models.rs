@@ -405,6 +405,7 @@ pub struct Battle {
     pub id: i64,
     #[serde(default)]
     pub record_id: i64,
+    
     pub battle_time: i64,
     pub battle_class: BattleClass,
     pub event: Event,

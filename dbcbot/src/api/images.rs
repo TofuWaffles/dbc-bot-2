@@ -1,5 +1,5 @@
 use crate::{
-    database,
+    database::{self, models::Selectable},
     utils::{discord::UserExt, shorthand::BotContextExt, time::BattleDateTime},
     BotContext, BotError,
 };
@@ -107,7 +107,7 @@ impl ImagesAPI {
         self,
         ctx: &BotContext<'_>,
         record: database::models::BattleRecord,
-        matchid: database::models::Match,
+        matchid: &database::models::Match,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/battle_log", self.base_url);
         let winner = matchid
@@ -146,11 +146,11 @@ impl ImagesAPI {
             .map(|battle| {
                 serde_json::json!({
                     "battle_time": BattleDateTime::new(battle.battle_time).to_rfc2822(),
-                    "type": battle.battle_class.battle_type,
+                    "type": battle.battle_class.battle_type.to_string(),
                     "result": battle.battle_class.result.to_string(),
                     "duration": battle.battle_class.duration,
-                    "map": battle.event.map,
-                    "mode": battle.battle_class.mode,
+                    "map": battle.event.map.name,
+                    "mode": battle.battle_class.mode.identifier(),
                     "player1": {
                         "discord_id": p1ext.discord_id,
                         "discord_name": p1ext.discord_name,
@@ -176,8 +176,8 @@ impl ImagesAPI {
                 })
             })
             .collect();
+       
         let payloads = serde_json::json!({"battle_logs": data});
-
         let bytes = get_image(url, payloads).await?;
         Ok(bytes)
     }

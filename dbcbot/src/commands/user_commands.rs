@@ -1031,7 +1031,7 @@ async fn submit(
 ) -> Result<(), BotError> {
     async fn filter(
         ctx: &BotContext<'_>,
-        logs: Vec<BattleLogItem>,
+        logs: &[BattleLogItem],
         game_match: &Match,
         tournament: &Tournament,
     ) -> Result<Vec<BattleLogItem>, BotError> {
@@ -1170,51 +1170,28 @@ async fn submit(
         .await?
         .ok_or(anyhow!("Player not found in the database"))?
         .player_tag;
-    let logs = match ctx
+    let raw = ctx
         .data()
         .apis
         .brawl_stars
         .get_battle_log(&caller_tag)
-        .await?
-    {
-        APIResult::Ok(response) => response.items,
-        APIResult::NotFound => {
-            ctx.prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Player Not Found")
-                    .description("The player tag you entered was not found. Please try again."),
-                None,
-            )
-            .await?;
-            ctx.log(
-                "Player",
-                format!("Player tag {} not found", caller_tag),
-                crate::log::State::FAILURE,
-                crate::log::Model::PLAYER,
-            )
-            .await?;
-            return Ok(());
-        }
-        APIResult::Maintenance => {
-            ctx.prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Maintenance")
-                    .description("The Brawl Stars API is currently undergoing maintenance. Please try again later."),
-               None,
-            )
-            .await?;
-            ctx.log(
-                "API",
-                "Brawl Stars API is currently undergoing maintenance",
-                crate::log::State::FAILURE,
-                crate::log::Model::API,
-            )
-            .await?;
-            return Ok(());
-        }
-    };
+        .await?;
+    let logs = match raw
+        .handler(ctx, msg)
+        .await?{
+            Some(logs) => logs,
+            None => {
+                ctx.prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Battle Log Not Found")
+                        .description("No battle logs found for your account. Please play some matches and try again."),
+                    None,
+                )
+                .await?;
+                return Ok(());
+            }
+        }.to_owned();
     ctx.prompt(
         msg,
         CreateEmbed::new()
@@ -1223,7 +1200,7 @@ async fn submit(
         None,
     )
     .await?;
-    let battles = filter(ctx, logs, &current_match, tournament).await?;
+    let battles = filter(ctx, &logs.items, &current_match, tournament).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
     }

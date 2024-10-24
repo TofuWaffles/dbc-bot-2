@@ -37,10 +37,14 @@ class RequestBattleLog(BaseModel):
     async def respond(self) -> Union[str, Exception]:
         image = await BattleLog(self.battle_logs)
         if image.error:
+            print(image.error)
             return image.error
         image.preset()
         image.build()
-        encode = base64.b64encode(image.bytes()).decode("utf-8")
+        bytes = image.bytes()
+        if bytes is Exception:
+            return Exception("Error while converting image to bytes")
+        encode = base64.b64encode(bytes).decode("utf-8")
         return encode
 
 

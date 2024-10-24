@@ -771,8 +771,12 @@ async fn get_battle_logs(
     let msg = ctx
         .send(
             CreateReply::default()
-                .content("Fetching the battle log...")
-                .ephemeral(true),
+                .reply(true)
+                .ephemeral(true)
+                .embed(CreateEmbed::new()
+                    .title("Fetching the battle log...")
+                    .description("Hold on a second, we're fetching the battle log for you.")),
+                
         )
         .await?;
     async fn inner(
@@ -797,10 +801,16 @@ async fn get_battle_logs(
             .apis
             .images
             .clone()
-            .battle_log(ctx, record, current_match)
+            .battle_log(ctx, record, &current_match)
             .await?;
         let reply =
-            { CreateReply::default().attachment(CreateAttachment::bytes(img, "battle_log.png")) };
+            { 
+                let attachment = CreateAttachment::bytes(img, "battle_log.png");
+                let embed = CreateEmbed::new()
+                    .title("Battle Log")
+                    .description(format!("Battle log for match {}", current_match.match_id));
+                CreateReply::default().attachment(attachment).embed(embed)
+            };
         msg.edit(*ctx, reply).await?;
         Ok(())
     }
