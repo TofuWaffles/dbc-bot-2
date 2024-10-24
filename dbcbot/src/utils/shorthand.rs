@@ -25,6 +25,7 @@ use poise::{
 };
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
+    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError>;
     async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError>;
     async fn map_selection(&self, msg: &ReplyHandle<'_>, mode: &Mode)
         -> Result<BrawlMap, BotError>;
@@ -389,8 +390,8 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         let filtered_maps = maps.to_owned().filter_map_by_mode(mode);
         let (prev, select, any, next) = (
             String::from("prev"),
-            String::from("any"),
             String::from("select"),
+            String::from("any"),
             String::from("next"),
         );
         let reply = |map: BrawlMap| {
@@ -445,7 +446,6 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 "any" => {
                     interactions.defer(self.http()).await?;
                     let selected = BrawlMap::default();
-                    println!("Selected: {:?}", selected);
                     return Ok(selected);
                 }
                 "next" => {
@@ -458,6 +458,10 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .await?;
         }
         Err(NoSelection.into())
+    }
+
+    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError>{
+        self.data().database.set_default_map(tournament_id).await
     }
 
     async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {

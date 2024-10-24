@@ -504,6 +504,7 @@ impl UserDatabase for PgDatabase {
     }
 }
 pub trait TournamentDatabase {
+    async fn set_default_map(&self, tournament_id: i32) -> Result<(), Self::Error>;
     async fn set_mode(&self, tournament_id: i32, mode: impl Into<Mode>) -> Result<(), Self::Error>;
     async fn resume(&self, tournament_id: i32) -> Result<(), Self::Error>;
     async fn current_round(&self, tournament_id: i32) -> Result<i32, Self::Error>;
@@ -1099,6 +1100,10 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    async fn set_default_map(&self,tournament_id: i32) -> Result<(), Self::Error>{
+        self.set_map(tournament_id, &BrawlMap::default()).await
     }
 
     async fn set_mode(&self, tournament_id: i32, mode: impl Into<Mode>) -> Result<(), Self::Error> {

@@ -1042,6 +1042,7 @@ async fn tournament_property_page(
             "mode" => {
                 interactions.defer(ctx.http()).await?;
                 let mode = ctx.mode_selection(msg).await?;
+                ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
             }
             "map" => {
