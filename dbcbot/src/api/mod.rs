@@ -63,10 +63,10 @@ where
     }
 
     pub async fn handler(
-        &self,
+        self,
         ctx: &BotContext<'_>,
         msg: &ReplyHandle<'_>,
-    ) -> Result<Option<&M>, BotError> {
+    ) -> Result<Option<M>, BotError> {
         match self {
             Self::Ok(data) => Ok(Some(data)),
             Self::NotFound => {

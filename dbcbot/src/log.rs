@@ -36,16 +36,17 @@ pub enum Model {
 }
 
 pub trait Log {
+    async fn log(&self, log: CreateEmbed) -> Result<(), BotError>;
     async fn get_log_channel(&self) -> Result<ChannelId, BotError>;
     fn get_author_img(&self, model: &Model) -> CreateEmbedAuthor;
     fn thumbnail(&self, state: &State) -> String;
-    async fn log(
+    fn build_log(
         &self,
         title: impl Into<String>,
         description: impl Into<String>,
         state: State,
         model: Model,
-    ) -> Result<(), BotError>;
+    ) -> CreateEmbed;
 }
 impl Log for BotContext<'_> {
     async fn get_log_channel(&self) -> Result<ChannelId, BotError> {
@@ -88,14 +89,14 @@ impl Log for BotContext<'_> {
         }
     }
 
-    async fn log(
+    fn build_log(
         &self,
         title: impl Into<String>,
         description: impl Into<String>,
         state: State,
         model: Model,
-    ) -> Result<(), BotError> {
-        let embed = CreateEmbed::default()
+    ) -> CreateEmbed {
+        CreateEmbed::default()
             .author(self.get_author_img(&model))
             .title(title)
             .description(format!(
@@ -108,8 +109,11 @@ impl Log for BotContext<'_> {
             ))
             .timestamp(self.now())
             .thumbnail(self.thumbnail(&state))
-            .colour(state as u32);
-        let builder = CreateMessage::default().embed(embed);
+            .colour(state as u32)
+    }
+
+    async fn log(&self, log: CreateEmbed) -> Result<(), BotError> {
+        let builder = CreateMessage::default().embed(log);
         let channel = self.get_log_channel().await?;
         channel.send_message(self, builder).await?;
         Ok(())

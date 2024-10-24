@@ -22,7 +22,9 @@ pub struct BrawlifyAPI {
     endpoint: Endpoint,
 }
 
+#[allow(dead_code)]
 impl BrawlifyAPI {
+    #[inline]
     pub fn new() -> Self {
         Self {
             client: Client::new(),
@@ -193,7 +195,6 @@ impl Wrapper<BrawlMap> {
                 m.game_mode.name.to_lowercase() == mode.to_string().to_lowercase() && !m.disabled
             })
             .collect();
-        println!("Found {} maps for mode {}", maps.len(), mode);
         maps
     }
 }

@@ -24,7 +24,9 @@ pub struct ManagerRoleConfig {
 }
 
 impl DiscordTrait for ManagerRoleConfig {}
+#[allow(dead_code)]
 impl ManagerRoleConfig {
+    #[inline]
     pub async fn to_manager(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
         Self::to_role(ctx, &self.manager_role_id).await
     }
@@ -40,10 +42,13 @@ pub struct GuildConfig {
 }
 
 impl DiscordTrait for GuildConfig {}
+
+#[allow(dead_code)]
 impl GuildConfig {
     pub async fn marshal(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
         Self::to_role(ctx, &self.marshal_role_id).await
     }
+
     pub async fn log_channel(&self, ctx: &BotContext<'_>) -> Result<GuildChannel, BotError> {
         Self::to_channel(ctx, &self.log_channel_id).await
     }
@@ -92,6 +97,7 @@ pub struct Tournament {
 
 impl DiscordTrait for Tournament {}
 
+#[allow(dead_code)]
 impl Tournament {
     pub async fn announcement_channel(
         &self,
@@ -114,11 +120,25 @@ impl Tournament {
             .await
             .map_err(|_| RoleNotExists(self.tournament_role_id.clone()))?)
     }
+
+    #[inline]
     pub fn is_paused(&self) -> bool {
         self.status == TournamentStatus::Paused
     }
+
+    #[inline]
+    pub fn is_started(&self) -> bool {
+        self.status == TournamentStatus::Started
+    }
+
+    #[inline]
     pub fn is_pending(&self) -> bool {
         self.status == TournamentStatus::Pending
+    }
+
+    #[inline]
+    pub fn is_inactive(&self) -> bool {
+        self.status == TournamentStatus::Inactive
     }
 
     pub async fn count_players_in_current_round(
@@ -140,9 +160,12 @@ impl Tournament {
 }
 
 impl Selectable for Tournament {
+    #[inline]
     fn label(&self) -> String {
         self.name.clone()
     }
+
+    #[inline]
     fn identifier(&self) -> String {
         self.tournament_id.to_string()
     }
@@ -162,16 +185,24 @@ pub struct Player {
 }
 
 impl DiscordTrait for Player {}
-
+#[allow(dead_code)]
 impl Player {
+    #[inline]
     pub async fn user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
         Self::to_user(ctx, &self.discord_id).await
     }
 
+    #[inline]
+    pub fn user_id(&self) -> Result<UserId, BotError>{
+        Self::to_user_id(&self.discord_id)
+    }
+
+    #[inline]
     pub fn brawlers(&self) -> Vec<Brawler> {
         serde_json::from_value::<Vec<Brawler>>(self.brawlers.clone()).unwrap_or_default()
     }
 
+    #[inline]
     pub fn icon(&self) -> String {
         format!(
             "https://cdn.brawlify.com/profile-icon/regular/{}.png",
@@ -188,9 +219,16 @@ pub struct TournamentPlayer {
 
 impl DiscordTrait for TournamentPlayer {}
 
+#[allow(dead_code)]
 impl TournamentPlayer {
+    #[inline]
     pub async fn user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
         Self::to_user(ctx, &self.discord_id).await
+    }
+
+    #[inline]
+    pub fn user_id(&self) -> Result<UserId, BotError>{
+        Self::to_user_id(&self.discord_id)
     }
 }
 
@@ -304,6 +342,7 @@ impl Match {
             .parse::<i32>()?)
     }
 
+    #[inline]
     pub async fn winner(&self, ctx: &BotContext<'_>) -> Result<Option<User>, BotError> {
         match &self.winner {
             Some(winner) => Ok(Some(Self::to_user(ctx, winner).await?)),
@@ -311,6 +350,7 @@ impl Match {
         }
     }
 
+    #[inline]
     pub fn is_not_bye(&self) -> bool {
         self.match_players.len() == 2
     }
@@ -336,9 +376,16 @@ impl From<Player> for MatchPlayer {
     }
 }
 
+impl DiscordTrait for MatchPlayer {}
+
 impl MatchPlayer {
+    #[inline]
     pub async fn to_user(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
-        Ok(UserId::new(self.discord_id.parse()?).to_user(ctx).await?)
+        Ok(self.user_id()?.to_user(ctx).await?)
+    }
+    #[inline]
+    pub fn user_id(&self) -> Result<UserId, BotError>{
+        Self::to_user_id(&self.discord_id)
     }
 }
 
@@ -390,7 +437,6 @@ impl BattleRecord {
         let db = &ctx.data().database;
         let record = db.add_record(self).await?;
         for battle in &self.battles {
-            
             let id = db.add_battle(battle, record).await?;
             db.add_event(&battle.event, id).await?;
             db.add_battle_class(&battle.battle_class, id).await?;
@@ -405,7 +451,7 @@ pub struct Battle {
     pub id: i64,
     #[serde(default)]
     pub record_id: i64,
-    
+
     pub battle_time: i64,
     pub battle_class: BattleClass,
     pub event: Event,

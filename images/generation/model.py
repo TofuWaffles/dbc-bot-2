@@ -481,6 +481,10 @@ class BaseImage:
         if error:
             self.error = error
 
+    def resize(self, width: int) -> None:
+        height = int((width / self.final.width) * self.final.height)
+        self.final = self.final.resize((width, height), Image.LANCZOS)
+    
     def bytes(self) -> Union[bytes, Exception]:
         output = io.BytesIO()
         if self.final is None:

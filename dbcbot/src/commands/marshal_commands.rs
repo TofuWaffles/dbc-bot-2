@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
 use crate::database::models::{BrawlMap, Match, PlayerType, Tournament, TournamentStatus};
@@ -69,13 +71,18 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
             };
             ctx.send(
                 CreateReply::default()
-                    .embed(CreateEmbed::new().title(tournament.name).fields(
-                        vec![("ID", tournament.tournament_id.to_string(), true),
-                        ("Status", tournament.status.to_string(), true),
-                        ("Rounds", tournament.rounds.to_string(), true),
-                        ("Current Round", tournament.current_round.to_string(), true),
-                        ("Wins Required Per Round", tournament.wins_required.to_string(), true),
-                        ("Map", format!("{:#?}", tournament.map), true),
+                    .embed(
+                        CreateEmbed::new().title(tournament.name).fields(vec![
+                            ("ID", tournament.tournament_id.to_string(), true),
+                            ("Status", tournament.status.to_string(), true),
+                            ("Rounds", tournament.rounds.to_string(), true),
+                            ("Current Round", tournament.current_round.to_string(), true),
+                            (
+                                "Wins Required Per Round",
+                                tournament.wins_required.to_string(),
+                                true,
+                            ),
+                            ("Map", format!("{:#?}", tournament.map), true),
                             (
                                 "Created At",
                                 DateTime::from_timestamp(tournament.created_at, 0)
@@ -83,8 +90,9 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
                                     .to_rfc2822(),
                                 true,
                             ),
-                            ("Started At", start_time_str, true),],
-                    ))
+                            ("Started At", start_time_str, true),
+                        ]),
+                    )
                     .ephemeral(true),
             )
             .await?;
@@ -214,13 +222,13 @@ Set by {}."#,
         map.name,
         ctx.author().name
     );
-    ctx.log(
+    let log = ctx.build_log(
         "Map set successfully!",
         description,
         log::State::SUCCESS,
         log::Model::TOURNAMENT,
-    )
-    .await?;
+    );
+    ctx.log(log).await?;
     Ok(())
 }
 
@@ -527,13 +535,12 @@ async fn disqualify(
         }
     };
 
-    let opponent = bracket
+    let opponent_id= bracket
         .get_opponent(&player.id.to_string())?
-        .to_user(ctx)
-        .await?;
+        .user_id()?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent.id, "n/a")
+        .set_winner(&bracket.match_id, &opponent_id, "n/a")
         .await?;
 
     ctx.send(
@@ -557,13 +564,13 @@ Disqualified by: {disqualified_by}."#,
         tournament_name = tournament.name,
         disqualified_by = ctx.author().name
     );
-    ctx.log(
+    let log = ctx.build_log(
         "Player disqualified!",
         description,
         log::State::SUCCESS,
         log::Model::MARSHAL,
-    )
-    .await?;
+    );
+    ctx.log(log).await?;
     Ok(())
 }
 
@@ -660,10 +667,9 @@ async fn next_round_helper(
                 bracket.round()?,
                 bracket.sequence()?,
             );
-            let player = player.to_user(ctx).await?;
             ctx.data()
                 .database
-                .enter_match(&match_id, &player.id, PlayerType::Player)
+                .enter_match(&match_id, &player.user_id()?, PlayerType::Player)
                 .await?;
         }
     }
@@ -697,24 +703,23 @@ async fn next_round_helper(
     )
     .await?;
     let description = format!(
-        r#"The tournament has advanced to round {}.
-Tournament ID: {}.
-Tournament name: {}.
-Number of matches: {}.
-Advanced by: {}."#,
+        r#"The tournament has advanced to round {}"#,
         round,
-        tournament.tournament_id,
-        tournament.name,
-        new_brackets_count,
-        ctx.author().name
     );
-    ctx.log(
+    let fields = vec![
+        ("Tournament ID", tournament.tournament_id.to_string(), true),
+        ("Tournament name", tournament.name.to_string(), true),
+        ("Number of matches", new_brackets_count.to_string(), true),
+        ("Advanced by", ctx.author().name.to_string(), true),
+    ];
+    let log = ctx.build_log(
         "Tournament advanced!",
         description,
         log::State::SUCCESS,
         log::Model::MARSHAL,
     )
-    .await?;
+    .fields(fields);
+    ctx.log(log).await?;
     Ok(())
 }
 
@@ -726,8 +731,12 @@ fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, B
     let prev_match_pairs = brackets.chunks(2);
 
     for prev_matches in prev_match_pairs {
-        let prev_match_1 = prev_matches.get(0).ok_or(anyhow!("Error advancing to the next round: First round not found in previous match pair."))?;
-        let prev_match_2 = prev_matches.get(1).ok_or(anyhow!("Error advancing to the next round: Second round not foudn in previous match pair."))?;
+        let prev_match_1 = prev_matches.get(0).ok_or(anyhow!(
+            "Error advancing to the next round: First round not found in previous match pair."
+        ))?;
+        let prev_match_2 = prev_matches.get(1).ok_or(anyhow!(
+            "Error advancing to the next round: Second round not foudn in previous match pair."
+        ))?;
 
         let player_1 = prev_match_1
             .get_winning_player()
@@ -770,13 +779,11 @@ async fn get_battle_logs(
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
-            CreateReply::default()
-                .reply(true)
-                .ephemeral(true)
-                .embed(CreateEmbed::new()
+            CreateReply::default().reply(true).ephemeral(true).embed(
+                CreateEmbed::new()
                     .title("Fetching the battle log...")
-                    .description("Hold on a second, we're fetching the battle log for you.")),
-                
+                    .description("Hold on a second, we're fetching the battle log for you."),
+            ),
         )
         .await?;
     async fn inner(
@@ -800,18 +807,21 @@ async fn get_battle_logs(
             .data()
             .apis
             .images
-            .clone()
             .battle_log(ctx, record, &current_match)
             .await?;
-        let reply =
-            { 
-                let attachment = CreateAttachment::bytes(img, "battle_log.png");
-                let embed = CreateEmbed::new()
-                    .title("Battle Log")
-                    .description(format!("Battle log for match {}", current_match.match_id));
-                CreateReply::default().attachment(attachment).embed(embed)
-            };
-        msg.edit(*ctx, reply).await?;
+        let reply = {
+            let attachment = CreateAttachment::bytes(img, "battle_log.png");
+            let embed = CreateEmbed::new()
+                .title("Battle Log")
+                .description(format!("Battle log for match {}", current_match.match_id));
+            CreateReply::default()
+                .attachment(attachment)
+                .embed(embed)
+                .ephemeral(true)
+                .reply(true)
+        };
+        ctx.send(reply).await?;
+        msg.delete(*ctx).await?;
         Ok(())
     }
     if let Err(e) = inner(&ctx, &msg, &player, match_id.clone()).await {
@@ -1170,7 +1180,7 @@ async fn player_page(
                 )
                 .await?;
                 let id = res.player.ok_or(anyhow!("No player was given"))?;
-                let player = UserId::new(id.parse()?);
+                let player = UserId::from_str(&id)?;
                 disqualify(ctx, t, player.to_user(ctx).await?).await?;
             }
             "next" => {

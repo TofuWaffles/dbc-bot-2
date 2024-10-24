@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::utils::error::CommonError::*;
 use crate::{
     database::{self, models::Selectable},
@@ -16,8 +18,13 @@ use poise::{
 };
 
 pub trait DiscordTrait {
+    #[inline]
     async fn to_user(ctx: &BotContext<'_>, id: &str) -> Result<User, BotError> {
-        Ok(UserId::new(id.parse()?).to_user(ctx.http()).await?)
+        Ok(Self::to_user_id(id)?.to_user(ctx.http()).await?)
+    }
+    #[inline]
+    fn to_user_id(id: impl Into<String>) -> Result<UserId, BotError> {
+        Ok(UserId::from_str(&id.into())?)
     }
 
     async fn to_role(ctx: &BotContext<'_>, id: &str) -> Result<Role, BotError> {

@@ -8,7 +8,7 @@ use crate::database::{ConfigDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};
-use crate::utils::error::CommonError::*;
+use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotContextExt;
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError};
@@ -461,7 +461,7 @@ async fn user_forfeit(
             .database
             .set_winner(
                 &bracket.match_id,
-                &opponent.to_user(ctx).await?.id,
+                &opponent.user_id()?,
                 &bracket.score,
             )
             .await?;
@@ -574,7 +574,7 @@ async fn user_display_tournaments(
         .await
     {
         Ok(_) => {
-            ctx.log(
+            let log = ctx.build_log(
                 "Tournament enrollment success",
                 format!(
                     "User {} has joined tournament {}",
@@ -583,8 +583,8 @@ async fn user_display_tournaments(
                 ),
                 log::State::SUCCESS,
                 log::Model::TOURNAMENT,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -596,7 +596,7 @@ async fn user_display_tournaments(
             .await?;
         }
         Err(e) => {
-            ctx.log(
+            let log = ctx.build_log(
                 "Tournament enrollment failure",
                 format!(
                     "User {} failed to join tournament {}\n Error detail: {}",
@@ -606,8 +606,8 @@ async fn user_display_tournaments(
                 ),
                 log::State::FAILURE,
                 log::Model::TOURNAMENT,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -689,13 +689,13 @@ async fn user_display_registration(
             .description("This game account is currently registered with another user. Please register with another game account.")
             .color(Color::RED),
       None).await?;
-        ctx.log(
+        let log = ctx.build_log(
             "Attempted registration failure",
             format!("{} is attempted to be registered!", user.player_tag),
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
-        )
-        .await?;
+        );
+        ctx.log(log).await?;
         return Ok(());
     }
 
@@ -754,13 +754,13 @@ async fn user_display_registration(
                                 .title("Registration Success!")
                                 .description("Your profile has been successfully registered! Please run the /menu command again to access the Player menu and join a tournament!"),
                             None).await?;
-                    ctx.log(
+                    let log = ctx.build_log(
                         "Registration success!",
                         format!("Tag {} registered!", user.player_tag),
                         crate::log::State::SUCCESS,
                         crate::log::Model::PLAYER,
-                    )
-                    .await?;
+                    );
+                    ctx.log(log).await?;
                 }
                 false => {
                     ctx.prompt(
@@ -783,13 +783,13 @@ async fn user_display_registration(
                 None,
             )
             .await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "Player",
                 format!("Player tag {} not found", user.player_tag),
                 crate::log::State::FAILURE,
                 crate::log::Model::PLAYER,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
         }
         APIResult::Maintenance => {
             ctx.prompt(
@@ -800,13 +800,13 @@ async fn user_display_registration(
                None,
             )
             .await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "API",
                 "Brawl Stars API is currently undergoing maintenance",
                 crate::log::State::FAILURE,
                 crate::log::Model::API,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
         }
     }
     Ok(())
@@ -824,13 +824,13 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
                 CreateEmbed::new()
                     .title("Profile Not Found")
                     .description("You have not registered your profile yet. Please run the /menu command to register your profile."), None).await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "Player not found in the database!",
                 "User who runs this command does not own any profile!",
                 log::State::FAILURE,
                 log::Model::PLAYER,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             return Ok(());
         }
     };
@@ -926,13 +926,13 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
     match ctx.confirmation(msg, embed).await? {
         true => {
             ctx.data().database.delete_user(&discord_id).await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "Deregistration",
                 format!("User {} has deregistered their profile", ctx.author().name),
                 log::State::SUCCESS,
                 log::Model::PLAYER,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             ctx.prompt(
                 msg,
                 CreateEmbed::new()
@@ -1126,7 +1126,7 @@ async fn submit(
             None,
         )
         .await?;
-        ctx.log(
+        let log = ctx.build_log(
             "Insufficient Matches",
             format!(
                 "User {} has not played enough matches to submit",
@@ -1134,8 +1134,8 @@ async fn submit(
             ),
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
-        )
-        .await?;
+        );
+        ctx.log(log).await?;
         Ok(())
     }
 
@@ -1168,7 +1168,7 @@ async fn submit(
     let caller_tag = ctx
         .get_player_from_discord_id(caller.get().to_string())
         .await?
-        .ok_or(anyhow!("Player not found in the database"))?
+        .ok_or(CommonError::UserNotExists(caller.to_string()))?
         .player_tag;
     let raw = ctx
         .data()
@@ -1176,12 +1176,10 @@ async fn submit(
         .brawl_stars
         .get_battle_log(&caller_tag)
         .await?;
-    let logs = match raw
-        .handler(ctx, msg)
-        .await?{
-            Some(logs) => logs,
-            None => {
-                ctx.prompt(
+    let logs = match raw.handler(ctx, msg).await? {
+        Some(logs) => logs,
+        None => {
+            ctx.prompt(
                     msg,
                     CreateEmbed::new()
                         .title("Battle Log Not Found")
@@ -1189,9 +1187,9 @@ async fn submit(
                     None,
                 )
                 .await?;
-                return Ok(());
-            }
-        }.to_owned();
+            return Ok(());
+        }
+    };
     ctx.prompt(
         msg,
         CreateEmbed::new()
@@ -1245,11 +1243,7 @@ async fn submit(
     );
     save_record(ctx, &current_match, battles).await?;
     let (image, user) = join!(
-        ctx.data()
-            .apis
-            .images
-            .clone()
-            .result_image(adv, &elim, &score),
+        ctx.data().apis.images.result_image(adv, &elim, &score),
         target.user(ctx)
     );
     // Final round. Announce the winner and finish the tournament
@@ -1288,7 +1282,7 @@ async fn submit(
         None,
     )
     .await?;
-    ctx.log(
+    let log = ctx.build_log(
         "Match submission",
         format!(
             "User {} has submitted their match {}",
@@ -1297,8 +1291,8 @@ async fn submit(
         ),
         log::State::SUCCESS,
         log::Model::PLAYER,
-    )
-    .await?;
+    );
+    ctx.log(log).await?;
     Ok(())
 }
 

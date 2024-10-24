@@ -6,6 +6,7 @@ use crate::{
 use anyhow::anyhow;
 use base64::{engine::general_purpose, Engine};
 
+use cached::proc_macro::cached;
 use reqwest::Client;
 use serde_json::Value;
 use tracing::debug;
@@ -54,7 +55,7 @@ impl ImagesAPI {
     }
 
     pub async fn result_image(
-        self,
+        &self,
         winner: &database::models::Player,
         loser: &database::models::Player,
         score: &str,
@@ -82,7 +83,7 @@ impl ImagesAPI {
     }
 
     pub async fn profile_image(
-        self,
+        &self,
         user: &database::models::Player,
         tournament_id: String,
     ) -> Result<Vec<u8>, BotError> {
@@ -104,7 +105,7 @@ impl ImagesAPI {
     }
 
     pub async fn battle_log(
-        self,
+        &self,
         ctx: &BotContext<'_>,
         record: database::models::BattleRecord,
         matchid: &database::models::Match,
@@ -151,7 +152,7 @@ impl ImagesAPI {
                     "duration": battle.battle_class.duration,
                     "map": battle.event.map.name,
                     "mode": battle.battle_class.mode.identifier(),
-                    "player1": {
+                    "winner": {
                         "discord_id": p1ext.discord_id,
                         "discord_name": p1ext.discord_name,
                         "player_tag": p1.tag,
@@ -183,7 +184,7 @@ impl ImagesAPI {
     }
 }
 
-// #[cached(size = 50, time = 86400, result = true)]
+#[cached(size = 50, time = 86400, result = true)]
 async fn get_image(endpoint: String, payload: Value) -> Result<Vec<u8>, BotError> {
     let images_api = ImagesAPI::new();
     let response = images_api

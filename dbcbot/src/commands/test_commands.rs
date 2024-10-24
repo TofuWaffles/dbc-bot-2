@@ -82,8 +82,9 @@ async fn match_image(
     ctx: BotContext<'_>,
     #[description = "First user (in the left side)"] user1: serenity_prelude::User,
     #[description = "Second user (in the right side)"] user2: serenity_prelude::User,
+    #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
-    ctx.defer().await?;
+    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
     let p1 = ctx
         .get_player_from_discord_id(user1.id.to_string())
         .await?
@@ -96,17 +97,7 @@ async fn match_image(
     let image = match image_api.match_image(&p1, &p2).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.send(
-                CreateReply::default().content("Error generating image. Please try again later."),
-            )
-            .await?;
-            ctx.log(
-                "Error generating image",
-                format!("{e}"),
-                log::State::FAILURE,
-                log::Model::API,
-            )
-            .await?;
+            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
             return Ok(());
         }
     };
@@ -151,8 +142,9 @@ async fn result_image(
     #[description = "Eliminated player of a match (in the right side)"]
     loser: serenity_prelude::User,
     #[description = "Score"] score: String,
+    #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
-    ctx.defer().await?;
+    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
     let p1 = ctx
         .get_player_from_discord_id(winner.id.to_string())
         .await?
@@ -165,17 +157,7 @@ async fn result_image(
     let image = match image_api.result_image(&p1, &p2, &score).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.send(
-                CreateReply::default().content("Error generating image. Please try again later."),
-            )
-            .await?;
-            ctx.log(
-                "Error generating image",
-                format!("{e}"),
-                log::State::FAILURE,
-                log::Model::API,
-            )
-            .await?;
+            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
             return Ok(());
         }
     };
@@ -217,8 +199,10 @@ async fn result_image(
 async fn profile_image(
     ctx: BotContext<'_>,
     #[description = "User to view profile"] user: serenity_prelude::User,
+    #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
     ctx.defer().await?;
+    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
     let discord_id = user.id.to_string();
     let user = ctx
         .get_player_from_discord_id(discord_id.clone())
@@ -235,17 +219,7 @@ async fn profile_image(
     let image = match image_api.profile_image(&user, tournament_id).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.send(
-                CreateReply::default().content("Error generating image. Please try again later."),
-            )
-            .await?;
-            ctx.log(
-                "Error generating image",
-                format!("{e}"),
-                log::State::FAILURE,
-                log::Model::API,
-            )
-            .await?;
+            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
             return Ok(());
         }
     };
@@ -351,7 +325,7 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
     let msg = ctx.send(reply).await?;
     let raw =  ctx.data().apis.brawlify.get_maps().await?;
     let mut maps = match raw.handler(&ctx, &msg).await?{
-        Some(maps) => maps.to_owned(),
+        Some(maps) => maps,
         None => return ctx.prompt(&msg, CreateEmbed::default().description("No maps were added!"), None).await,
     };
     

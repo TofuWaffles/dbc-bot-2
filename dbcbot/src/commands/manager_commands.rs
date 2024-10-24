@@ -1,9 +1,10 @@
-use crate::api::brawlify::GameMode;
-use crate::database::models::{BrawlMap, Mode, Tournament};
+use std::str::FromStr;
+use super::CommandsContainer;
+use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
-use crate::utils::error::CommonError::*;
+use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotContextExt;
 use crate::{
     commands::checks::{is_config_set, is_manager},
@@ -12,16 +13,14 @@ use crate::{
 };
 use anyhow::anyhow;
 use models::{Match, MatchPlayer, Player, PlayerType, TournamentStatus};
-use poise::serenity_prelude::{Channel, Role, UserId};
+use poise::serenity_prelude::{Channel, Mentionable, Role, UserId};
 use poise::Modal;
 use poise::{
     serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
     CreateReply, ReplyHandle,
 };
 use tracing::{error, info, instrument};
-
-use super::CommandsContainer;
-
+const DEFAULT_WIN_REQUIRED: i32 = 2;
 /// CommandsContainer for the Manager commands.
 pub struct ManagerCommands;
 
@@ -132,7 +131,6 @@ async fn start_tournament_slash(
     tournament_id: i32,
     win_required: Option<i32>,
 ) -> Result<(), BotError> {
-    let map = BrawlMap::default();
     let msg = ctx
         .send(
             CreateReply::default()
@@ -140,7 +138,28 @@ async fn start_tournament_slash(
                 .ephemeral(true),
         )
         .await?;
-    start_tournament(ctx, &msg, tournament_id, &map, win_required).await
+    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, tournament_id)
+        .await?
+    {
+        Some(tournament) => tournament,
+        None => {
+            ctx.prompt(
+                &msg,
+                CreateEmbed::default()
+                    .title("Tournament not found")
+                    .description("The tournament with the given ID was not found.")
+                    .color(Colour::RED),
+                None,
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+    start_tournament(ctx, &msg, tournament).await
 }
 
 async fn set_config(
@@ -165,13 +184,13 @@ async fn set_config(
                 None,
             )
             .await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid announcement channel selected: {}", id),
                 log::State::FAILURE,
                 log::Model::MARSHAL,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             error!("Invalid announcement channel entered by {}", ctx.author());
             return Err(ChannelNotExists(id).into());
         }
@@ -189,13 +208,13 @@ async fn set_config(
                 None,
             )
             .await?;
-            ctx.log(
+            let log = ctx.build_log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid log channel selected: {}", id),
                 log::State::FAILURE,
                 log::Model::MARSHAL,
-            )
-            .await?;
+            );
+            ctx.log(log).await?;
             error!("Invalid log channel entered by {}", ctx.author());
             return Err(ChannelNotExists(id).into());
         }
@@ -226,13 +245,13 @@ async fn set_config(
         "Set the configuration for guild {}",
         ctx.guild_id().unwrap().to_string()
     );
-    ctx.log(
+    let log = ctx.build_log(
         "General configuration set!",
         "The setting is set successfully!",
         log::State::SUCCESS,
         log::Model::GUILD,
-    )
-    .await?;
+    );
+    ctx.log(log).await?;
 
     Ok(())
 }
@@ -272,20 +291,22 @@ async fn create_tournament(
         None,
     )
     .await?;
-    let description = format!(
-        r#"
-Tournament ID: {}
-Tournament name: {}
-    "#,
-        new_tournament_id, name
-    );
-    ctx.log(
+    let fields = vec![
+        ("Tournament ID", new_tournament_id.to_string(), true),
+        ("Tournament name", name, true),
+        ("Mode", mode.to_string(), true),
+        ("Role", role.mention().to_string(), true),
+        ("Announcement channel", announcement_channel.mention().to_string(), true),
+        ("Notification channel", notification_channel.mention().to_string(), true),
+        ("Wins required", wins_required.to_string(), true),
+    ];
+    let log = ctx.build_log(
         "Tournament created successfully!",
-        description,
+        "",
         log::State::SUCCESS,
         log::Model::TOURNAMENT,
-    )
-    .await?;
+    ).fields(fields);
+    ctx.log(log).await?;
     info!(
         "Created tournament {} for guild {}",
         new_tournament_id, guild_id
@@ -297,45 +318,9 @@ Tournament name: {}
 async fn start_tournament(
     ctx: BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    tournament_id: i32,
-    map: &BrawlMap,
-    wins_required: Option<i32>,
+    tournament: Tournament,
 ) -> Result<(), BotError> {
-    let wins_required = match wins_required {
-        Some(wins) => {
-            if wins < 1 {
-                ctx.send(CreateReply::default().content("Aborting operation: the number of required wins must not be less than 1!").ephemeral(true)).await?;
-                return Ok(());
-            } else {
-                wins
-            }
-        }
-        None => 2,
-    };
-
-    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-
-    let tournament = match ctx
-        .data()
-        .database
-        .get_tournament(&guild_id, tournament_id)
-        .await?
-    {
-        Some(tournament) => tournament,
-        None => {
-            ctx.prompt(
-                msg,
-                CreateEmbed::default()
-                    .title("Tournament not found")
-                    .description("The tournament with the given ID was not found.")
-                    .color(Colour::RED),
-                None,
-            )
-            .await?;
-            return Ok(());
-        }
-    };
-
+    let tournament_id = tournament.tournament_id;
     match tournament.status {
         TournamentStatus::Pending => (),
         _ => {
@@ -357,7 +342,7 @@ async fn start_tournament(
     let tournament_players = ctx
         .data()
         .database
-        .get_tournament_players(tournament_id)
+        .get_tournament_players(tournament.tournament_id)
         .await?;
 
     if tournament_players.len() < 2 {
@@ -365,7 +350,7 @@ async fn start_tournament(
             CreateReply::default()
                 .content(format!(
                     "There are not enough players to start the tournament with ID {}.",
-                    tournament_id
+                    tournament.tournament_id
                 ))
                 .ephemeral(true),
         )
@@ -390,16 +375,16 @@ async fn start_tournament(
                 .database
                 .set_winner(
                     &bracket.match_id,
-                    &UserId::new(bracket.match_players[0].discord_id.parse::<u64>()?),
+                    &UserId::from_str(bracket.match_players[0].discord_id.as_str())?,
                     "bye",
                 )
                 .await?;
         }
         for player in bracket.match_players {
-            let player = player.to_user(&ctx).await?;
+            let player_id = player.user_id()?;
             ctx.data()
                 .database
-                .enter_match(&bracket.match_id, &player.id, PlayerType::Player)
+                .enter_match(&bracket.match_id, &player_id, PlayerType::Player)
                 .await?;
         }
     }
@@ -417,7 +402,6 @@ async fn start_tournament(
         .database
         .set_rounds(tournament_id, rounds_count)
         .await?;
-    ctx.data().database.set_map(tournament_id, map).await?;
     ctx.prompt(
         msg,
         CreateEmbed::default()
@@ -429,29 +413,20 @@ async fn start_tournament(
             .color(Colour::DARK_GREEN),
         None,
     ).await?;
-    let description = format!(
-        r#"
-Tournament ID: {}
-Tournament name: {}
-Rounds: {}
-Number of matches: {}
-Wins required per match: {}
-Started by: {}
-    "#,
-        tournament_id,
-        tournament.name,
-        rounds_count,
-        matches_count,
-        wins_required,
-        ctx.author().name
-    );
-    ctx.log(
+    let fields = vec![
+        ("Tournament ID", tournament_id.to_string(), true),
+        ("Tournament name", tournament.name, true),
+        ("Rounds", rounds_count.to_string(), true),
+        ("Number of matches", matches_count.to_string(), true),
+        ("Started by", ctx.author().name.clone(), true),
+    ];
+    let log = ctx.build_log(
         "Tournament started successfully!",
-        description,
+        "",
         log::State::SUCCESS,
         log::Model::TOURNAMENT,
-    )
-    .await?;
+    ).fields(fields);
+    ctx.log(log).await?;
 
     Ok(())
 }
@@ -619,30 +594,26 @@ async fn step_by_step_create_tournament(
         name: String,
 
         #[name = "Minimum wins required to win a match"]
-        #[placeholder = "Write the number of wins required to win a match here or leave it blank for 3!"]
+        #[placeholder = "Write the number of wins required to win a match here or leave it blank for 2!"]
         wins_required: Option<String>,
     }
     let embed = |m: &TournamentName, r: &Role, a: &Channel, n: &Channel| {
         CreateEmbed::default()
             .title("Tournament Confirmation")
-            .description(format!(
-                r#"Please confirm the following tournament:
-- **Tournament name:** {}
-- **Role:** <@&{role}>,
-- **Announcement channel:** <#{ann}>,
-- **Notification channel:** <#{not}>.
-- **Wins required:** {win}.
-"#,
-                m.name,
-                role = r.id.get(),
-                ann = a.id().get(),
-                not = n.id().get(),
-                win = m
-                    .wins_required
-                    .as_ref()
-                    .map(|w| w.parse::<i32>().unwrap_or(3).max(1))
-                    .unwrap_or(3)
-            ))
+            .description("Please confirm the following tournament:")
+            .fields(vec![
+                ("Tournament name", m.name.clone(), true),
+                ("Role", r.mention().to_string(), true),
+                ("Announcement channel", a.mention().to_string(), true),
+                ("Notification channel", n.mention().to_string(), true),
+                (
+                    "Wins required",
+                    m.wins_required
+                        .clone()
+                        .unwrap_or(DEFAULT_WIN_REQUIRED.to_string()),
+                    true,
+                ),
+            ])
             .color(Colour::GOLD)
     };
     let (m, mode, a, n, r) = loop {
@@ -693,10 +664,11 @@ async fn step_by_step_create_tournament(
         }
     };
     let name = m.name;
+
     let wins_required = m
         .wins_required
-        .map(|x| x.parse::<i32>().unwrap_or(3).max(1))
-        .unwrap_or(3);
+        .map(|x| x.parse::<i32>().unwrap_or(DEFAULT_WIN_REQUIRED).max(1))
+        .unwrap_or(DEFAULT_WIN_REQUIRED);
     create_tournament(
         *ctx,
         msg,
@@ -733,17 +705,11 @@ async fn step_by_step_start_tournament(
         &tournaments,
     )
     .await?;
-    let id = id.parse::<i32>()?;
-    let embed = CreateEmbed::new()
-        .title("More setting needed for the tournament")
-        .description("Please provide the map and wins requirement for the tournament.");
-    let collector = modal::<More>(ctx, msg, embed).await?;
-    let mode: GameMode = ctx.mode_selection(msg).await?.into();
-    let map = ctx.map_selection(msg, &mode.into()).await?;
-    let wins_required = collector
-        .wins_required
-        .map(|x| x.parse::<i32>().unwrap_or(3).max(1));
-    start_tournament(*ctx, msg, id, &map.into(), wins_required).await
+    let tournament = tournaments
+        .into_iter()
+        .find(|t| t.tournament_id.to_string() == id)
+        .ok_or(CommonError::TournamentNotExists(id))?;
+    start_tournament(*ctx, msg, tournament).await
 }
 
 /// Contains the logic for generating matches for a newly started tournament.

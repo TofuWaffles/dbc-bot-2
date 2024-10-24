@@ -1,4 +1,6 @@
-use crate::{database::models::Selectable, BotContext, BotError};
+use std::str::FromStr;
+
+use crate::{database::models::Selectable, utils::discord::DiscordTrait, BotContext, BotError};
 use poise::serenity_prelude::{User, UserId};
 use serde::{Deserialize, Serialize};
 #[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, Clone)]
@@ -26,6 +28,9 @@ pub struct Mail {
     pub read: bool,
     pub mode: MailType,
 }
+
+impl DiscordTrait for Mail{}
+
 impl Mail {
     pub async fn new(
         sender: String,
@@ -45,36 +50,40 @@ impl Mail {
             mode: MailType::default(),
         }
     }
+
+    #[inline]
     pub async fn recipient(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
-        Ok(UserId::new(self.recipient.parse::<u64>()?)
-            .to_user(ctx.http())
-            .await?)
+        Ok(self.recipient_id()?.to_user(ctx.http()).await?)
     }
 
+    #[inline]
     pub fn recipient_id(&self) -> Result<UserId, BotError> {
-        Ok(UserId::new(self.recipient.parse::<u64>()?))
+        Ok(UserId::from_str(self.recipient.as_str())?)
     }
 
+    #[inline]
     pub async fn sender(&self, ctx: &BotContext<'_>) -> Result<User, BotError> {
-        Ok(UserId::new(self.sender.parse::<u64>()?)
-            .to_user(ctx.http())
-            .await?)
+        Ok(self.sender_id()?.to_user(ctx.http()).await?)
     }
 
+    #[inline]
     pub fn sender_id(&self) -> Result<UserId, BotError> {
-        Ok(UserId::new(self.sender.parse::<u64>()?))
+        Ok(UserId::from_str(self.sender.as_str())?)
     }
 
+    #[inline]
     pub fn marshal_type(&mut self) {
         self.mode = MailType::Marshal;
     }
 }
 
 impl Selectable for Mail {
+    #[inline]
     fn identifier(&self) -> String {
         self.id.to_string()
     }
-
+    
+    #[inline]
     fn label(&self) -> String {
         format!("{} - {}", self.subject.clone(), self.sender.clone())
     }

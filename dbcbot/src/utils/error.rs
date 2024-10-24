@@ -1,4 +1,5 @@
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum CommonError {
     NoSelection,
     NotInAGuild,
@@ -12,6 +13,7 @@ pub enum CommonError {
     UnableToSendMessage,
     UnableToEditMessage,
     UnableToAssignRole,
+    APIError(String)
 }
 
 impl std::fmt::Display for CommonError {
@@ -30,6 +32,7 @@ impl std::fmt::Display for CommonError {
             UnableToSendMessage => write!(f, "Unable to send message."),
             UnableToEditMessage => write!(f, "Unable to edit message."),
             UnableToAssignRole => write!(f, "Unable to assign role."),
+            APIError(msg) => write!(f, "API Error: {}", msg),
         }
     }
 }
@@ -50,6 +53,7 @@ impl std::error::Error for CommonError {
             UnableToSendMessage => Some(self),
             UnableToEditMessage => Some(self),
             UnableToAssignRole => Some(self),
+            APIError(_) => Some(self),
         }
     }
 }

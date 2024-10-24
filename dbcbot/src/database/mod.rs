@@ -1,5 +1,4 @@
 use crate::info;
-use crate::mail::model::MailType;
 use crate::BotError;
 use anyhow::anyhow;
 use models::*;
@@ -8,7 +7,6 @@ use poise::serenity_prelude::GuildId;
 use poise::serenity_prelude::RoleId;
 use poise::serenity_prelude::UserId;
 use sqlx::PgPool;
-use tokio::join;
 use tokio::try_join;
 /// Models for the database.
 ///

@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use super::discord::select_options;
+use super::error::CommonError;
 use crate::database::*;
 use crate::utils::error::CommonError::*;
 use crate::{
@@ -184,7 +187,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         discord_id: impl Into<Option<String>> + Clone,
     ) -> Result<Option<crate::database::models::Player>, BotError> {
         let id = match discord_id.into() {
-            Some(id) => UserId::from(id.parse::<u64>()?),
+            Some(id) => UserId::from_str(&id).unwrap(),
             None => self.author().id,
         };
         let player = self.data().database.get_player_by_discord_id(&id).await?;
@@ -378,14 +381,12 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         msg: &ReplyHandle<'_>,
         mode: &Mode,
     ) -> Result<BrawlMap, BotError> {
-        let maps = match self.data().apis.brawlify.get_maps().await? {
-            APIResult::Ok(m) => m,
-            APIResult::NotFound => return Err(anyhow!("Maps not found")),
-            APIResult::Maintenance => {
-                return Err(anyhow!("Brawlify is currently undergoing maintenance"))
-            }
-        };
-        let filtered_maps = maps.filter_map_by_mode(mode);
+        let raw = self.data().apis.brawlify.get_maps().await?;
+        let maps = raw
+            .handler(self, msg)
+            .await?
+            .ok_or(CommonError::APIError("No maps found".to_string()))?;
+        let filtered_maps = maps.to_owned().filter_map_by_mode(mode);
         let (prev, select, any, next) = (
             String::from("prev"),
             String::from("any"),
@@ -395,12 +396,17 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         let reply = |map: BrawlMap| {
             let embed = CreateEmbed::default()
                 .title(map.name.to_string())
-                .description(format!(
-                    "Environment: ** {}**\nMode: **{}**\nAvailability: **{}**",
-                    map.environment.name,
-                    map.game_mode.name,
-                    ["Yes", "No"][(!map.disabled) as usize]
-                ))
+                .fields(vec![
+                    ("ID", map.id.to_string(), true),
+                    ("Name", map.name, true),
+                    ("Environment", map.environment.name, true),
+                    ("Mode", map.game_mode.name, true),
+                    (
+                        "Availability",
+                        ["Yes", "No"][(map.disabled) as usize].to_string(),
+                        true,
+                    ),
+                ])
                 .image(map.image_url)
                 .thumbnail(map.game_mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
@@ -411,7 +417,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 CreateButton::new(select.clone())
                     .label("Select")
                     .style(ButtonStyle::Primary)
-                    .disabled(!map.disabled),
+                    .disabled(map.disabled),
                 CreateButton::new(any.clone())
                     .label("Any")
                     .style(ButtonStyle::Primary),
@@ -455,13 +461,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     }
 
     async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {
-        let modes = match self.data().apis.brawlify.get_modes().await? {
-            APIResult::Ok(m) => m,
-            APIResult::NotFound => return Err(anyhow!("Modes not found")),
-            APIResult::Maintenance => {
-                return Err(anyhow!("Brawlify is currently undergoing maintenance"))
-            }
-        };
+        let raw = self.data().apis.brawlify.get_modes().await?;
+        let modes = raw
+            .handler(self, msg)
+            .await?
+            .ok_or(CommonError::APIError("No modes found".to_string()))?;
         let (prev, select, next) = (
             String::from("prev"),
             String::from("select"),

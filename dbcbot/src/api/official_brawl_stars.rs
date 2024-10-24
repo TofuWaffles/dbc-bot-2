@@ -27,6 +27,7 @@ pub struct BrawlStarsAPI {
     endpoint: Endpoint,
 }
 
+#[allow(dead_code)]
 impl BrawlStarsAPI {
     /// Create a new API client.
     pub fn new() -> Self {

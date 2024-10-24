@@ -9,8 +9,8 @@ from .model import Background, BaseImage, Component, ExtendedPlayer, Mode
 
 
 class BattleLog(BaseModel):
-    player1: ExtendedPlayer
-    player2: ExtendedPlayer
+    winner: ExtendedPlayer
+    eliminated: ExtendedPlayer
     battle_time: str
     duration: int
     mode: str
@@ -35,12 +35,14 @@ class RequestBattleLog(BaseModel):
     battle_logs: List[BattleLog]
 
     async def respond(self) -> Union[str, Exception]:
+        print(self)
         image = await BattleLog(self.battle_logs)
         if image.error:
             print(image.error)
             return image.error
         image.preset()
         image.build()
+        image.resize(width=500)
         bytes = image.bytes()
         if bytes is Exception:
             return Exception("Error while converting image to bytes")
@@ -64,30 +66,22 @@ class BattleLog(BaseImage):
         self.mode_icon, self.error = await self.asset.get_mode_icon(
             mode=battle_logs[0].mode
         )
-        self.p1: TempPlayer = TempPlayer(
-            discord_id=battle_logs[0].player1.discord_id,
-            discord_name=battle_logs[0].player1.discord_name,
-            icon=(await self.asset.icon(battle_logs[0].player1.icon))[
+        self.winner: TempPlayer = TempPlayer(
+            discord_id=battle_logs[0].winner.discord_id,
+            discord_name=battle_logs[0].winner.discord_name,
+            icon=(await self.asset.icon(battle_logs[0].winner.icon))[
                 0
             ],  # idk why this is a tuple lol
         )
-        self.p2: TempPlayer = TempPlayer(
-            discord_id=battle_logs[0].player2.discord_id,
-            discord_name=battle_logs[0].player2.discord_name,
-            icon=(await self.asset.icon(battle_logs[0].player2.icon))[0],
+        self.eliminated: TempPlayer = TempPlayer(
+            discord_id=battle_logs[0].eliminated.discord_id,
+            discord_name=battle_logs[0].eliminated.discord_name,
+            icon=(await self.asset.icon(battle_logs[0].eliminated.icon))[0],
         )
 
     def preset(self) -> None:
         for index, log in enumerate(self.battle_logs):
-            result = (
-                f"{self.p1.discord_name}\nwon this battle"
-                if log.result == self.p1.discord_id
-                else (
-                    f"{self.p2.discord_name}\nwon this battle"
-                    if log.result
-                    else "This battle ended in a draw!"
-                )
-            )
+            result = "Draw" if log.result is None else f"{self.winner.discord_name} won this round"
             base_bg = Component(
                 img=Image.new(mode="RGB", size=(1280, 720), color="#8274A0"),
                 pos=(0, 720 * index + self.gap * (index + 1)),
@@ -127,18 +121,18 @@ class BattleLog(BaseImage):
 
             padding = 50
             icon_size = (200, 200)
-            player1_icon = Component(
-                name=self.p1.discord_name,
-                img=self.p1.icon.resize(size=icon_size, resample=Resampling.NEAREST),
+            winner_icon = Component(
+                name=self.winner.discord_name,
+                img=self.winner.icon.resize(size=icon_size, resample=Resampling.NEAREST),
                 pos=(padding, base_bg.y + 200),
             )
-            player2_icon = Component(
-                name=self.p2.discord_name,
-                img=self.p2.icon.resize(size=icon_size, resample=Resampling.NEAREST),
+            eliminated_icon = Component(
+                name=self.eliminated.discord_name,
+                img=self.eliminated.icon.resize(size=icon_size, resample=Resampling.NEAREST).convert(mode="L"),
                 pos=(1280 - padding - icon_size[0], base_bg.y + 200),
             )
             base_bg.write(
-                text=player1_icon.name,
+                text=winner_icon.name,
                 font_size=30,
                 textbox_pos=(
                     (padding, icon_size[1] + padding),
@@ -148,7 +142,7 @@ class BattleLog(BaseImage):
                 color="white",
             )
             base_bg.write(
-                text=player2_icon.name,
+                text=eliminated_icon.name,
                 font_size=30,
                 textbox_pos=(
                     (1280 - padding - icon_size[0], icon_size[1] + padding),
@@ -165,5 +159,5 @@ class BattleLog(BaseImage):
             vs.set_x(base_bg.x + (base_bg.width - vs.img.width) // 2)
             vs.set_y(base_bg.y + (base_bg.height - vs.img.height) // 2)
             self.components.extend(
-                [base_bg, layer1, mode_icon, player1_icon, player2_icon, vs]
+                [base_bg, layer1, mode_icon, winner_icon, eliminated_icon, vs]
             )
