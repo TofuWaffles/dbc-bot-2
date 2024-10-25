@@ -17,6 +17,8 @@ impl BattleDateTime {
     }
 
     pub fn to_rfc2822(&self) -> String {
-       DateTime::from_timestamp(self.datetime, 0).unwrap().to_rfc2822()
+        DateTime::from_timestamp(self.datetime, 0)
+            .unwrap()
+            .to_rfc2822()
     }
 }

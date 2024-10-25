@@ -1102,7 +1102,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         Ok(())
     }
 
-    async fn set_default_map(&self,tournament_id: i32) -> Result<(), Self::Error>{
+    async fn set_default_map(&self, tournament_id: i32) -> Result<(), Self::Error> {
         self.set_map(tournament_id, &BrawlMap::default()).await
     }
 
