@@ -36,7 +36,7 @@ impl CommandsContainer for MarshalCommands {
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![
             get_tournament(),
-            list_active_tournaments(),
+            get_active_tournaments(),
             next_round(),
             pause_tournament(),
             unpause_tournament(),
@@ -44,6 +44,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
+            get_matches(),
             marshal_menu(),
         ]
     }
@@ -119,7 +120,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
     rename = "list_tournaments"
 )]
 #[instrument]
-async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
+async fn get_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournaments = ctx
@@ -571,6 +572,56 @@ Disqualified by: {disqualified_by}."#,
         log::Model::MARSHAL,
     );
     ctx.log(log).await?;
+    Ok(())
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[instrument]
+async fn get_matches(
+    ctx: BotContext<'_>,
+    tournament_id: i32,
+    round: Option<i32>,
+) -> Result<(), BotError> {
+    let matches = ctx
+        .data()
+        .database
+        .get_matches_by_tournament(tournament_id, round)
+        .await?;
+
+    let mut csv_str = "Match ID,Player 1,Player 2,Score,Winner\n".to_string();
+
+    for bracket in matches {
+        csv_str.push_str(&format!(
+            "{},{:#?},{:#?},{},{:#?}\n",
+            bracket.match_id,
+            bracket.match_players.get(0),
+            bracket.match_players.get(1),
+            bracket.score,
+            bracket.winner
+        ));
+    }
+
+    let (msg_content, filename) = match round {
+        Some(r) => (
+            format!(
+                "Here are all the players in round {} of tournament {}",
+                r, tournament_id
+            ),
+            format!("players_tournament_{}_round_{}", tournament_id, r),
+        ),
+        None => (
+            format!("Here are all the players in tournament {}", tournament_id),
+            format!("players_tournament_{}", tournament_id),
+        ),
+    };
+
+    ctx.send(
+        CreateReply::default()
+            .content(msg_content)
+            .attachment(CreateAttachment::bytes(csv_str.as_bytes(), filename)),
+    )
+    .await?;
+
     Ok(())
 }
 
