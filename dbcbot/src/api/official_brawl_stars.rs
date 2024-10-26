@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Deserializer, Serialize};
 
