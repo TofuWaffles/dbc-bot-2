@@ -193,7 +193,7 @@ impl Player {
     }
 
     #[inline]
-    pub fn user_id(&self) -> Result<UserId, BotError>{
+    pub fn user_id(&self) -> Result<UserId, BotError> {
         Self::to_user_id(&self.discord_id)
     }
 
@@ -227,7 +227,7 @@ impl TournamentPlayer {
     }
 
     #[inline]
-    pub fn user_id(&self) -> Result<UserId, BotError>{
+    pub fn user_id(&self) -> Result<UserId, BotError> {
         Self::to_user_id(&self.discord_id)
     }
 }
@@ -384,7 +384,7 @@ impl MatchPlayer {
         Ok(self.user_id()?.to_user(ctx).await?)
     }
     #[inline]
-    pub fn user_id(&self) -> Result<UserId, BotError>{
+    pub fn user_id(&self) -> Result<UserId, BotError> {
         Self::to_user_id(&self.discord_id)
     }
 }

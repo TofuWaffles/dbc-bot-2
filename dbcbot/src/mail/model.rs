@@ -29,7 +29,7 @@ pub struct Mail {
     pub mode: MailType,
 }
 
-impl DiscordTrait for Mail{}
+impl DiscordTrait for Mail {}
 
 impl Mail {
     pub async fn new(
@@ -82,7 +82,7 @@ impl Selectable for Mail {
     fn identifier(&self) -> String {
         self.id.to_string()
     }
-    
+
     #[inline]
     fn label(&self) -> String {
         format!("{} - {}", self.subject.clone(), self.sender.clone())

@@ -177,7 +177,7 @@ impl ImagesAPI {
                 })
             })
             .collect();
-       
+
         let payloads = serde_json::json!({"battle_logs": data});
         let bytes = get_image(url, payloads).await?;
         Ok(bytes)

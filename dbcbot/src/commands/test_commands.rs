@@ -86,7 +86,13 @@ async fn match_image(
     #[description = "Second user (in the right side)"] user2: serenity_prelude::User,
     #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
-    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(ephemeral)
+                .embed(CreateEmbed::new().title("Running the test")),
+        )
+        .await?;
     let p1 = ctx
         .get_player_from_discord_id(user1.id.to_string())
         .await?
@@ -99,7 +105,14 @@ async fn match_image(
     let image = match image_api.match_image(&p1, &p2).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("An error has occured!")
+                    .description(e.to_string()),
+                None,
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -146,7 +159,13 @@ async fn result_image(
     #[description = "Score"] score: String,
     #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
-    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(ephemeral)
+                .embed(CreateEmbed::new().title("Running the test")),
+        )
+        .await?;
     let p1 = ctx
         .get_player_from_discord_id(winner.id.to_string())
         .await?
@@ -159,7 +178,14 @@ async fn result_image(
     let image = match image_api.result_image(&p1, &p2, &score).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("An error has occured!")
+                    .description(e.to_string()),
+                None,
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -204,7 +230,13 @@ async fn profile_image(
     #[description = "Publish the result"] ephemeral: bool,
 ) -> Result<(), BotError> {
     ctx.defer().await?;
-    let msg = ctx.send(CreateReply::default().ephemeral(ephemeral).embed(CreateEmbed::new().title("Running the test"))).await?;
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(ephemeral)
+                .embed(CreateEmbed::new().title("Running the test")),
+        )
+        .await?;
     let discord_id = user.id.to_string();
     let user = ctx
         .get_player_from_discord_id(discord_id.clone())
@@ -221,7 +253,14 @@ async fn profile_image(
     let image = match image_api.profile_image(&user, tournament_id).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(&msg, CreateEmbed::new().title("An error has occured!").description(e.to_string()), None).await?;
+            ctx.prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("An error has occured!")
+                    .description(e.to_string()),
+                None,
+            )
+            .await?;
             return Ok(());
         }
     };
@@ -317,27 +356,44 @@ pub async fn send_mail(
 /// Test add all maps to the database
 #[poise::command(slash_command)]
 pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
-    let reply= {
+    let reply = {
         let embed = CreateEmbed::default()
             .title("Adding maps to the database")
             .description("This command will add all maps to the database.")
             .footer(CreateEmbedFooter::new("This may take a while."));
-        CreateReply::default().ephemeral(true).embed(embed).reply(true)
+        CreateReply::default()
+            .ephemeral(true)
+            .embed(embed)
+            .reply(true)
     };
     let msg = ctx.send(reply).await?;
-    let raw =  ctx.data().apis.brawlify.get_maps().await?;
-    let mut maps = match raw.handler(&ctx, &msg).await?{
+    let raw = ctx.data().apis.brawlify.get_maps().await?;
+    let mut maps = match raw.handler(&ctx, &msg).await? {
         Some(maps) => maps,
-        None => return ctx.prompt(&msg, CreateEmbed::default().description("No maps were added!"), None).await,
+        None => {
+            return ctx
+                .prompt(
+                    &msg,
+                    CreateEmbed::default().description("No maps were added!"),
+                    None,
+                )
+                .await
+        }
     };
-    
-    while let Some(map) = maps.pop(){
+
+    while let Some(map) = maps.pop() {
         let brawl_map = BrawlMap::from(map);
         ctx.data().database.add_map(&brawl_map).await?;
     }
-    ctx.prompt(&msg, CreateEmbed::default().description("All maps were added!"), None).await?;
+    ctx.prompt(
+        &msg,
+        CreateEmbed::default().description("All maps were added!"),
+        None,
+    )
+    .await?;
     Ok(())
 }
+<<<<<<< HEAD
 
 #[poise::command(slash_command)]
 pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError>{
@@ -355,3 +411,5 @@ pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError>{
     ctx.send(CreateReply::default().attachment(attachment)).await?;
     Ok(())
 }
+=======
+>>>>>>> 00eda06a4ff38f1d74b9574b1a12c5d41d3568fb

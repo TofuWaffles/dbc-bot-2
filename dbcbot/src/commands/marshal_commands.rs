@@ -36,7 +36,7 @@ impl CommandsContainer for MarshalCommands {
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![
             get_tournament(),
-            list_active_tournaments(),
+            get_active_tournaments(),
             next_round(),
             pause_tournament(),
             unpause_tournament(),
@@ -44,6 +44,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
+            get_matches(),
             marshal_menu(),
         ]
     }
@@ -71,8 +72,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
             };
             ctx.send(
                 CreateReply::default()
-                    .embed(
-                        CreateEmbed::new().title(tournament.name).fields(vec![
+                    .embed(CreateEmbed::new().title(tournament.name).fields(vec![
                             ("ID", tournament.tournament_id.to_string(), true),
                             ("Status", tournament.status.to_string(), true),
                             ("Rounds", tournament.rounds.to_string(), true),
@@ -91,8 +91,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
                                 true,
                             ),
                             ("Started At", start_time_str, true),
-                        ]),
-                    )
+                        ]))
                     .ephemeral(true),
             )
             .await?;
@@ -119,7 +118,7 @@ async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), B
     rename = "list_tournaments"
 )]
 #[instrument]
-async fn list_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
+async fn get_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournaments = ctx
@@ -535,9 +534,7 @@ async fn disqualify(
         }
     };
 
-    let opponent_id= bracket
-        .get_opponent(&player.id.to_string())?
-        .user_id()?;
+    let opponent_id = bracket.get_opponent(&player.id.to_string())?.user_id()?;
     ctx.data()
         .database
         .set_winner(&bracket.match_id, &opponent_id, "n/a")
@@ -571,6 +568,88 @@ Disqualified by: {disqualified_by}."#,
         log::Model::MARSHAL,
     );
     ctx.log(log).await?;
+    Ok(())
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[instrument]
+async fn get_matches(
+    ctx: BotContext<'_>,
+    tournament_id: i32,
+    round: Option<i32>,
+) -> Result<(), BotError> {
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&ctx.guild_id().unwrap(), tournament_id)
+        .await?
+    {
+        Some(t) => t,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content(format!("No tournament found for ID {}", tournament_id))
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let (msg_content, filename) = match round {
+        Some(r) => {
+            if r > tournament.rounds {
+                ctx.send(
+                    CreateReply::default()
+                        .content(format!(
+                            "Tournament {} only has {} rounds!. You entered: {} rounds",
+                            tournament_id, tournament.rounds, r
+                        ))
+                        .ephemeral(true),
+                )
+                .await?;
+                return Ok(());
+            }
+            (
+                format!(
+                    "Here are all the players in round {} of tournament {}",
+                    r, tournament_id
+                ),
+                format!("players_tournament_{}_round_{}", tournament_id, r),
+            )
+        }
+        None => (
+            format!("Here are all the players in tournament {}", tournament_id),
+            format!("players_tournament_{}", tournament_id),
+        ),
+    };
+
+    let matches = ctx
+        .data()
+        .database
+        .get_matches_by_tournament(tournament_id, round)
+        .await?;
+
+    let mut csv_str = "Match ID,Player 1,Player 2,Score,Winner\n".to_string();
+
+    for bracket in matches {
+        csv_str.push_str(&format!(
+            "{},{:#?},{:#?},{},{:#?}\n",
+            bracket.match_id,
+            bracket.match_players.get(0),
+            bracket.match_players.get(1),
+            bracket.score,
+            bracket.winner
+        ));
+    }
+
+    ctx.send(
+        CreateReply::default()
+            .content(msg_content)
+            .attachment(CreateAttachment::bytes(csv_str.as_bytes(), filename)),
+    )
+    .await?;
+
     Ok(())
 }
 
@@ -702,23 +781,21 @@ async fn next_round_helper(
             .ephemeral(true),
     )
     .await?;
-    let description = format!(
-        r#"The tournament has advanced to round {}"#,
-        round,
-    );
+    let description = format!(r#"The tournament has advanced to round {}"#, round,);
     let fields = vec![
         ("Tournament ID", tournament.tournament_id.to_string(), true),
         ("Tournament name", tournament.name.to_string(), true),
         ("Number of matches", new_brackets_count.to_string(), true),
         ("Advanced by", ctx.author().name.to_string(), true),
     ];
-    let log = ctx.build_log(
-        "Tournament advanced!",
-        description,
-        log::State::SUCCESS,
-        log::Model::MARSHAL,
-    )
-    .fields(fields);
+    let log = ctx
+        .build_log(
+            "Tournament advanced!",
+            description,
+            log::State::SUCCESS,
+            log::Model::MARSHAL,
+        )
+        .fields(fields);
     ctx.log(log).await?;
     Ok(())
 }

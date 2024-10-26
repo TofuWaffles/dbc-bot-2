@@ -13,7 +13,7 @@ pub enum CommonError {
     UnableToSendMessage,
     UnableToEditMessage,
     UnableToAssignRole,
-    APIError(String)
+    APIError(String),
 }
 
 impl std::fmt::Display for CommonError {

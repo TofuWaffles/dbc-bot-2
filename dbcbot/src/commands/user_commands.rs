@@ -459,11 +459,7 @@ async fn user_forfeit(
         let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
         ctx.data()
             .database
-            .set_winner(
-                &bracket.match_id,
-                &opponent.user_id()?,
-                &bracket.score,
-            )
+            .set_winner(&bracket.match_id, &opponent.user_id()?, &bracket.score)
             .await?;
         msg.edit(
             *ctx,

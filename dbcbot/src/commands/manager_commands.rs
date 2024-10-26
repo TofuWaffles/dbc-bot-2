@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use super::CommandsContainer;
 use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
@@ -19,6 +18,7 @@ use poise::{
     serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
     CreateReply, ReplyHandle,
 };
+use std::str::FromStr;
 use tracing::{error, info, instrument};
 const DEFAULT_WIN_REQUIRED: i32 = 2;
 /// CommandsContainer for the Manager commands.
@@ -296,16 +296,26 @@ async fn create_tournament(
         ("Tournament name", name, true),
         ("Mode", mode.to_string(), true),
         ("Role", role.mention().to_string(), true),
-        ("Announcement channel", announcement_channel.mention().to_string(), true),
-        ("Notification channel", notification_channel.mention().to_string(), true),
+        (
+            "Announcement channel",
+            announcement_channel.mention().to_string(),
+            true,
+        ),
+        (
+            "Notification channel",
+            notification_channel.mention().to_string(),
+            true,
+        ),
         ("Wins required", wins_required.to_string(), true),
     ];
-    let log = ctx.build_log(
-        "Tournament created successfully!",
-        "",
-        log::State::SUCCESS,
-        log::Model::TOURNAMENT,
-    ).fields(fields);
+    let log = ctx
+        .build_log(
+            "Tournament created successfully!",
+            "",
+            log::State::SUCCESS,
+            log::Model::TOURNAMENT,
+        )
+        .fields(fields);
     ctx.log(log).await?;
     info!(
         "Created tournament {} for guild {}",
@@ -420,12 +430,14 @@ async fn start_tournament(
         ("Number of matches", matches_count.to_string(), true),
         ("Started by", ctx.author().name.clone(), true),
     ];
-    let log = ctx.build_log(
-        "Tournament started successfully!",
-        "",
-        log::State::SUCCESS,
-        log::Model::TOURNAMENT,
-    ).fields(fields);
+    let log = ctx
+        .build_log(
+            "Tournament started successfully!",
+            "",
+            log::State::SUCCESS,
+            log::Model::TOURNAMENT,
+        )
+        .fields(fields);
     ctx.log(log).await?;
 
     Ok(())

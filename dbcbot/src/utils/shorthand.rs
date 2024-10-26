@@ -460,7 +460,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Err(NoSelection.into())
     }
 
-    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError>{
+    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError> {
         self.data().database.set_default_map(tournament_id).await
     }
 

@@ -114,8 +114,6 @@ where
     pub fn pop(&mut self) -> Option<T> {
         self.list.pop()
     }
-
-
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, PartialOrd, Eq, Ord)]
