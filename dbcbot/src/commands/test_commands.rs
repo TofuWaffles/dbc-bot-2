@@ -393,7 +393,6 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
     .await?;
     Ok(())
 }
-<<<<<<< HEAD
 
 #[poise::command(slash_command)]
 pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError>{
@@ -411,5 +410,3 @@ pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError>{
     ctx.send(CreateReply::default().attachment(attachment)).await?;
     Ok(())
 }
-=======
->>>>>>> 00eda06a4ff38f1d74b9574b1a12c5d41d3568fb

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use std::str::FromStr;
 
 use anyhow::anyhow;
@@ -45,29 +44,3 @@ impl FromStr for BattleDateTime {
         Ok(Self{datetime: datetime.and_utc().timestamp()})
     }
 }
-=======
-use chrono::DateTime;
-use serde::{Deserialize, Serialize};
-#[derive(Serialize, Deserialize, Debug)]
-pub struct BattleDateTime {
-    pub datetime: i64,
-}
-
-impl BattleDateTime {
-    pub fn new(unix: i64) -> Self {
-        BattleDateTime { datetime: unix }
-    }
-    // Method to convert from custom string format
-    pub fn from_str(s: &str) -> Result<Self, chrono::ParseError> {
-        let datetime = DateTime::parse_from_str(s, "%Y%m%dT%H%M%S%.3fZ")?;
-        let unix = datetime.timestamp();
-        Ok(BattleDateTime { datetime: unix })
-    }
-
-    pub fn to_rfc2822(&self) -> String {
-        DateTime::from_timestamp(self.datetime, 0)
-            .unwrap()
-            .to_rfc2822()
-    }
-}
->>>>>>> 00eda06a4ff38f1d74b9574b1a12c5d41d3568fb
