@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
-use crate::database::models::{BrawlMap, Match, PlayerType, Tournament, TournamentStatus};
+use crate::database::models::{
+    BrawlMap, Match, MatchPlayer, PlayerType, Tournament, TournamentStatus,
+};
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
 use crate::utils::error::CommonError::*;
@@ -615,12 +617,12 @@ async fn get_matches(
                     "Here are all the players in round {} of tournament {}",
                     r, tournament_id
                 ),
-                format!("players_tournament_{}_round_{}", tournament_id, r),
+                format!("players_tournament_{}_round_{}.csv", tournament_id, r),
             )
         }
         None => (
             format!("Here are all the players in tournament {}", tournament_id),
-            format!("players_tournament_{}", tournament_id),
+            format!("players_tournament_{}.csv", tournament_id),
         ),
     };
 
@@ -632,21 +634,37 @@ async fn get_matches(
 
     let mut csv_str = "Match ID,Player 1,Player 2,Score,Winner\n".to_string();
 
+    let empty_player = MatchPlayer {
+        match_id: "".to_string(),
+        discord_id: "No Player".to_string(),
+        player_type: PlayerType::Dummy,
+        ready: false,
+    };
+
     for bracket in matches {
         csv_str.push_str(&format!(
-            "{},{:#?},{:#?},{},{:#?}\n",
+            "{},{},{},{},{}\n",
             bracket.match_id,
-            bracket.match_players.get(0),
-            bracket.match_players.get(1),
+            bracket
+                .match_players
+                .get(0)
+                .unwrap_or(&empty_player)
+                .discord_id,
+            bracket
+                .match_players
+                .get(1)
+                .unwrap_or(&empty_player)
+                .discord_id,
             bracket.score,
-            bracket.winner
+            bracket.winner.unwrap_or("None".to_string())
         ));
     }
 
     ctx.send(
         CreateReply::default()
             .content(msg_content)
-            .attachment(CreateAttachment::bytes(csv_str.as_bytes(), filename)),
+            .attachment(CreateAttachment::bytes(csv_str.as_bytes(), filename))
+            .ephemeral(true),
     )
     .await?;
 
