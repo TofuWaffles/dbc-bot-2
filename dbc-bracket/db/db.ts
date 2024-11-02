@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import * as dotenv from "dotenv";
-dotenv.config({ path: __dirname+'../../../../../../.env' });
+dotenv.config({ path: `${process.cwd()}/../.env` });
 
 export class EnvVars {
     private DATABASE_URL: string;
@@ -12,9 +12,7 @@ export class EnvVars {
     }
 
     public static fromEnv(): EnvVars {
-        if (!process.env.DATABASE_URL 
-            // || !process.env.BRAWL_STARS_TOKEN
-        ) {
+        if (!process.env.DATABASE_URL) {
             throw new Error("Required environment variables are missing.");
         }
         return new EnvVars(

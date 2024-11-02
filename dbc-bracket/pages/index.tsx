@@ -1,6 +1,5 @@
 import React, { FC } from 'react';
 import { GetStaticProps } from 'next';
-import "./../db/utils";
 
 interface HomeProps {
   tournaments: string[];

@@ -33,7 +33,7 @@ export default async function getMatchData(
   if (error) {
     return [[], error];
   }
-  const matches: MatchType[] = new Array(matchData.length);
+  const matches: MatchType[] = [];
   for (const match of matchData) {
     const [nextMatchState, error1] = await getNextMatchState(match.match_id);
     if (error1) {
@@ -62,7 +62,7 @@ export default async function getMatchData(
         resultText: match.winner === player.discord_id ? "WON" : "DEFEATED",
         isWinner: match.winner === player.discord_id ? true : false,
         name: player.player_name,
-        iconUrl: PlayerService.icon(player.icon),
+        iconUrl: player.icon as string,
       })),
     });
   }
@@ -82,11 +82,11 @@ export async function getNextMatch(matchId: string): Promise<Result<number>> {
     .wrapper();
   if (error) {
     console.error(error);
-    return [Number.MIN_SAFE_INTEGER, error];
+    return [0, error];
   }
   return result.rows[0]?.match_id
     ? [parseInt(result.rows[0].match_id.split(".")[2]), null]
-    : [Number.MIN_SAFE_INTEGER, null];
+    : [0, null];
 }
 
 export async function getNextMatchState(matchId: string): Promise<Result<string>> {
