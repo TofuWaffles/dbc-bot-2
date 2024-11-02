@@ -573,6 +573,7 @@ Disqualified by: {disqualified_by}."#,
     Ok(())
 }
 
+
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn list_matches(
@@ -614,14 +615,14 @@ async fn list_matches(
             }
             (
                 format!(
-                    "Here are all the players in round {} of tournament {}",
-                    r, tournament_id
+                    "Here are all the players in round {} of tournament {} (ID: {})",
+                    r, tournament.name, tournament_id
                 ),
                 format!("players_tournament_{}_round_{}.csv", tournament_id, r),
             )
         }
         None => (
-            format!("Here are all the players in tournament {}", tournament_id),
+            format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
             format!("players_tournament_{}.csv", tournament_id),
         ),
     };
