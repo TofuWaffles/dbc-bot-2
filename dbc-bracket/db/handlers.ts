@@ -1,30 +1,16 @@
-import { QueryConfig, QueryResult } from "pg";
-import { pool } from "./db";
+import { pool } from "@/db/db";
 import {
   Match,
   Tournament,
   MatchType,
   MATCH_STATES,
-  TournamentStatus,
-  APILink,
-  MatchPlayer,
   PlayerService,
   Player,
   MatchService,
   DefaultService,
-} from "./models";
-import "../utils";
-import { Result } from "../utils";
-
-function unixTimestampToDateTimeDMY(unixTimestamp: number): string {
-  const date = new Date(unixTimestamp * 1000);
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  const year = date.getFullYear();
-  const hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-}
+} from "@/db/models";
+import "@/utils";
+import { Err, Ok, Result } from "@/utils";
 
 export default async function getMatchData(
   tournamentId: number
@@ -35,130 +21,124 @@ export default async function getMatchData(
   }
   const matches: MatchType[] = [];
   for (const match of matchData) {
-    const [nextMatchState, error1] = await getNextMatchState(match.match_id);
-    if (error1) {
-      return [[], error1];
-    }
-    const [nextMatchId, error2] = await getNextMatch(match.match_id);
-    if (error2) {
-      return [[], error2];
-    }
-    const [playerData, error3] = await getPlayerNamesAndIdsByMatchId(match.match_id);
-    if (error3) {
-      return [[], error3];
+    const [
+      [nextMatchState, error1],
+      [nextMatchId, error2],
+      [playerData, error3],
+    ] = await Promise.all([
+      getNextMatchState(match),
+      getNextMatch(match),
+      getPlayerNamesAndIdsByMatchId(match.match_id),
+    ]);
+    if (error1 || error2 || error3) {
+      return Err(error1 || error2 || error3);
     }
     const [[_, round, sequence], error4] = MatchService.metadata(match);
     if (error4) {
       return [[], error4];
     }
     matches.push({
-      id: sequence,
+      id: match.match_id,
       nextMatchId: nextMatchId,
       tournamentRoundText: `Round ${round}`,
-      startTime: unixTimestampToDateTimeDMY(match.start),
+      startTime: match.start,
       state: nextMatchState,
       participants: playerData.map((player) => ({
         id: player.discord_id,
-        resultText: match.winner === player.discord_id ? "WON" : "DEFEATED",
-        isWinner: match.winner === player.discord_id ? true : false,
+        resultText: MatchService.getScore(match, player),
+        isWinner: match.winner === player.discord_id,
         name: player.player_name,
-        iconUrl: player.icon as string,
+        iconUrl: String(player.icon),
       })),
     });
   }
-  return [matches, null];
+  return Ok(matches);
 }
 
-export async function getNextMatch(matchId: string): Promise<Result<number>> {
-  const [result, error] = await pool
-    .query({
-      text: "SELECT match_id FROM matches WHERE match_id = ANY($1)",
-      values: [
-        `{${matchId.split(".")[0]}.${matchId.split(".")[1]}.${
-          parseInt(matchId.split(".")[2]) + 1
-        }}`,
-      ],
+export async function getNextMatch(
+  match: Match
+): Promise<Result<string | null>> {
+  const tryNextMatch = MatchService.getNextMatchId(match);
+  const [result, error2] = await pool
+    .query<{ exist: boolean }>({
+      text: "SELECT COUNT(*)>0 AS exist FROM matches WHERE match_id = $1",
+      values: [tryNextMatch],
     })
     .wrapper();
-  if (error) {
-    console.error(error);
-    return [0, error];
+  if (error2) {
+    console.error(error2);
+    return Err(error2);
   }
-  return result.rows[0]?.match_id
-    ? [parseInt(result.rows[0].match_id.split(".")[2]), null]
-    : [0, null];
+  return Ok(result.rows[0]?.exist ? tryNextMatch : null);
 }
 
-export async function getNextMatchState(matchId: string): Promise<Result<string>> {
-  const [result, error] = await pool
-    .query({
-      text: "SELECT 1 match_id FROM matches WHERE match_id = ANY($1)",
-      values: [
-        `{${matchId.split(".")[0]}.${matchId.split(".")[1]}.${
-          parseInt(matchId.split(".")[2]) + 1
-        }}`,
-      ],
+export async function getNextMatchState(match: Match): Promise<Result<string>> {
+  const nextMatchId: string = MatchService.getNextMatchId(match);
+  const [result, error2] = await pool
+    .query<{ exist: boolean }>({
+      text: "SELECT COUNT(*)>0 AS exist FROM matches WHERE match_id = $1",
+      values: [nextMatchId],
     })
     .wrapper();
-  if (error) {
-    console.error(error);
-    return ["", error];
+  if (error2) {
+    console.error(error2);
+    return Err(error2);
   }
-  return result.rows
-    ? [MATCH_STATES.DONE, null]
-    : [MATCH_STATES.NO_PARTY, null];
+  return result.rows[0]?.exist
+    ? Ok(MATCH_STATES.DONE)
+    : Ok(MATCH_STATES.NO_PARTY);
 }
 
 export async function getPlayerNamesAndIdsByMatchId(
   matchId: string
 ): Promise<Result<Player[]>> {
-  const [result, error] = await pool
+  const [result, error1] = await pool
     .query({
       text: "SELECT discord_id FROM match_players WHERE match_id = $1",
       values: [matchId],
     })
     .wrapper();
-  if (error) {
-    console.error(error);
-    return [[], error];
+  if (error1) {
+    console.error(error1);
+    return Err(error1);
   }
   const discordIds: string[] = result.rows.map((row) => row.discord_id);
   if (discordIds.length === 0) {
-    return [[], null];
+    return Ok([]);
   }
-  const [users, err] = await pool
+  const [users, error2] = await pool
     .query({
       text: "SELECT discord_id, player_name, icon FROM users WHERE discord_id = ANY($1)",
       values: [discordIds],
     })
     .wrapper();
-  if (err) {
-    console.error(err);
-    return [[], err];
+  if (error2) {
+    console.error(error2);
+    return Err(error2);
   }
   const playerData: Player[] = users.rows.map((row) => ({
     discord_id: row.discord_id,
     player_name: row.player_name,
     icon: PlayerService.icon(row.icon),
   }));
-  return playerData.length > 0 ? [playerData, null] : [[], null];
+  return playerData.length > 0 ? Ok(playerData) : Ok([]);
 }
 
 export async function getTournamentByNameAndGuildId(
   name: string,
   guildId: string
-): Promise<Result<Tournament>> {
+): Promise<Result<Tournament | null>> {
   const [result, err] = await pool
     .query<Tournament>({
-      text: "SELECT * FROM tournaments WHERE name = ANY($1) AND guild_id = ANY($2)",
-      values: [`{${name}}`, `{${guildId}}`],
+      text: "SELECT * FROM tournaments WHERE name = $1 AND guild_id = $2",
+      values: [name, guildId],
     })
     .wrapper();
   if (err) {
     console.error(err);
-    return [DefaultService.DefaultTournament, err];
+    return Err(err);
   }
-  return [result.rows[0], null];
+  return Ok(result.rows.length > 0? result.rows[0]: null);
 }
 
 export async function getMatchesByTournamentId(
@@ -170,14 +150,17 @@ export async function getMatchesByTournamentId(
       values: [`${tournamentId}.%`],
     })
     .wrapper();
+  console.debug("Result", result.rows);
   if (err) {
     console.error(err);
-    return [[], err];
+    return Err(err);
   }
-  return [result.rows, null];
+  return Ok(result.rows);
 }
 
-export async function getAllTournaments(guildId: string): Promise<Result<Tournament[]>> {
+export async function getAllTournaments(
+  guildId: string
+): Promise<Result<Tournament[]>> {
   const [result, err] = await pool
     .query<Tournament>({
       text: "SELECT * FROM tournaments WHERE guild_id = ANY($1)",
@@ -186,7 +169,7 @@ export async function getAllTournaments(guildId: string): Promise<Result<Tournam
     .wrapper();
   if (err) {
     console.error(err);
-    return [[], err];
+    return Err(err);
   }
-  return [result.rows, null];
+  return Ok(result.rows);
 }

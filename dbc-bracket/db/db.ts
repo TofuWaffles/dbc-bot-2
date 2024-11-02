@@ -1,36 +1,34 @@
 import { Pool } from 'pg';
 import * as dotenv from "dotenv";
+import { Err, expect, Ok } from '@/utils';
 dotenv.config({ path: `${process.cwd()}/../.env` });
 
 export class EnvVars {
-    private DATABASE_URL: string;
-    private BRAWL_STARS_TOKEN: string;
+    private static instance: EnvVars | null = null;
 
-    public constructor(databaseUrl: string, brawlStarsToken: string) {
-        this.DATABASE_URL = databaseUrl;
-        this.BRAWL_STARS_TOKEN = brawlStarsToken;
-    }
+    private constructor(private DATABASE_URL: string, private BRAWL_STARS_TOKEN?: string) {}
 
-    public static fromEnv(): EnvVars {
+    public static fromEnv(): Result<EnvVars> {
         if (!process.env.DATABASE_URL) {
-            throw new Error("Required environment variables are missing.");
+            return Err(new Error("Required environment variables are missing."));
         }
-        return new EnvVars(
-            process.env.DATABASE_URL || '', 
-            process.env.BRAWL_STARS_TOKEN || ''
-        );
+        if (!this.instance) {
+            this.instance = new EnvVars(process.env.DATABASE_URL, process.env.BRAWL_STARS_TOKEN);
+        }
+        return Ok(this.instance);
     }
 
     public getDatabaseUrl(): string {
         return this.DATABASE_URL;
     }
 
-    public getBrawlStarsToken(): string {
+    public getBrawlStarsToken(): string | undefined {
         return this.BRAWL_STARS_TOKEN;
     }
 }
 
-const envVars = EnvVars.fromEnv();
+
+const envVars = expect(EnvVars.fromEnv());
 
 export const pool: Pool = new Pool({
     connectionString: envVars.getDatabaseUrl()

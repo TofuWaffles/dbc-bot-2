@@ -1,4 +1,5 @@
-import { Result } from "../utils"
+import { match } from "assert";
+import { Err, Ok, Result } from "../utils"
 export enum PlayerType {
     Player,
     Dummy,
@@ -61,7 +62,7 @@ export type MatchType = {
     nextMatchId: number | string | null;
     nextLooserMatchId?: number | string;
     tournamentRoundText?: string;
-    startTime: string;
+    startTime: number;
     state: 'PLAYED' | 'NO_SHOW' | 'WALK_OVER' | 'NO_PARTY' | string;
     participants: ParticipantType[];
     [key: string]: any;
@@ -88,13 +89,13 @@ const tournamentId = (match: Match): Result<number> => {
     const [result, error] = parts.get(0);
     if (error) {
         console.error(error);
-        return [null, error];
+        return Err(error);
     }
     const tryParse = parseInt(result);
     if(isNaN(tryParse)) {
-        return [null, new Error(`Failed to parse sequence number: ${result}`)];
+        return Err(new Error(`Failed to parse tournament id: ${result}`));
     } else{
-        return [tryParse, null];
+        return Ok(tryParse);
     }
 }
 
@@ -103,13 +104,13 @@ const round = (match: Match): Result<number> => {
     const [result, error] = parts.get(1);
     if (error) {
         console.error(error);
-        return [null, error];
+        return Err(error);
     }
     const tryParse = parseInt(result);
     if(isNaN(tryParse)) {
-        return [null, new Error(`Failed to parse round number: ${result}`)];
+        return Err(new Error(`Failed to parse round number: ${result}`));
     } else{
-        return [tryParse, null];
+        return Ok(tryParse);
     }
 }
 
@@ -118,13 +119,13 @@ const sequence = (match: Match): Result<number> => {
     const [result, error] = parts.get(2)
     if (error) {
         console.error(error);
-        return [null, error];
+        return Err(error);
     }
     const tryParse = parseInt(result);
     if(isNaN(tryParse)) {
-        return [null, new Error(`Failed to parse sequence number: ${result}`)];
+        return Err(new Error(`Failed to parse sequence number: ${result}`));
     } else{
-        return [tryParse, null];
+        return Ok(tryParse);
     }
 }
 
@@ -133,30 +134,49 @@ const metadata = (match: Match): Result<[number, number, number]> => {
     const [rawId, error1] = parts.get(0);
     if (error1) {
         console.error(error1);
-        return [null, error1];
+        return Err(error1);
     }
     const [rawRound, error2] = parts.get(1);
     if (error2) {
         console.error(error2);
-        return [null, error2];
+        return Err(error2);
     }
     const [rawSequence, error3] = parts.get(2);
     if (error3) {
         console.error(error3);
-        return [null, error3];
+        return Err(error3);
     }
     const [tournamentId, round, sequence ]= [parseInt(rawId), parseInt(rawRound), parseInt(rawSequence)];
     if(isNaN(tournamentId) || isNaN(round) || isNaN(sequence)) {
-        return [null, new Error(`Failed to parse metadata: ${match.match_id}`)];
+        return Err(new Error(`Failed to parse metadata: ${match.match_id}`));
     }
-    return [[tournamentId, round, sequence], null];
+    return Ok([tournamentId, round, sequence]);
+}
+
+const getNextMatchId = (match: Match): string => {
+    const [[tournamentId, round, sequence], error] = metadata(match);
+    if (error) {
+        console.error(error);
+        return "";
+    }
+    const nextRound = round + 1;
+    const nextSequence = ((sequence + 1) | 0) >> 1;
+    return `${tournamentId}.${nextRound}.${nextSequence}`;
+}
+
+const getScore = (match: Match, player: Player): string => {
+    
+    const score = match.score.split('-');
+    return (match.winner === player.discord_id)?score[0]:score[1];
 }
 
 export const MatchService = {
     sequence,
     round,
     tournamentId,
-    metadata
+    metadata,
+    getNextMatchId,
+    getScore
 }
 
 const icon = (iconId: string | number): string => {

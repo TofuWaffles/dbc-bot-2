@@ -2,8 +2,8 @@
 import { useRouter } from 'next/router';
 import { ReactNode, useEffect, useState } from 'react';
 import { encode } from 'querystring';
-import Sidebar from './components/sidebar';
-
+import Sidebar from "@/pages/components/sidebar"
+import "@/utils"
 interface GuildPage {
   children: ReactNode;
 }
@@ -18,24 +18,15 @@ const GuildPage: React.FC<GuildPage> = ({ children }) => {
   useEffect(() => {
     if (guildId) {
       const fetchData = async () => {
-        try {
-          const response = await fetch(`/api/${guildId}`, {
-            method: 'GET',
-          });
-          if (!response.ok) {
-            throw new Error('Network response was not ok');
-          }
-
-          const tournaments = await response.json();
-          setItems(tournaments.map((tournament: { name: string }) => tournament.name));
-        } catch (error) {
+        const [response, error] = await fetch(`/api/${guildId}`, { method: "GET" }).wrapper();
+        if (error || !response.ok) {
           console.error(error);
           setError('Failed to load match data');
-        } finally {
-          setLoading(false);
         }
+        const tournaments = await response.json();
+        setItems(tournaments.map((tournament: { name: string }) => tournament.name));
+        setLoading(false);
       };
-
       fetchData();
     } else {
       setLoading(false);
