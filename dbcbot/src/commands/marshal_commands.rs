@@ -46,7 +46,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
-            get_matches(),
+            list_matches(),
             marshal_menu(),
         ]
     }
@@ -575,7 +575,7 @@ Disqualified by: {disqualified_by}."#,
 
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn get_matches(
+async fn list_matches(
     ctx: BotContext<'_>,
     tournament_id: i32,
     round: Option<i32>,
@@ -656,7 +656,7 @@ async fn get_matches(
                 .unwrap_or(&empty_player)
                 .discord_id,
             bracket.score,
-            bracket.winner.unwrap_or("None".to_string())
+            bracket.winner.unwrap_or("TBD".to_string())
         ));
     }
 
