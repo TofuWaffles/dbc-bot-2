@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted\n            FROM tournament_players\n            JOIN users ON tournament_players.discord_id = users.discord_id\n            WHERE tournament_players.tournament_id = $1\n            ",
+  "query": "\n                SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted\n                FROM users\n                JOIN tournament_players ON tournament_players.discord_id = users.discord_id\n                JOIN match_players ON match_players.discord_id = tournament_players.discord_id\n                WHERE match_players.match_id LIKE $1\n                ",
   "describe": {
     "columns": [
       {
@@ -46,7 +46,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Text"
       ]
     },
     "nullable": [
@@ -60,5 +60,5 @@
       false
     ]
   },
-  "hash": "8609159b62bcab8b8e118268893f55eab97cdbf52afebf7c968bb41780b5a855"
+  "hash": "cb8c2f40033ba11757780b88c5c469161e5bfb00657ca28fa63f3a489c529994"
 }
