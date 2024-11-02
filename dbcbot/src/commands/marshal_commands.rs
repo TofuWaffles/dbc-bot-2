@@ -46,7 +46,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
-            get_matches(),
+            list_matches(),
             marshal_menu(),
         ]
     }
@@ -575,7 +575,59 @@ Disqualified by: {disqualified_by}."#,
 
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn get_matches(
+async fn list_players(ctx: BotContext<'_>, tournament_id: i32, round: Option<i32>) -> Result<(), BotError> {
+    let tournament = match ctx
+        .data()
+        .database
+        .get_tournament(&ctx.guild_id().unwrap(), tournament_id)
+        .await?
+    {
+        Some(t) => t,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content(format!("No tournament found for ID {}", tournament_id))
+                    .ephemeral(true),
+            )
+            .await?;
+            return Ok(());
+        }
+    };
+
+    let (msg_content, filename) = match round {
+        Some(r) => {
+            if r > tournament.rounds {
+                ctx.send(
+                    CreateReply::default()
+                        .content(format!(
+                            "Tournament {} only has {} rounds!. You entered: {} rounds",
+                            tournament_id, tournament.rounds, r
+                        ))
+                        .ephemeral(true),
+                )
+                .await?;
+                return Ok(());
+            }
+            (
+                format!(
+                    "Here are all the players in round {} of tournament {} (ID: {})",
+                    r, tournament.name, tournament_id
+                ),
+                format!("players_tournament_{}_round_{}.csv", tournament_id, r),
+            )
+        }
+        None => (
+            format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
+            format!("players_tournament_{}.csv", tournament_id),
+        ),
+    };
+
+    todo!();
+}
+
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[instrument]
+async fn list_matches(
     ctx: BotContext<'_>,
     tournament_id: i32,
     round: Option<i32>,
@@ -614,14 +666,14 @@ async fn get_matches(
             }
             (
                 format!(
-                    "Here are all the players in round {} of tournament {}",
-                    r, tournament_id
+                    "Here are all the players in round {} of tournament {} (ID: {})",
+                    r, tournament.name, tournament_id
                 ),
                 format!("players_tournament_{}_round_{}.csv", tournament_id, r),
             )
         }
         None => (
-            format!("Here are all the players in tournament {}", tournament_id),
+            format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
             format!("players_tournament_{}.csv", tournament_id),
         ),
     };
@@ -656,7 +708,7 @@ async fn get_matches(
                 .unwrap_or(&empty_player)
                 .discord_id,
             bracket.score,
-            bracket.winner.unwrap_or("None".to_string())
+            bracket.winner.unwrap_or("TBD".to_string())
         ));
     }
 
@@ -1244,7 +1296,7 @@ async fn player_page(
                 ("Participants", format!("{}", players), true),
                 (
                     "Finished",
-                    format!("{}({}%)", finished, finished * 100 / (players >> 1)),
+                    format!("{}({:.2}%)", finished, (finished as f64 * 100.0) / (players as f64 / 2.0)),
                     true,
                 ),
             ])
