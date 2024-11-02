@@ -3,7 +3,7 @@ use std::str::FromStr;
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
 use crate::database::models::{
-    BrawlMap, Match, MatchPlayer, PlayerType, Tournament, TournamentStatus,
+    BrawlMap, Match, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
@@ -47,6 +47,7 @@ impl CommandsContainer for MarshalCommands {
             set_map(),
             disqualify_slash(),
             list_matches(),
+            list_players(),
             marshal_menu(),
         ]
     }
@@ -622,7 +623,29 @@ async fn list_players(ctx: BotContext<'_>, tournament_id: i32, round: Option<i32
         ),
     };
 
-    todo!();
+    let players = ctx.data().database.get_tournament_players(tournament_id, round).await?.into_iter().filter(|p| !p.deleted).collect::<Vec<Player>>();
+
+    let mut csv_str = "Discord Name, Discord ID, In-Game Name, Player Tag\n".to_string();
+
+    for player in players {
+        csv_str.push_str(&format!(
+            "{},{},{},{}\n",
+            player.discord_name,
+            player.discord_id,
+            player.player_name,
+            player.discord_name,
+        ));
+    }
+
+    ctx.send(
+        CreateReply::default()
+            .content(msg_content)
+            .attachment(CreateAttachment::bytes(csv_str.as_bytes(), filename))
+            .ephemeral(true),
+    )
+    .await?;
+
+    Ok(())
 }
 
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
@@ -669,12 +692,12 @@ async fn list_matches(
                     "Here are all the players in round {} of tournament {} (ID: {})",
                     r, tournament.name, tournament_id
                 ),
-                format!("players_tournament_{}_round_{}.csv", tournament_id, r),
+                format!("matches_tournament_{}_round_{}.csv", tournament_id, r),
             )
         }
         None => (
             format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
-            format!("players_tournament_{}.csv", tournament_id),
+            format!("matches_tournament_{}.csv", tournament_id),
         ),
     };
 

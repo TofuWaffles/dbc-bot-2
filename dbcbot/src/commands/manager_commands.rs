@@ -352,7 +352,7 @@ async fn start_tournament(
     let tournament_players = ctx
         .data()
         .database
-        .get_tournament_players(tournament.tournament_id)
+        .get_tournament_players(tournament.tournament_id, None)
         .await?;
 
     if tournament_players.len() < 2 {

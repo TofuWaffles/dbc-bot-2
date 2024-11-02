@@ -596,7 +596,11 @@ pub trait TournamentDatabase {
     ) -> Result<(), Self::Error>;
 
     /// Gets all players in a tournament.
-    async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error>;
+    async fn get_tournament_players(
+        &self,
+        tournament_id: i32,
+        round: impl Into<Option<i32>>,
+    ) -> Result<Vec<Player>, Self::Error>;
 
     /// Updates the total number of rounds a tournament has.
     ///
@@ -1038,19 +1042,38 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         Ok(tournament)
     }
 
-    async fn get_tournament_players(&self, tournament_id: i32) -> Result<Vec<Player>, Self::Error> {
-        let players = sqlx::query_as!(
-            Player,
-            r#"
-            SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted
-            FROM tournament_players
-            JOIN users ON tournament_players.discord_id = users.discord_id
-            WHERE tournament_players.tournament_id = $1
-            "#,
-            tournament_id
-        )
-        .fetch_all(&self.pool)
-        .await?;
+    async fn get_tournament_players(
+        &self,
+        tournament_id: i32,
+        round: impl Into<Option<i32>>,
+    ) -> Result<Vec<Player>, Self::Error> {
+        let players = match round.into() {
+            Some(round) => sqlx::query_as!(
+                Player,
+                r#"
+                SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted
+                FROM users
+                JOIN tournament_players ON tournament_players.discord_id = users.discord_id
+                JOIN match_players ON match_players.discord_id = tournament_players.discord_id
+                WHERE match_players.match_id LIKE $1
+                "#,
+                format!("{tournament_id}.{round}.%"),
+            )
+            .fetch_all(&self.pool)
+            .await?,
+            None => sqlx::query_as!(
+                Player,
+                r#"
+                SELECT users.discord_id, users.discord_name, users.player_name, users.player_tag, users.icon, users.trophies, users.brawlers, users.deleted
+                FROM tournament_players
+                JOIN users ON tournament_players.discord_id = users.discord_id
+                WHERE tournament_players.tournament_id = $1
+                "#,
+                tournament_id
+            )
+            .fetch_all(&self.pool)
+            .await?,
+        };
 
         Ok(players)
     }
