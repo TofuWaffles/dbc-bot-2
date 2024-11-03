@@ -2,8 +2,9 @@ use std::str::FromStr;
 
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
+use crate::commands::user_commands::finish_tournament;
 use crate::database::models::{
-    BrawlMap, Match, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus
+    BrawlMap, Match, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
@@ -538,10 +539,10 @@ async fn disqualify(
         }
     };
 
-    let opponent_id = bracket.get_opponent(&player.id.to_string())?.user_id()?;
+    let opponent = bracket.get_opponent(&player.id.to_string())?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent_id, "n/a")
+        .set_winner(&bracket.match_id, &opponent.user_id()?, "disqualified")
         .await?;
 
     ctx.send(
@@ -568,12 +569,29 @@ let fields = vec![
     ).fields(fields);
     ctx.log(log).await?;
 
+    if bracket.round()? == tournament.rounds {
+        let opponent_player = ctx
+            .data()
+            .database
+            .get_player_by_discord_id(&UserId::from_str(&opponent.discord_id)?)
+            .await?
+            .ok_or(anyhow!(
+                "Error disqualifying player from match {}: Player {} not found in database",
+                bracket.match_id,
+                ctx.author().id.to_string()
+            ))?;
+        finish_tournament(ctx, &bracket, &opponent_player).await?;
+    }
     Ok(())
 }
 
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn list_players(ctx: BotContext<'_>, tournament_id: i32, round: Option<i32>) -> Result<(), BotError> {
+async fn list_players(
+    ctx: BotContext<'_>,
+    tournament_id: i32,
+    round: Option<i32>,
+) -> Result<(), BotError> {
     let tournament = match ctx
         .data()
         .database
@@ -615,22 +633,29 @@ async fn list_players(ctx: BotContext<'_>, tournament_id: i32, round: Option<i32
             )
         }
         None => (
-            format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
+            format!(
+                "Here are all the players in tournament {} (ID: {})",
+                tournament.name, tournament_id
+            ),
             format!("players_tournament_{}.csv", tournament_id),
         ),
     };
 
-    let players = ctx.data().database.get_tournament_players(tournament_id, round).await?.into_iter().filter(|p| !p.deleted).collect::<Vec<Player>>();
+    let players = ctx
+        .data()
+        .database
+        .get_tournament_players(tournament_id, round)
+        .await?
+        .into_iter()
+        .filter(|p| !p.deleted)
+        .collect::<Vec<Player>>();
 
     let mut csv_str = "Discord Name, Discord ID, In-Game Name, Player Tag\n".to_string();
 
     for player in players {
         csv_str.push_str(&format!(
             "{},{},{},{}\n",
-            player.discord_name,
-            player.discord_id,
-            player.player_name,
-            player.discord_name,
+            player.discord_name, player.discord_id, player.player_name, player.discord_name,
         ));
     }
 
@@ -693,7 +718,10 @@ async fn list_matches(
             )
         }
         None => (
-            format!("Here are all the players in tournament {} (ID: {})", tournament.name, tournament_id),
+            format!(
+                "Here are all the players in tournament {} (ID: {})",
+                tournament.name, tournament_id
+            ),
             format!("matches_tournament_{}.csv", tournament_id),
         ),
     };
@@ -1316,7 +1344,11 @@ async fn player_page(
                 ("Participants", format!("{}", players), true),
                 (
                     "Finished",
-                    format!("{}({:.2}%)", finished, (finished as f64 * 100.0) / (players as f64 / 2.0)),
+                    format!(
+                        "{}({:.2}%)",
+                        finished,
+                        (finished as f64 * 100.0) / (players as f64 / 2.0)
+                    ),
                     true,
                 ),
             ])

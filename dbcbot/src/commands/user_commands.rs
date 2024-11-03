@@ -1312,7 +1312,7 @@ async fn submit(
     Ok(())
 }
 
-async fn finish_tournament(
+pub async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
     winner: &Player,
