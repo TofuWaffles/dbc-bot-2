@@ -27,6 +27,7 @@ use poise::{
 };
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
+use tracing_subscriber::field;
 
 /// CommandsContainer for the Marshal commands
 pub struct MarshalCommands;
@@ -552,25 +553,21 @@ async fn disqualify(
             .ephemeral(true),
     )
     .await?;
-    let description = format!(
-        r#"Player <@{player_id}> was disqualified from the tournament.
-Match ID: {match_id}.
-Tournament ID: {tournament_id}.
-Tournament name: {tournament_name}.
-Disqualified by: {disqualified_by}."#,
-        player_id = player.id,
-        match_id = bracket.match_id,
-        tournament_id = tournament.tournament_id,
-        tournament_name = tournament.name,
-        disqualified_by = ctx.author().name
-    );
+let fields = vec![
+        ("Tournament ID", tournament.tournament_id.to_string(), true),
+        ("Tournament name", tournament.name.to_string(), true),
+        ("Match ID", bracket.match_id.to_string(), true),
+        ("Disqualified player", player.name.to_string(), true),
+        ("Disqualified by", ctx.author().name.to_string(), true),
+    ];
     let log = ctx.build_log(
         "Player disqualified!",
-        description,
+        "Player <@{player_id}> was disqualified from the tournament",
         log::State::SUCCESS,
         log::Model::MARSHAL,
-    );
+    ).fields(fields);
     ctx.log(log).await?;
+
     Ok(())
 }
 
