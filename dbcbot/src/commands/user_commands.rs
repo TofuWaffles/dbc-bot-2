@@ -471,16 +471,6 @@ async fn user_forfeit(
         .await?;
         // End the tournament if this is the final round
         if bracket.round()? == tournament.rounds {
-            let forfeiter = ctx
-                .data()
-                .database
-                .get_player_by_discord_id(&ctx.author().id)
-                .await?
-                .ok_or(anyhow!(
-                    "Error forfeiting match {} for player {}: Player not found in the database.",
-                    bracket.match_id,
-                    ctx.author().id.to_string()
-                ))?;
             let opponent = ctx
                 .data()
                 .database
@@ -495,14 +485,8 @@ async fn user_forfeit(
                     bracket.match_id,
                     ctx.author().id.to_string()
                 ))?;
-            let image = ctx
-                .data()
-                .apis
-                .images
-                .result_image(&opponent, &forfeiter, "0-0")
-                .await?;
             // Final round. Announce the winner and finish the tournament
-            finish_tournament(ctx, &bracket, &image, &opponent).await?;
+            finish_tournament(ctx, &bracket, &opponent).await?;
         }
     } else {
         msg.edit(
@@ -1280,7 +1264,7 @@ async fn submit(
     );
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, &image?, &target).await?;
+        finish_tournament(ctx, bracket, &target).await?;
         return Ok(());
     }
 
@@ -1331,7 +1315,6 @@ async fn submit(
 async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
-    image: &[u8],
     winner: &Player,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
@@ -1349,6 +1332,26 @@ async fn finish_tournament(
         .get_tournament(&guild_id, tournament_id)
         .await?
         .ok_or(TournamentNotExists(tournament_id.to_string()))?;
+    let loser = ctx
+        .data()
+        .database
+        .get_player_by_discord_id(
+            &bracket
+                .get_opponent(&winner.discord_id)?
+                .user_id()?,
+        )
+        .await?
+        .ok_or(anyhow!(
+            "Error forfeiting match {} for player {}: Opponent not found in the database.",
+            bracket.match_id,
+            ctx.author().id.to_string()
+        ))?;
+    let image = ctx
+        .data()
+        .apis
+        .images
+        .result_image(&winner, &loser, &bracket.score)
+        .await?;
 
     let reply = {
         let embed = CreateEmbed::new()
