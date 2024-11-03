@@ -432,7 +432,7 @@ async fn user_display_match(
             }
             "match_menu_forfeit" => {
                 interaction.defer(ctx.http()).await?;
-                user_forfeit(ctx, msg, current_match).await?;
+                user_forfeit(ctx, msg, &tournament, &current_match).await?;
             }
             "submit" => {
                 interaction.defer(ctx.http()).await?;
@@ -448,7 +448,8 @@ async fn user_display_match(
 async fn user_forfeit(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    bracket: Match,
+    tournament: &Tournament,
+    bracket: &Match,
 ) -> Result<(), BotError> {
     let forfeit = ctx.confirmation(msg, CreateEmbed::new()
                      .title("⚠️Forfeit Match⚠️")
@@ -468,6 +469,41 @@ async fn user_forfeit(
                 .ephemeral(true),
         )
         .await?;
+        // End the tournament if this is the final round
+        if bracket.round()? == tournament.rounds {
+            let forfeiter = ctx
+                .data()
+                .database
+                .get_player_by_discord_id(&ctx.author().id)
+                .await?
+                .ok_or(anyhow!(
+                    "Error forfeiting match {} for player {}: Player not found in the database.",
+                    bracket.match_id,
+                    ctx.author().id.to_string()
+                ))?;
+            let opponent = ctx
+                .data()
+                .database
+                .get_player_by_discord_id(
+                    &bracket
+                        .get_opponent(&ctx.author().id.to_string())?
+                        .user_id()?,
+                )
+                .await?
+                .ok_or(anyhow!(
+                    "Error forfeiting match {} for player {}: Opponent not found in the database.",
+                    bracket.match_id,
+                    ctx.author().id.to_string()
+                ))?;
+            let image = ctx
+                .data()
+                .apis
+                .images
+                .result_image(&opponent, &forfeiter, "0-0")
+                .await?;
+            // Final round. Announce the winner and finish the tournament
+            finish_tournament(ctx, &bracket, &image, &opponent).await?;
+        }
     } else {
         msg.edit(
             *ctx,
