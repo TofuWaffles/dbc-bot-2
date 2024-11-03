@@ -540,7 +540,7 @@ async fn disqualify(
     let opponent_id = bracket.get_opponent(&player.id.to_string())?.user_id()?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent_id, "n/a")
+        .set_winner(&bracket.match_id, &opponent_id, "disqualified")
         .await?;
 
     ctx.send(
