@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { encode } from 'querystring';
 import Sidebar from "@/pages/components/sidebar"
 import "@/utils"
+import TournamentService from './services/tournament';
 interface GuildPage {
   children: ReactNode;
 }
@@ -18,12 +19,12 @@ const GuildPage: React.FC<GuildPage> = ({ children }) => {
   useEffect(() => {
     if (guildId) {
       const fetchData = async () => {
-        const [response, error] = await fetch(`/api/${guildId}`, { method: "GET" }).wrapper();
-        if (error || !response.ok) {
+        const [tournaments, error] = await TournamentService.getAllTournamentsInAGuild(guildId);
+        if (error) {
           console.error(error);
           setError('Failed to load match data');
+          return;
         }
-        const tournaments = await response.json();
         setItems(tournaments.map((tournament: { name: string }) => tournament.name));
         setLoading(false);
       };

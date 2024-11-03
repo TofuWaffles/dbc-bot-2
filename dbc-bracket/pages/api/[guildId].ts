@@ -1,4 +1,4 @@
-import { getAllTournaments } from '@/db/handlers';
+import { getAllTournamentsInAGuild } from '@/db/handlers';
 import { NextApiRequest, NextApiResponse } from 'next';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -6,7 +6,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (typeof guildId !== 'string') {
     return res.status(400).json({ error: 'Invalid guild ID' });
   }
-  const [tournaments, error] = await getAllTournaments(guildId);
+  const [tournaments, error] = await getAllTournamentsInAGuild(guildId);
   if (error) {
     return res.status(500).json({ error: 'Failed to load tournaments' });
   }

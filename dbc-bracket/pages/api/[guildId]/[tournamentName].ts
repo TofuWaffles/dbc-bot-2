@@ -21,6 +21,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error(error2);
     return res.status(500).json({ error: 'Failed to load tournament match data' });
   }
-  // console.debug('Match data:', JSON.stringify(matchData, null, 2));
   res.status(200).json(matchData);
 }

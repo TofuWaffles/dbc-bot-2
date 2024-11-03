@@ -6,6 +6,7 @@ import { useRouter } from 'next/router';
 import { useWindowSize } from '@uidotdev/usehooks';
 import brawlStarsBackground from '@/../images/assets/battle_log_bg.png';
 import defaultPlayerIcon from '@/../images/assets/28000000.png';
+import BracketService from '@/pages/services/bracket';
 
 interface TournamentPage {
   children: ReactNode;
@@ -32,20 +33,13 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
 
       if (guildId && tournament) {
         const fetchData = async () => {
-          try {
-            const response = await fetch(`/api/${guildId}/${tournament}`);
-            if (!response.ok) {
-              throw new Error('Network response was not ok');
-            }
-            const tournamentData = await response.json();
-            console.log(tournamentData);
-            setMatches(tournamentData);
-          } catch (error) {
-            console.error(error);
+          const [response, error] = await BracketService.getBracket(guildId as string, tournament as string);
+          setLoading(false);
+          if (error) {
             setError(error.message);
-          } finally {
-            setLoading(false);
+            return;
           }
+          setMatches(response);
         };
 
         fetchData();
@@ -65,7 +59,7 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
           matches={matches}
           options={{
             style: {
-              roundHeader: { 
+              roundHeader: {
                 backgroundColor: '#FFD700',
                 fontFamily: "LilitaOne-Regular",
               },
@@ -85,13 +79,20 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
           )}
           matchComponent={({ match }: { match: MatchType }) => {
             const { topParticipant, bottomParticipant } = getParticipants(match.participants);
-
+            let startTime: string;
+            if (!match.startTime) { // startTime: null
+              startTime = "";
+            }
+            else if (isNaN(parseInt(match.startTime))) { // startTime: string
+              startTime = match.startTime
+            } else {
+              startTime = new Date(parseInt(match.startTime) * 1000).toLocaleString();
+            }
             return (
               <div className='w-full h-full'>
-                <p>{new Date(match.startTime*1000).toLocaleString()}</p>
+                <p>{startTime || <>&nbsp;</>}</p>
                 <div className="flex flex-col">
                   {topParticipant ? (
-
                     <div className="flex items-center">
                       <img
                         src={topParticipant.iconUrl || defaultPlayerIcon.blurDataURL}
@@ -102,7 +103,7 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
                       <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <div className="">No top participant</div>
+                    <TBD />
                   )}
 
                   <div className="h-px w-full bg-yellow-500"></div>
@@ -118,7 +119,7 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
                       <div>{bottomParticipant.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <div className="">No bottom participant</div>
+                    <TBD />
                   )}
                 </div>
               </div>
@@ -132,5 +133,19 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
 
   );
 };
+
+const TBD: React.FC = () => {
+  return (
+    <div className="flex items-center">
+      <img
+        src="https://cdn.brawlify.com/profile-icons/regular/28000000.png"
+        alt="TBD"
+        className="w-8 mr-2"
+      />
+      <div className="flex-1">TBD</div>
+      <div>TBD</div>
+    </div>
+  )
+}
 
 export default TournamentPage;

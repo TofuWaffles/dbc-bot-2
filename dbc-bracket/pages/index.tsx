@@ -1,22 +1,25 @@
 import React, { FC } from 'react';
 import { GetStaticProps } from 'next';
 import Link from 'next/link';
-interface HomeProps {
-  tournaments: string[];
-}
+import TournamentService from './services/tournament';
+import { Tournament } from '@/db/models';
 
-const Home: FC<HomeProps> = ({ tournaments }) => {
+const Home: FC<{ tournaments: Tournament[] }> = ({ tournaments }) => {
   return (
     <div className="flex min-h-screen bg-black text-white">
       <aside className="w-64 bg-gray-900 p-6">
-        <h2 className="text-white mb-4">Tournament Options</h2>
-        <ul>
-          {tournaments.map((tournament, index) => (
-            <li key={index} className="mb-2 text-gray-400 hover:text-white cursor-pointer">
-              {tournament}
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-white mb-4">Tournaments Available</h2>
+        {tournaments.length === 0 ? (
+          <p className="text-gray-400">No tournaments available</p>
+        ) : (
+          <ul>
+            {tournaments.map((tournament) => (
+              <li key={tournament.tournament_id} className="mb-2 text-gray-400 hover:text-white cursor-pointer">
+                <Link href={`/tournaments/${tournament.tournament_id}`}>{tournament.name}</Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </aside>
 
       <main className="flex-1 flex justify-center items-center">
@@ -27,7 +30,17 @@ const Home: FC<HomeProps> = ({ tournaments }) => {
 };
 
 export const getStaticProps: GetStaticProps = async () => {
-  const tournaments = ['Option 1', 'Option 2', 'Option 3'];
+  const [result, error] = await TournamentService.getAllTournaments();  
+  if (error) {
+    console.error(error);
+    return {
+      props: {
+        tournaments: [], // Return empty array on error
+      },
+    };
+  }
+
+  const tournaments = result;
 
   return {
     props: {
