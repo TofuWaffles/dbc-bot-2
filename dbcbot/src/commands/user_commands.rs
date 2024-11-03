@@ -31,7 +31,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![menu(), credit()]
+        vec![menu(), credit(), user_profile(), view_match_context()]
     }
 }
 
@@ -199,7 +199,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 )
                 .await?;
 
-                return user_display_match(ctx, msg, player_active_tournaments.remove(0)).await;
+                return user_display_match(ctx, msg, player_active_tournaments.remove(0), true).await;
             }
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
@@ -224,6 +224,7 @@ async fn user_display_match(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     tournament: Tournament,
+    show_buttons: bool,
 ) -> Result<(), BotError> {
     info!("User {} is viewing their current match", ctx.author().name);
 
@@ -339,7 +340,7 @@ async fn user_display_match(
                     ),
                 ])
         };
-        let buttons = {
+        let buttons = if show_buttons {
             let mut buttons = vec![];
             buttons.push(
                 CreateButton::new("mail")
@@ -366,12 +367,14 @@ async fn user_display_match(
                         .style(ButtonStyle::Danger),
                 );
             }
-            buttons
+            vec![CreateActionRow::Buttons(buttons)]
+        } else {
+            vec![]
         };
         CreateReply::default()
             .attachment(CreateAttachment::bytes(image, "Match.png"))
             .embed(embed)
-            .components(vec![CreateActionRow::Buttons(buttons)])
+            .components(buttons)
     };
     msg.edit(*ctx, reply).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
@@ -869,8 +872,8 @@ async fn display_user_profile_helper(
     let tournament_id = tournament
         .as_ref()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
-    let image_api = ImagesAPI::new();
-    let image = image_api
+   
+    let image = ctx.data().apis.images
         .profile_image(&user, tournament_id.to_string())
         .await?;
     let reply = {
@@ -886,14 +889,17 @@ async fn display_user_profile_helper(
             )]);
         CreateReply::default()
             .reply(true)
+            .ephemeral(true)
             .embed(embed)
+            .components(vec![])
             .attachment(CreateAttachment::bytes(image, "profile_image.png"))
     };
-    msg.edit(*ctx, reply).await?;
+    ctx.send(reply).await?;
+    msg.delete(*ctx).await?;
     Ok(())
 }
 
-#[poise::command(context_menu_command = "User Profile")]
+#[poise::command(context_menu_command = "User Profile", guild_only)]
 async fn user_profile(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
@@ -1379,6 +1385,45 @@ pub async fn finish_tournament(
     Ok(())
 }
 
+#[poise::command(context_menu_command = "Match Context", guild_only)]
+async fn view_match_context(
+    ctx: BotContext<'_>,
+    user: poise::serenity_prelude::User,
+) -> Result<(), BotError>{
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Loading")),
+        )
+        .await?;
+    let tournament = match ctx
+        .data()
+        .database
+        .get_active_tournaments_from_player(&user.id)
+        .await?
+        .first()
+        .cloned(){
+            Some(t) => t,
+            None => {
+                let reply = {
+                    let embed = CreateEmbed::new()
+                        .title("Match Context")
+                        .description(format!("{} is not in any tournament.", user.mention()))
+                        .color(Color::RED);
+                    CreateReply::default()
+                        .reply(true)
+                        .ephemeral(true)
+                        .embed(embed)
+                };
+                msg.edit(ctx, reply).await?;
+                return Ok(())
+            }
+        };
+    user_display_match(&ctx, &msg, tournament, false).await?;
+    Ok(())
+}
+
 #[poise::command(
     slash_command,
     prefix_command,
@@ -1410,3 +1455,4 @@ async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
     .await?;
     Ok(())
 }
+

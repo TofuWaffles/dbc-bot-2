@@ -112,6 +112,7 @@ pub struct PlayerProfile {
     #[serde(deserialize_with = "deserialize_tag")]
     pub tag: String,
     pub name: String,
+    #[serde(deserialize_with = "deserialize_club")]
     pub club: Option<Club>,
     pub icon: Icon,
     pub trophies: i32,
@@ -273,6 +274,21 @@ where
         Ok(stripped.to_string())
     } else {
         Ok(tag)
+    }
+}
+
+fn deserialize_club<'de, D>(deserializer: D) -> Result<Option<Club>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: serde_json::Value = Deserialize::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Object(map) if map.is_empty() => Ok(None), // Check for empty object
+        _ => {
+            // Deserialize into Option<Club>
+            let club: Option<Club> = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+            Ok(club)
+        }
     }
 }
 #[derive(Debug, Serialize, Deserialize)]
