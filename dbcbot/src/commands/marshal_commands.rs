@@ -554,19 +554,21 @@ async fn disqualify(
             .ephemeral(true),
     )
     .await?;
-let fields = vec![
+    let fields = vec![
         ("Tournament ID", tournament.tournament_id.to_string(), true),
         ("Tournament name", tournament.name.to_string(), true),
         ("Match ID", bracket.match_id.to_string(), true),
         ("Disqualified player", player.name.to_string(), true),
         ("Disqualified by", ctx.author().name.to_string(), true),
     ];
-    let log = ctx.build_log(
-        "Player disqualified!",
-        "Player <@{player_id}> was disqualified from the tournament",
-        log::State::SUCCESS,
-        log::Model::MARSHAL,
-    ).fields(fields);
+    let log = ctx
+        .build_log(
+            "Player disqualified!",
+            "Player <@{player_id}> was disqualified from the tournament",
+            log::State::SUCCESS,
+            log::Model::MARSHAL,
+        )
+        .fields(fields);
     ctx.log(log).await?;
 
     if bracket.round()? == tournament.rounds {
@@ -816,7 +818,7 @@ async fn next_round_helper(
     type ConditionFn = fn(&Tournament) -> bool;
     type Condition<'a> = (ConditionFn, &'a str, &'a str);
     let conditions: Vec<Condition> = vec![
-        (|t| t.status != TournamentStatus::Started, "Non active tournament!","This tournament is not currently active. Please try again when the tournament is active again."),
+        (|t| t.status != TournamentStatus::Started, "No active tournament!","This tournament is not currently active. Please try again when the tournament is active again."),
         (|t| t.current_round == t.rounds, "No more rounds!","Unable to advance to the next round. This tournament is currently on its final round.")
     ];
 
@@ -838,42 +840,20 @@ async fn next_round_helper(
         .get_matches_by_tournament(tournament.tournament_id, Some(tournament.current_round))
         .await?;
 
-    let (with_winners, without_winners): (Vec<Match>, Vec<Match>) = brackets
-        .into_iter()
-        .partition(|bracket| bracket.winner.is_some());
+    if brackets.iter().any(|b| b.winner.is_none()) {
+        ctx.send(
+            CreateReply::default()
+                .content("Unable to proceed to the next round: Not all matches in the current round have finished.\n\nYou can run /list_matches <round> to view all the matches for the current round.")
+                .ephemeral(true),
+        ).await?;
 
-    if !without_winners.is_empty() {
-        // TODO: Show unfinished matches as a table or a CSV file
-        ctx.send(CreateReply::default().content("Unable to advance to the next round. Some players have not finished their matches yet!").ephemeral(true)).await?;
         return Ok(());
     }
 
-    let round = tournament.current_round + 1;
-    let mut next_round_brackets = generate_next_round(with_winners, round)?;
-    println!("{:#?}", next_round_brackets);
-    let new_brackets_count = next_round_brackets.len();
-    while let Some(bracket) = next_round_brackets.pop() {
-        ctx.data()
-            .database
-            .create_match(bracket.tournament()?, bracket.round()?, bracket.sequence()?)
-            .await?;
-
-        for player in bracket.match_players.iter() {
-            let match_id = Match::generate_id(
-                tournament.tournament_id,
-                bracket.round()?,
-                bracket.sequence()?,
-            );
-            ctx.data()
-                .database
-                .enter_match(&match_id, &player.user_id()?, PlayerType::Player)
-                .await?;
-        }
-    }
-
+    let new_round = tournament.current_round + 1;
     ctx.data()
         .database
-        .set_current_round(tournament.tournament_id, tournament.current_round + 1)
+        .set_current_round(tournament.tournament_id, new_round)
         .await?;
     if ctx
         .confirmation(
@@ -894,16 +874,16 @@ async fn next_round_helper(
         CreateReply::default()
             .content(format!(
                 "Successfully advanced the tournament with ID {} to the round {}.",
-                tournament.tournament_id, round
+                tournament.tournament_id, new_round
             ))
             .ephemeral(true),
     )
     .await?;
-    let description = format!(r#"The tournament has advanced to round {}"#, round,);
+    let description = format!(r#"The tournament has advanced to round {}"#, new_round,);
     let fields = vec![
         ("Tournament ID", tournament.tournament_id.to_string(), true),
         ("Tournament name", tournament.name.to_string(), true),
-        ("Number of matches", new_brackets_count.to_string(), true),
+        ("Number of matches", (brackets.len() >> 1).to_string(), true),
         ("Advanced by", ctx.author().name.to_string(), true),
     ];
     let log = ctx
@@ -916,54 +896,6 @@ async fn next_round_helper(
         .fields(fields);
     ctx.log(log).await?;
     Ok(())
-}
-
-/// Generates the matches for the next round.
-fn generate_next_round(brackets: Vec<Match>, round: i32) -> Result<Vec<Match>, BotError> {
-    let mut next_round_brackets = Vec::new();
-    let tournament_id = brackets[0].tournament()?;
-
-    let prev_match_pairs = brackets.chunks(2);
-
-    for prev_matches in prev_match_pairs {
-        let prev_match_1 = prev_matches.get(0).ok_or(anyhow!(
-            "Error advancing to the next round: First round not found in previous match pair."
-        ))?;
-        let prev_match_2 = prev_matches.get(1).ok_or(anyhow!(
-            "Error advancing to the next round: Second round not foudn in previous match pair."
-        ))?;
-
-        let player_1 = prev_match_1
-            .get_winning_player()
-            .ok_or(anyhow!(
-                "Error advancing to the next round: Unable to find the winning player in Match {}",
-                prev_match_1.match_id
-            ))?
-            .to_owned();
-
-        let player_2 = prev_match_2
-            .get_winning_player()
-            .ok_or(anyhow!(
-                "Error advancing to the next round: Unable to find the winning player in Match {}",
-                prev_match_2.match_id
-            ))?
-            .to_owned();
-
-        let cur_sequence = (prev_match_1.sequence()? + 1) >> 1;
-        if cur_sequence != (prev_match_2.sequence()? + 1) >> 1 {
-            return Err(anyhow!("Error generating matches for the next round. Previous round matches do not match:\n\nMatch ID 1: {}\nMatch ID 2: {}", prev_match_1.match_id, prev_match_2.match_id));
-        }
-
-        next_round_brackets.push(Match::new(
-            tournament_id,
-            round,
-            cur_sequence,
-            vec![player_1, player_2],
-            "0-0",
-        ))
-    }
-
-    Ok(next_round_brackets)
 }
 
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]

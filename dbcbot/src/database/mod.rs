@@ -225,6 +225,10 @@ pub trait UserDatabase {
         score: &str,
     ) -> Result<(), Self::Error>;
 
+    /// Retrieves the current match of the user.
+    ///
+    /// This will return the match with the highest round number within the user's currently entered
+    /// tournament.
     async fn get_current_match(&self, discord_id: &UserId) -> Result<Option<Match>, Self::Error>;
 
     async fn get_all_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error>;

@@ -51,9 +51,7 @@ where
     /// documentation or is not something that can be appropriately dealt with by the bot.
     pub async fn from_response(response: Response) -> Result<Self, BotError> {
         match response.status() {
-            StatusCode::OK => {
-                Ok(APIResult::Ok(response.json().await?))
-            },
+            StatusCode::OK => Ok(APIResult::Ok(response.json().await?)),
             StatusCode::NOT_FOUND => Ok(APIResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(APIResult::Maintenance),
             _ => Err(anyhow!(

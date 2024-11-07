@@ -286,7 +286,8 @@ where
         serde_json::Value::Object(map) if map.is_empty() => Ok(None), // Check for empty object
         _ => {
             // Deserialize into Option<Club>
-            let club: Option<Club> = serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+            let club: Option<Club> =
+                serde_json::from_value(value).map_err(serde::de::Error::custom)?;
             Ok(club)
         }
     }
