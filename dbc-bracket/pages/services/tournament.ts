@@ -12,7 +12,6 @@ const getAllTournamentsInAGuild = async (guildId: string): Promise<Result<Tourna
 }
 
 const getAllTournaments = async (): Promise<Result<Tournament[]>> => {
-  console.log("Fetching tournaments here");
   const [response, error] = await axios.get<Tournament[]>(`${baseUrl}/api/`).wrapper();
   if (error) {
     return Err(error);

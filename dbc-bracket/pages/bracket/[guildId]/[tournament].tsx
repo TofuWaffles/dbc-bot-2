@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useWindowSize } from '@uidotdev/usehooks';
 import brawlStarsBackground from '@/../images/assets/battle_log_bg.png';
-import defaultPlayerIcon from '@/../images/assets/28000000.png';
+import defaultPlayerIcon from '@/assets/28000000.png';
 import BracketService from '@/pages/services/bracket';
 
 interface TournamentPage {
@@ -34,6 +34,7 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
       if (guildId && tournament) {
         const fetchData = async () => {
           const [response, error] = await BracketService.getBracket(guildId as string, tournament as string);
+          console.debug("response", JSON.stringify(response, null, 2));
           setLoading(false);
           if (error) {
             setError(error.message);

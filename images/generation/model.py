@@ -1,9 +1,10 @@
 import io
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
-
+from PIL.Image import Resampling
 import httpx
 from PIL import Image, ImageDraw, ImageFont
+
 from pydantic import BaseModel
 
 
@@ -171,7 +172,8 @@ class Asset:
                 response = await client.get(url)
                 response.raise_for_status()
                 bytes_ = response.content
-                image = Image.open(io.BytesIO(bytes_))
+                image = Image.open(io.BytesIO(bytes_)).resize(size=(735, 735), resample=Resampling.NEAREST)
+                
                 return image, None
         except KeyError as e:
             return None, e
@@ -365,7 +367,10 @@ class Background:
         for overlay in self.overlays:
             top = overlay.img
             if overlay.has_transparency():
-                final_image.paste(top, (overlay.x, overlay.y), top)
+                if top.mode != "RGBA":
+                    top = top.convert("RGBA")
+                alpha = top.split()[3]
+                final_image.paste(top, (overlay.x, overlay.y), alpha)
             else:
                 final_image.paste(top, (overlay.x, overlay.y))
 

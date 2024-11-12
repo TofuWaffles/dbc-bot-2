@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
-import * as dotenv from "dotenv";
 import { Err, expect, Ok } from '@/utils';
-dotenv.config({ path: `${process.cwd()}/../.env` });
+// import * as dotenv from "dotenv";
+// dotenv.config({ path: `${process.cwd()}/../.env` });
 
 export class EnvVars {
     private static instance: EnvVars | null = null;

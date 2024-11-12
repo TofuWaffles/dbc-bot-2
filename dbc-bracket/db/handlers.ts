@@ -48,7 +48,7 @@ export default async function getMatchData(
     const idx = cache[tournamentId].idxCache[matchId];
     matches[idx] = {
       ...matches[idx],
-      tournamentRoundText: `Round ${round}`,
+      tournamentRoundText: `${round}`,
       startTime: match.end?String(match.end):"Not started yet",
       state: nextMatchState,
       participants: playerData.map((player) => ({
@@ -214,7 +214,9 @@ export async function getPreAllMatches(tournamentId: number): Promise<Result<Mat
   }
   const rounds = roundRaw.rows[0].rounds;
   const players = playerCount.rows[0].count;
-  const matchCount = (playerCount: number, round: number) => playerCount >> round;
+  const matchCount = (playerCount: number, round: number) => {
+    const roundedUp = Math.pow(2, Math.ceil(Math.log2(playerCount)));
+    return roundedUp >> round};
   const matches: MatchType[] = [];
   let idx = 0;
   let idxCache: { [key: string]: number } = {};
@@ -222,13 +224,13 @@ export async function getPreAllMatches(tournamentId: number): Promise<Result<Mat
     let count = matchCount(players, round);
     for(let sequence=1; sequence<=count; sequence++){
       const matchId = `${tournamentId}.${round}.${sequence}`;
-      const nextMatchId = round < rounds?`${tournamentId}.${round+1}.${Math.ceil(sequence/2)}`:null;
+      const nextMatchId = round < rounds?`${tournamentId}.${round+1}.${Math.floor((sequence + 1) / 2)}`:null;
       matches.push({
         id: matchId,
         nextMatchId: nextMatchId,
-        tournamentRoundText: `Round ${round}`,
+        tournamentRoundText: `${round}`,
         startTime: null,
-        state: MATCH_STATES.NO_PARTY,
+        state: MATCH_STATES.WALK_OVER,
         participants: [],
       });
       idxCache[matchId] = idx;

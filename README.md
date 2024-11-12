@@ -13,6 +13,7 @@ Welcome to our Tournament Hosting Application! This application leverages severa
   - [Installation](#installation)
   - [Contributing](#contributing)
   - [License](#license)
+  - [Sample](#sample)
 
 ## Overview
 
@@ -65,3 +66,6 @@ Contributions are welcome! Please fork the repository and create a pull request 
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for more details.
+
+## Sample
+![Bracket](readme/bracket.png)

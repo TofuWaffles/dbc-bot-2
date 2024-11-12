@@ -3,6 +3,8 @@ networks:
     driver: bridge
   images:
     driver: bridge
+  bracket:
+    driver: bridge
 
 volumes:
   pgdata:
@@ -64,4 +66,21 @@ services:
       - images
     command: "uvicorn main:app --reload --host 0.0.0.0 --port ${IMAGES_PORT}"
     
+  bracket:
+    container_name: bracket
+    build:
+      context: ./dbc-bracket
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      NEXT_PUBLIC_BASE_URL: http://bracket:${BRACKET_PORT}
+    ports:
+      - "${BRACKET_PORT}:${BRACKET_PORT}"
+    volumes:
+      - .:/usr/src/app
+    depends_on:
+      - postgres
+    networks:
+      - postgresql
+    restart: always
   

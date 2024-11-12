@@ -163,7 +163,7 @@ impl ImagesAPI {
                             "id": p1.brawler.id,
                         }
                     },
-                    "player2": {
+                    "eliminated": {
                         "discord_id": p2ext.discord_id,
                         "discord_name": p2ext.discord_name,
                         "player_tag": p2.tag,
