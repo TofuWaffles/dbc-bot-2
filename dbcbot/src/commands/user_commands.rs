@@ -1,10 +1,10 @@
 use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
 use crate::commands::checks::is_tournament_paused;
-use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
-use crate::database::{ConfigDatabase, TournamentDatabase, UserDatabase};
+use crate::database::models::{PlayerType, Tournament};
+use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};
@@ -199,7 +199,8 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 )
                 .await?;
 
-                return user_display_match(ctx, msg, player_active_tournaments.remove(0), true).await;
+                return user_display_match(ctx, msg, player_active_tournaments.remove(0), true)
+                    .await;
             }
             "leave_tournament" => {
                 interaction.defer(ctx.http()).await?;
@@ -247,6 +248,24 @@ async fn user_display_match(
             return Ok(());
         }
     };
+
+    if current_match.round()? > tournament.current_round {
+        // User has advanced to the next round but the current round is behind.
+        // This probably means that not everyone has finished their matches yet for the current
+        // round.
+        ctx.prompt(msg,
+            CreateEmbed::new().title("Match Information.")
+            .description("Woah there, partner! The upcomming round hasn't started yet. The next round will start once all players have completed their matches for the current round.",
+            )
+            .fields(vec![
+                ("Tournament", &tournament.name, true),
+                ("Match ID", &current_match.match_id, true),
+                ("Round", &current_match.round()?.to_string(), true),
+            ])
+            , None).await?;
+
+        return Ok(());
+    }
 
     if !current_match.is_not_bye() {
         // This is a bye round, so do nothing.
@@ -872,8 +891,11 @@ async fn display_user_profile_helper(
     let tournament_id = tournament
         .as_ref()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
-   
-    let image = ctx.data().apis.images
+
+    let image = ctx
+        .data()
+        .apis
+        .images
         .profile_image(&user, tournament_id.to_string())
         .await?;
     let reply = {
@@ -1274,6 +1296,25 @@ async fn submit(
         return Ok(());
     }
 
+    // Create the next round immediately
+    let next_match_sequence = (current_match.sequence()? + 1) >> 1;
+    let next_round = current_match.round()? + 1;
+    ctx.data()
+        .database
+        .create_match(tournament.tournament_id, next_round, next_match_sequence)
+        .await?;
+    ctx.data()
+        .database
+        .enter_match(
+            &format!(
+                "{}.{}.{}",
+                tournament.tournament_id, next_round, next_match_sequence
+            ),
+            &adv.user_id()?,
+            PlayerType::Player,
+        )
+        .await?;
+
     let embed = CreateEmbed::new()
         .title("Match submission!")
         .description(format!(
@@ -1341,11 +1382,7 @@ pub async fn finish_tournament(
     let loser = ctx
         .data()
         .database
-        .get_player_by_discord_id(
-            &bracket
-                .get_opponent(&winner.discord_id)?
-                .user_id()?,
-        )
+        .get_player_by_discord_id(&bracket.get_opponent(&winner.discord_id)?.user_id()?)
         .await?
         .ok_or(anyhow!(
             "Error forfeiting match {} for player {}: Opponent not found in the database.",
@@ -1389,7 +1426,7 @@ pub async fn finish_tournament(
 async fn view_match_context(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
-) -> Result<(), BotError>{
+) -> Result<(), BotError> {
     let msg = ctx
         .send(
             CreateReply::default()
@@ -1403,23 +1440,24 @@ async fn view_match_context(
         .get_active_tournaments_from_player(&user.id)
         .await?
         .first()
-        .cloned(){
-            Some(t) => t,
-            None => {
-                let reply = {
-                    let embed = CreateEmbed::new()
-                        .title("Match Context")
-                        .description(format!("{} is not in any tournament.", user.mention()))
-                        .color(Color::RED);
-                    CreateReply::default()
-                        .reply(true)
-                        .ephemeral(true)
-                        .embed(embed)
-                };
-                msg.edit(ctx, reply).await?;
-                return Ok(())
-            }
-        };
+        .cloned()
+    {
+        Some(t) => t,
+        None => {
+            let reply = {
+                let embed = CreateEmbed::new()
+                    .title("Match Context")
+                    .description(format!("{} is not in any tournament.", user.mention()))
+                    .color(Color::RED);
+                CreateReply::default()
+                    .reply(true)
+                    .ephemeral(true)
+                    .embed(embed)
+            };
+            msg.edit(ctx, reply).await?;
+            return Ok(());
+        }
+    };
     user_display_match(&ctx, &msg, tournament, false).await?;
     Ok(())
 }
@@ -1455,4 +1493,3 @@ async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
     .await?;
     Ok(())
 }
-

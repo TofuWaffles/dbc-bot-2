@@ -395,18 +395,24 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
 }
 
 #[poise::command(slash_command)]
-pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError>{
+pub async fn csv(ctx: BotContext<'_>) -> Result<(), BotError> {
     #[derive(Debug, poise::Modal)]
     #[name = "CSV Test"]
-    struct CSV{
+    struct CSV {
         #[name = "CSV text here"]
         #[paragraph]
         text: String,
     }
-    let msg = ctx.send(CreateReply::default().content("Prepare CSV")).await?;
-    let embed = CreateEmbed::default().title("CSV").description("Here is the CSV file");
+    let msg = ctx
+        .send(CreateReply::default().content("Prepare CSV"))
+        .await?;
+    let embed = CreateEmbed::default()
+        .title("CSV")
+        .description("Here is the CSV file");
     let res = modal::<CSV>(&ctx, &msg, embed).await?;
-    let attachment: CreateAttachment = CreateAttachment::bytes(res.text.replace(" ","\n").as_bytes(), "test.csv"); 
-    ctx.send(CreateReply::default().attachment(attachment)).await?;
+    let attachment: CreateAttachment =
+        CreateAttachment::bytes(res.text.replace(" ", "\n").as_bytes(), "test.csv");
+    ctx.send(CreateReply::default().attachment(attachment))
+        .await?;
     Ok(())
 }
