@@ -1,8 +1,9 @@
 import React, { FC } from 'react';
-import { GetStaticProps } from 'next';
 import Link from 'next/link';
-import TournamentService from './services/tournament';
+import TournamentService from '@/services/tournament';
 import { Tournament } from '@/db/models';
+import { GetStaticProps } from 'next';
+
 
 const Home: FC<{ tournaments: Tournament[] }> = ({ tournaments }) => {
   return (
@@ -15,7 +16,7 @@ const Home: FC<{ tournaments: Tournament[] }> = ({ tournaments }) => {
           <ul>
             {tournaments.map((tournament) => (
               <li key={tournament.tournament_id} className="mb-2 text-gray-400 hover:text-white cursor-pointer">
-                <Link href={`/tournaments/${tournament.tournament_id}`}>{tournament.name}</Link>
+                <Link href={`/bracket/${tournament.guild_id}/${tournament.tournament_id}`}>{tournament.name}</Link>
               </li>
             ))}
           </ul>
@@ -41,7 +42,6 @@ export const getStaticProps: GetStaticProps = async () => {
   }
 
   const tournaments = result;
-
   return {
     props: {
       tournaments,

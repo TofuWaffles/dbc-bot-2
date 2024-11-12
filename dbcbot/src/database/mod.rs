@@ -1214,6 +1214,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 }
 
 pub trait MatchDatabase {
+    async fn update_end_time(&self, match_id: &str) -> Result<(), Self::Error>;
     async fn count_finished_matches(&self, tournament_id: i32, round: i32)
         -> Result<i64, BotError>;
     type Error;
@@ -1499,6 +1500,22 @@ impl MatchDatabase for PgDatabase {
         .await?
         .count;
         Ok(count.unwrap_or(0))
+    }
+
+    async fn update_end_time(&self, match_id: &str) -> Result<(), Self::Error> {
+        let end = chrono::Utc::now().timestamp();
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET "end" = $1
+            WHERE match_id = $2
+            "#,
+            end,
+            match_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 }
 pub trait BattleDatabase {

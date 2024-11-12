@@ -19,8 +19,17 @@ const getAllTournaments = async (): Promise<Result<Tournament[]>> => {
   return Ok(response.data);
 }
 
+const getTournamentById = async (id: string): Promise<Result<Tournament>> => {
+  const [response, error] = await axios.get<Tournament>(`${baseUrl}/api/tournament/${id}`).wrapper();
+  if (error) {
+    return Err(error);
+  }
+  return Ok(response.data);
+}
+
 const TournamentService = {
   getAllTournamentsInAGuild,
-  getAllTournaments
+  getAllTournaments,
+  getTournamentById,
 };
 export default TournamentService;

@@ -132,14 +132,14 @@ export async function getPlayerNamesAndIdsByMatchId(
   return playerData.length > 0 ? Ok(playerData) : Ok([]);
 }
 
-export async function getTournamentByNameAndGuildId(
-  name: string,
+export async function getTournamentByTournamentIdAndGuildId(
+  tournamentId: string,
   guildId: string
 ): Promise<Result<Tournament | null>> {
   const [result, err] = await pool
     .query<Tournament>({
-      text: "SELECT * FROM tournaments WHERE name = $1 AND guild_id = $2",
-      values: [name, guildId],
+      text: "SELECT * FROM tournaments WHERE tournament_id = $1 AND guild_id = $2",
+      values: [tournamentId, guildId],
     })
     .wrapper();
   if (err) {
@@ -187,6 +187,17 @@ export async function getAllTournamentsInAGuild(guildId: string): Promise<Result
   return Ok(result.rows);
 }
 
+export async function getTournamentById(id: string): Promise<Result<Tournament>> {
+  const [result, err] = await pool
+    .query<Tournament>({text: "SELECT * FROM tournaments WHERE tournament_id = $1", values: [id]})
+    .wrapper();
+  if (err) {
+    console.error(err);
+    return Err(err);
+  }
+  return Ok(result.rows[0]);
+}
+
 export async function getPreAllMatches(tournamentId: number): Promise<Result<MatchType[]>> {
   if(cache[tournamentId]){
     return Ok(cache[tournamentId].matches);
@@ -216,7 +227,7 @@ export async function getPreAllMatches(tournamentId: number): Promise<Result<Mat
   const players = playerCount.rows[0].count;
   const matchCount = (playerCount: number, round: number) => {
     const roundedUp = Math.pow(2, Math.ceil(Math.log2(playerCount)));
-    return roundedUp >> round};
+    return roundedUp >> (round+1)};
   const matches: MatchType[] = [];
   let idx = 0;
   let idxCache: { [key: string]: number } = {};

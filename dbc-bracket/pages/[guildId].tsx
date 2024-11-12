@@ -4,12 +4,12 @@ import { ReactNode, useEffect, useState } from 'react';
 import { encode } from 'querystring';
 import Sidebar from "@/pages/components/sidebar"
 import "@/utils"
-import TournamentService from './services/tournament';
+import TournamentService from '@/services/tournament';
 interface GuildPage {
   children: ReactNode;
 }
 
-const GuildPage: React.FC<GuildPage> = ({ children }) => {
+const GuildPage: React.FC<GuildPage> = () => {
   const router = useRouter();
   const guildId = encode(router.query).split('=')[1];
   const [items, setItems] = useState<string[]>([]);

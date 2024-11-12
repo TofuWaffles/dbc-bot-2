@@ -13,6 +13,7 @@ use crate::utils::shorthand::BotContextExt;
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError};
 use anyhow::anyhow;
+use chrono::Utc;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
 use poise::{CreateReply, Modal, ReplyHandle};
@@ -1290,6 +1291,7 @@ async fn submit(
         ctx.data().apis.images.result_image(adv, &elim, &score),
         target.user(ctx)
     );
+    ctx.data().database.update_end_time(&current_match.match_id).await?;
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
         finish_tournament(ctx, bracket, &target).await?;

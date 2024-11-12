@@ -78,7 +78,7 @@ async fn main() {
 async fn run() -> Result<(), BotError> {
     let setup_span = info_span!("bot_setup");
     let _guard = setup_span.enter();
-    // Load the .env file only in the development environment (bypassed with the --release flag)
+    //Load the .env file only in the development environment (bypassed with the --release flag)
     #[cfg(debug_assertions)]
     dotenv::dotenv().ok();
 

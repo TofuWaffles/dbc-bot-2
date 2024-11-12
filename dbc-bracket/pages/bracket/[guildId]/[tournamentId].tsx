@@ -1,15 +1,35 @@
-"use client";
-import { SingleEliminationBracket, SVGViewer, createTheme, Match } from '@g-loot/react-tournament-brackets';
-import { MatchType, ParticipantType } from '@/db/models';
-import { ReactNode, useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
+
+import { SingleEliminationBracket, SVGViewer } from '@g-loot/react-tournament-brackets';
+import { MatchType, ParticipantType, Tournament } from '@/db/models';
+import { useEffect, useState } from 'react';
 import { useWindowSize } from '@uidotdev/usehooks';
-import brawlStarsBackground from '@/../images/assets/battle_log_bg.png';
-import defaultPlayerIcon from '@/assets/28000000.png';
-import BracketService from '@/pages/services/bracket';
+import BracketService from '@/services/bracket';
+import { GetServerSideProps } from 'next';
+import Image from 'next/image';
+import TournamentService from '@/services/tournament';
+import dynamic from 'next/dynamic';
+
+const LocalDate: React.FC<{ unix: number }> = ({ unix }) => {
+  const [localDate, setLocalDate] = useState('');
+  useEffect(() => {
+    const date = new Date(unix);
+    const formattedDate = new Intl.DateTimeFormat('default', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+    setLocalDate(formattedDate);
+  }, [unix]);
+
+  return <div>Date: {localDate}</div>;
+};
+const DynamicLocalDate = dynamic(() => Promise.resolve(LocalDate), {
+  ssr: false,
+});
 
 interface TournamentPage {
-  children: ReactNode;
+  tournament: Tournament
+  matches: MatchType[]
 }
 
 const getParticipants = (participants: ParticipantType[]): { topParticipant: ParticipantType | null, bottomParticipant: ParticipantType | null } => {
@@ -19,40 +39,26 @@ const getParticipants = (participants: ParticipantType[]): { topParticipant: Par
     bottomParticipant: bottomParticipant ?? null,
   };
 };
-const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
-  const router = useRouter();
-  const [matches, setMatches] = useState<MatchType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
+  return (
+    <div>
+      <p className='w-full text-center pt-3 text-4xl'>{tournament.name}</p>
+      <div className='w-full flex justify-evenly items-center'>
+        <p>ID: {tournament.tournament_id}</p>
+        <p>Current round: {tournament.current_round}</p>
+        <DynamicLocalDate unix={parseInt(tournament.created_at) * 1000}/>
+        <p>Status: {tournament.status}</p>
+      </div>
+      {matches.length > 0 ? <TournmanentSection matches={matches} /> : <div>Loading...</div>}
+    </div>
+  );
+};
+
+const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
   const { width, height } = useWindowSize();
-
   useEffect(() => {
-    console.debug("width, height", width, height);
-    if (router.isReady) {
-      const { guildId, tournament } = router.query;
-
-      if (guildId && tournament) {
-        const fetchData = async () => {
-          const [response, error] = await BracketService.getBracket(guildId as string, tournament as string);
-          console.debug("response", JSON.stringify(response, null, 2));
-          setLoading(false);
-          if (error) {
-            setError(error.message);
-            return;
-          }
-          setMatches(response);
-        };
-
-        fetchData();
-      } else {
-        setLoading(false);
-      }
-    }
-  }, [router.isReady, router.query]);
-
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
-
+    console.log("matches", matches);
+  }, [matches]);
   return (
     <div className="w-full h-full flex justify-center items-center p-20">
       <div className="w-full h-full">
@@ -95,10 +101,11 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
                 <div className="flex flex-col">
                   {topParticipant ? (
                     <div className="flex items-center">
-                      <img
-                        src={topParticipant.iconUrl || defaultPlayerIcon.blurDataURL}
+                      <Image
+                        loader={() => topParticipant.iconUrl}
+                        src="icon.png"
                         alt={topParticipant.name}
-                        className="w-8 mr-2"
+                        className={`w-8 mr-2 ${topParticipant.isWinner ? 'border-2 border-yellow-500' : 'grayscale'}`}
                       />
                       <div className="flex-1">{topParticipant.name || 'Unknown'}</div>
                       <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
@@ -111,8 +118,9 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
 
                   {bottomParticipant ? (
                     <div className="flex items-center">
-                      <img
-                        src={bottomParticipant.iconUrl || defaultPlayerIcon.blurDataURL}
+                      <Image
+                        loader={() => bottomParticipant.iconUrl}
+                        src="icon.png"
                         alt={bottomParticipant.name}
                         className="w-8 mr-2"
                       />
@@ -131,15 +139,15 @@ const TournamentPage: React.FC<TournamentPage> = ({ children }) => {
         />
       </div>
     </div>
-
-  );
+  )
 };
 
 const TBD: React.FC = () => {
   return (
     <div className="flex items-center">
-      <img
-        src="https://cdn.brawlify.com/profile-icons/regular/28000000.png"
+      <Image
+        loader={() => "https://cdn.brawlify.com/profile-icons/regular/28000000.png"}
+        src="tbd.png"
         alt="TBD"
         className="w-8 mr-2"
       />
@@ -148,5 +156,30 @@ const TBD: React.FC = () => {
     </div>
   )
 }
+
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { tournamentId } = context.params as { tournamentId: string };
+  const [tournament, error] = await TournamentService.getTournamentById(tournamentId);
+  if (error) {
+    console.error(error);
+    return {
+      notFound: true,
+    };
+  }
+  const [matches, err] = await BracketService.getBracket(tournament.guild_id, tournament.tournament_id);
+  if (err) {
+    console.error(err);
+    return {
+      notFound: true,
+    };
+  }
+  return {
+    props: {
+      tournament,
+      matches,
+    },
+  };
+};
+
 
 export default TournamentPage;
