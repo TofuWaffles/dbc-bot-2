@@ -1,19 +1,12 @@
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-
+import Link from 'next/link';
 interface SidebarProps {
   guildId: string;
-  items: string[];
+  items: { id: string, name: string }[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ guildId, items }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const router = useRouter();
-
-  const handleNavigation = (item: string) => {
-    router.push(`/bracket/${guildId}/${item}`);
-  };
-
   return (
     <div className="flex">
       <div
@@ -59,13 +52,12 @@ const Sidebar: React.FC<SidebarProps> = ({ guildId, items }) => {
             <div className="flex flex-col items-start w-full px-4">
               {items.map((item, index) => (
                 <div key={index} className="w-full py-2 hover:bg-gray-700 rounded">
-                  <a
-                    href="#"
-                    onClick={() => handleNavigation(item)}
+                  <Link
+                    href={`../bracket/${guildId}/${item.id}`}
                     className="block w-full text-white"
                   >
-                    {item}
-                  </a>
+                    {item.name}
+                  </Link>
                 </div>
               ))}
             </div>

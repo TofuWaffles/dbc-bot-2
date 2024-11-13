@@ -1,41 +1,19 @@
-"use client";
-import { useRouter } from 'next/router';
-import { ReactNode, useEffect, useState } from 'react';
+import { GetServerSideProps } from 'next';
 import { encode } from 'querystring';
-import Sidebar from "@/pages/components/sidebar"
-import "@/utils"
+import Sidebar from "@/pages/components/sidebar";
 import TournamentService from '@/services/tournament';
-interface GuildPage {
-  children: ReactNode;
+import Link from 'next/link';
+
+interface GuildPageProps {
+  items: { id: string, name: string }[];
+  guildId: string;
+  error?: string;
 }
 
-const GuildPage: React.FC<GuildPage> = () => {
-  const router = useRouter();
-  const guildId = encode(router.query).split('=')[1];
-  const [items, setItems] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (guildId) {
-      const fetchData = async () => {
-        const [tournaments, error] = await TournamentService.getAllTournamentsInAGuild(guildId);
-        if (error) {
-          console.error(error);
-          setError('Failed to load match data');
-          return;
-        }
-        setItems(tournaments.map((tournament: { name: string }) => tournament.name));
-        setLoading(false);
-      };
-      fetchData();
-    } else {
-      setLoading(false);
-    }
-  }, [guildId]);
-
-  if (loading) return <div className="flex justify-center items-center h-screen text-lg">Loading...</div>;
-  if (error) return <div className="flex justify-center items-center h-screen text-lg text-red-500">{error}</div>;
+const GuildPage: React.FC<GuildPageProps> = ({ items, guildId, error }) => {
+  if (error) {
+    return <div className="flex justify-center items-center h-screen text-lg text-red-500">{error}</div>;
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-100">
@@ -46,13 +24,12 @@ const GuildPage: React.FC<GuildPage> = () => {
           <ul className="space-y-4 text-center">
             {items.map((item, index) => (
               <li key={index} className="text-lg">
-                <a
-                  href="#"
-                  onClick={() => router.push(`/bracket/${guildId}/${item}`)}
+                <Link
+                  href={`../bracket/${guildId}/${item.id}`}
                   className="text-blue-600 hover:text-blue-800 transition-colors duration-200"
                 >
-                  {item}
-                </a>
+                  {item.name}
+                </Link>
               </li>
             ))}
           </ul>
@@ -61,5 +38,26 @@ const GuildPage: React.FC<GuildPage> = () => {
     </div>
   );
 };
+
+// Server-side data fetching
+export const getServerSideProps: GetServerSideProps = async ({ query }) => {
+  const guildId = encode(query).split('=')[1]; // extract guildId from query
+  if (!guildId) {
+    return { props: { error: 'No guild ID provided' } };
+  }
+
+  const [tournaments, error] = await TournamentService.getAllTournamentsInAGuild(guildId);
+  if (error) {
+    return { props: { error: 'Failed to load match data' } };
+  }
+  const items = tournaments.map((tournament) => {
+    return {
+      id: tournament.tournament_id,
+      name: tournament.name,
+    }
+  });
+  return { props: { items, guildId } };
+}
+
 
 export default GuildPage;

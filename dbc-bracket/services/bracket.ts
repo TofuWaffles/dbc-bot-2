@@ -1,14 +1,19 @@
-import axios from "axios";
 import "@/utils"
 import { Result, Err, Ok } from "@/utils";
-import { MatchType } from "@/db/models";
-import { baseUrl } from "@/db/db";
+import { MatchType, Tournament } from "@/db/models";
+import getMatchData, { getTournamentByTournamentIdAndGuildId } from "@/db/handlers";
 const getBracket = async(guildId: string, tournamentId: number): Promise<Result<MatchType[]>> => {
-  const [response, error] = await axios.get<MatchType[]>(`${baseUrl}/api/${guildId}/${tournamentId}`).wrapper();
-  if(error){
+  const [tournament, error]: [Tournament | null, Error] = await getTournamentByTournamentIdAndGuildId(tournamentId.toString(), guildId);
+  if (error) {
+    console.error(error);
     return Err(error);
   }
-  return Ok(response.data);
+  const [matchData, error2] = await getMatchData(tournament.tournament_id);
+  if (error2) {
+    console.error(error2);
+    return Err(error2);
+  }
+  return Ok(matchData);
 }
 
 const BracketService = {

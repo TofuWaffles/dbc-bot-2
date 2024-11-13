@@ -56,9 +56,6 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
 
 const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
   const { width, height } = useWindowSize();
-  useEffect(() => {
-    console.log("matches", matches);
-  }, [matches]);
   return (
     <div className="w-full h-full flex justify-center items-center p-20">
       <div className="w-full h-full">
@@ -104,6 +101,8 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <Image
                         loader={() => topParticipant.iconUrl}
                         src="icon.png"
+                        width={32}
+                        height={32}
                         alt={topParticipant.name}
                         className={`w-8 mr-2 ${topParticipant.isWinner ? 'border-2 border-yellow-500' : 'grayscale'}`}
                       />
@@ -121,6 +120,8 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <Image
                         loader={() => bottomParticipant.iconUrl}
                         src="icon.png"
+                        width={32}
+                        height={32}
                         alt={bottomParticipant.name}
                         className="w-8 mr-2"
                       />
@@ -149,6 +150,8 @@ const TBD: React.FC = () => {
         loader={() => "https://cdn.brawlify.com/profile-icons/regular/28000000.png"}
         src="tbd.png"
         alt="TBD"
+        width={32}
+        height={32}
         className="w-8 mr-2"
       />
       <div className="flex-1">TBD</div>

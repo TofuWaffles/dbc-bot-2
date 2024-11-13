@@ -7,7 +7,6 @@ import {
   PlayerService,
   Player,
   MatchService,
-  DefaultService,
 } from "@/db/models";
 import "@/utils";
 import { Err, Ok, Result } from "@/utils";

@@ -31,7 +31,7 @@ const Home: FC<{ tournaments: Tournament[] }> = ({ tournaments }) => {
 };
 
 export const getStaticProps: GetStaticProps = async () => {
-  const [result, error] = await TournamentService.getAllTournaments();  
+  const [result, error] = await TournamentService.getAllAvailableTournaments();  
   if (error) {
     console.error(error);
     return {
