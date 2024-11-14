@@ -73,7 +73,6 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      NEXT_PUBLIC_BASE_URL: http://bracket:${BRACKET_PORT}
     ports:
       - "${BRACKET_PORT}:${BRACKET_PORT}"
     volumes:
