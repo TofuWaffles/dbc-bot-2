@@ -652,12 +652,12 @@ async fn list_players(
         .filter(|p| !p.deleted)
         .collect::<Vec<Player>>();
 
-    let mut csv_str = "Discord Name, Discord ID, In-Game Name, Player Tag\n".to_string();
+    let mut csv_str = "Discord Name,Discord ID,In-Game Name,Player Tag\n".to_string();
 
     for player in players {
         csv_str.push_str(&format!(
             "{},{},{},{}\n",
-            player.discord_name, player.discord_id, player.player_name, player.discord_name,
+            player.discord_name, player.discord_id, player.player_name, player.player_tag,
         ));
     }
 
