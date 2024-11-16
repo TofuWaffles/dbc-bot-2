@@ -290,7 +290,7 @@ impl UserDatabase for PgDatabase {
             r#"
             SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers, deleted
             FROM users
-            WHERE discord_id = $1
+            WHERE discord_id = $1 AND deleted = false
             LIMIT 1
             "#,
             discord_id.to_string()

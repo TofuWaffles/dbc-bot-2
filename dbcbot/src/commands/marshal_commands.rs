@@ -54,6 +54,43 @@ impl CommandsContainer for MarshalCommands {
     }
 }
 
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[instrument]
+async fn get_player(ctx: BotContext<'_>, user: UserId) -> Result<(), BotError> {
+    let player = ctx.data().database.get_player_by_discord_id(&user).await?;
+
+    match player {
+        Some(player) => {
+            ctx.send(
+                CreateReply::default()
+                    .embed(
+                        CreateEmbed::new()
+                            .title(format!("Here is all for info for {}", player.discord_name))
+                            .fields(vec![
+                                ("In-Game Name", player.player_name, true),
+                                ("Game Tag", player.player_tag, true),
+                                ("Discord ID", player.discord_id, true),
+                                ("Discord Name", player.discord_name, true),
+                                ("Trophies", player.trophies.to_string(), false),
+                            ]),
+                    )
+                    .ephemeral(true),
+            )
+            .await?;
+        }
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content("A tournament with that id was not found")
+                    .ephemeral(true),
+            )
+            .await?;
+            warn!("Player with Discord ID {} not found", user.get());
+        }
+    };
+    todo!()
+}
+
 /// Get information about a tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]

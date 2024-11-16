@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers, deleted\n            FROM users\n            WHERE discord_id = $1\n            LIMIT 1\n            ",
+  "query": "\n            SELECT discord_id, player_tag, discord_name, player_name, icon, trophies, brawlers, deleted\n            FROM users\n            WHERE discord_id = $1 AND deleted = false\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -60,5 +60,5 @@
       false
     ]
   },
-  "hash": "edee017dd7560d1ee7bce3f46d01183553de64ba1d743d56ae0bd8a43963bf92"
+  "hash": "2b81f72677c92b7277f81bece06041966d8877ae9c0b00855ec923a2c87e4524"
 }
