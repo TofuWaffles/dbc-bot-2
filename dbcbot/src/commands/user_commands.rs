@@ -256,7 +256,7 @@ async fn user_display_match(
         // round.
         ctx.prompt(msg,
             CreateEmbed::new().title("Match Information.")
-            .description("Woah there, partner! The upcomming round hasn't started yet. The next round will start once all players have completed their matches for the current round.",
+            .description("Woah there, partner! The upcoming round hasn't started yet. The next round will start once all players have completed their matches for the current round.",
             )
             .fields(vec![
                 ("Tournament", &tournament.name, true),
@@ -268,6 +268,7 @@ async fn user_display_match(
         return Ok(());
     }
 
+    // Users shouldn't be able to access this with the current set up, this is kept just in case
     if !current_match.is_not_bye() {
         // This is a bye round, so do nothing.
         ctx.prompt(msg,
@@ -483,7 +484,7 @@ async fn user_forfeit(
         let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
         ctx.data()
             .database
-            .set_winner(&bracket.match_id, &opponent.user_id()?, "forfeit")
+            .set_winner(&bracket.match_id, &opponent.user_id()?, "FORFEITED")
             .await?;
         msg.edit(
             *ctx,
@@ -509,7 +510,7 @@ async fn user_forfeit(
                     ctx.author().id.to_string()
                 ))?;
             // Final round. Announce the winner and finish the tournament
-            finish_tournament(ctx, &bracket, &opponent).await?;
+            finish_tournament(ctx, &bracket, &opponent, "FORFEITED").await?;
         }
     } else {
         msg.edit(
@@ -1291,30 +1292,19 @@ async fn submit(
         ctx.data().apis.images.result_image(adv, &elim, &score),
         target.user(ctx)
     );
-    ctx.data().database.update_end_time(&current_match.match_id).await?;
+    ctx.data()
+        .database
+        .update_end_time(&current_match.match_id)
+        .await?;
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, &target).await?;
+        finish_tournament(ctx, bracket, &target, &score).await?;
         return Ok(());
     }
 
-    // Create the next round immediately
-    let next_match_sequence = (current_match.sequence()? + 1) >> 1;
-    let next_round = current_match.round()? + 1;
     ctx.data()
         .database
-        .create_match(tournament.tournament_id, next_round, next_match_sequence)
-        .await?;
-    ctx.data()
-        .database
-        .enter_match(
-            &format!(
-                "{}.{}.{}",
-                tournament.tournament_id, next_round, next_match_sequence
-            ),
-            &adv.user_id()?,
-            PlayerType::Player,
-        )
+        .advance_player(tournament.tournament_id, &target.user_id()?, &score)
         .await?;
 
     let embed = CreateEmbed::new()
@@ -1365,7 +1355,16 @@ pub async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
     winner: &Player,
+    score: &str,
 ) -> Result<(), BotError> {
+    ctx.data()
+        .database
+        .set_winner(
+            &bracket.match_id,
+            &UserId::new(winner.discord_id.parse::<u64>()?),
+            score,
+        )
+        .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let announcement_channel_id = ctx
         .data()

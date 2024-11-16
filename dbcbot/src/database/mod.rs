@@ -231,7 +231,7 @@ pub trait UserDatabase {
     /// tournament.
     async fn get_current_match(&self, discord_id: &UserId) -> Result<Option<Match>, Self::Error>;
 
-    async fn get_all_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error>;
+    async fn get_all_user_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error>;
 }
 
 impl UserDatabase for PgDatabase {
@@ -465,7 +465,7 @@ impl UserDatabase for PgDatabase {
         }
     }
 
-    async fn get_all_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error> {
+    async fn get_all_user_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error> {
         let mut matches = sqlx::query!(
             r#"
             SELECT 
@@ -618,7 +618,7 @@ pub trait TournamentDatabase {
     /// round exceed its total number of rounds.
     async fn set_current_round(&self, tournament_id: i32, round: i32) -> Result<(), Self::Error>;
 
-    ///Pauses a tournament
+    /// Pauses a tournament
     async fn pause(&self, tournament_id: i32) -> Result<(), Self::Error>;
 }
 
@@ -1257,6 +1257,19 @@ pub trait MatchDatabase {
         tournament_id: i32,
         round: impl Into<Option<i32>>,
     ) -> Result<Vec<Match>, Self::Error>;
+
+    /// Advances the player to the next round and sets them as the winner for the current round.
+    ///
+    /// The caller is responsible to determine whether or not this is a valid operation that
+    /// maintains the tournament's integrity.
+    ///
+    /// If this is the final round, you may simply set_winner and make the announcement.
+    async fn advance_player(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+        score: &str,
+    ) -> Result<(), Self::Error>;
 }
 
 impl MatchDatabase for PgDatabase {
@@ -1516,6 +1529,36 @@ impl MatchDatabase for PgDatabase {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    async fn advance_player(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+        score: &str,
+    ) -> Result<(), Self::Error> {
+        let bracket = self
+            .get_match_by_player(tournament_id, discord_id)
+            .await?
+            .ok_or(anyhow!(
+                "Unable to find player {} in tournament {}",
+                discord_id,
+                tournament_id
+            ))?;
+
+        self.set_winner(&bracket.match_id, discord_id, score)
+            .await?;
+
+        let next_match_sequence = (bracket.sequence()? + 1) >> 1;
+        let next_round = bracket.round()? + 1;
+
+        self.enter_match(
+            &format!("{}.{}.{}", tournament_id, next_round, next_match_sequence),
+            discord_id,
+            PlayerType::Player,
+        )
+        .await?;
+        todo!();
     }
 }
 pub trait BattleDatabase {

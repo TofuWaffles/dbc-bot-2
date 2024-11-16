@@ -734,20 +734,52 @@ fn generate_matches_new_tournament(
 ) -> Result<Vec<Match>, BotError> {
     let rounds_count = (tournament_players.len() as f64).log2().ceil() as u32;
 
-    let match_count = 2_u32.pow(rounds_count - 1);
+    let mut matches_count = 1 << (rounds_count - 1);
 
     let mut matches = Vec::new();
+    let mut round = 1;
 
-    for i in 0..match_count {
-        let mut players: Vec<MatchPlayer> = Vec::new();
-        // Not guaranteed to have a player, this would be a bye round if there is no player
-        if (match_count as usize) <= tournament_players.len() {
-            players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
+    // Generate first round
+    while matches_count != 0 {
+        // We use range from 1 to match_count inclusive for convenience
+        // Because it makes it easier to calculate the parent brackets (i << 1 - 1, i << 1)
+        for i in 1..=matches_count {
+            let mut bracket = Match::new(tournament_id, round, i, Vec::new(), "0-0");
+
+            if round == 1 {
+                // Not guaranteed to have a player, this would be a bye round if there is no player
+                if (matches_count as usize) <= tournament_players.len() {
+                    bracket.match_players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", matches_count, tournament_players.len()))?.into());
+                }
+                // Guaranteed to have a player
+                bracket.match_players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", matches_count, tournament_players.len()))?.into());
+                if bracket.match_players.len() == 1 {
+                    bracket.winner = bracket.match_players[0].discord_id.to_string().into();
+                }
+            } else if round == 2 {
+                // For the second round, we check for any bye rounds in the previous round
+                let left: &Match = &matches[((i << 1) - 2) as usize];
+                let right: &Match = &matches[((i << 1) - 1) as usize];
+                if left.winner.is_some() {
+                    bracket.match_players.push(left.match_players[0].clone());
+                }
+                if right.winner.is_some() {
+                    bracket.match_players.push(right.match_players[0].clone());
+                }
+            }
+            // Bye rounds don't make it past the second round
+            // The rest of the matches past the second round are guaranteed to be empty
+
+            matches.push(bracket);
         }
-        // Guaranteed to have a player
-        players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", match_count, tournament_players.len()))?.into());
-
-        matches.push(Match::new(tournament_id, 1, (i + 1) as i32, players, "0-0"));
+        println!(
+            "Round {}, Len: {}, Brackets: {:?}",
+            round,
+            matches.len(),
+            matches
+        );
+        matches_count >>= 1;
+        round += 1;
     }
 
     Ok(matches)
@@ -756,7 +788,10 @@ fn generate_matches_new_tournament(
 /// Test for the match generation for new tournaments.
 #[cfg(test)]
 mod tests {
-    use super::{generate_matches_new_tournament, models::Player};
+    use super::{
+        generate_matches_new_tournament,
+        models::{Match, Player},
+    };
 
     fn create_dummies(count: i32) -> Vec<Player> {
         let mut users: Vec<Player> = Vec::with_capacity(count as usize);
@@ -769,21 +804,40 @@ mod tests {
         users
     }
 
+    fn check_empty(bracket: &Match) -> bool {
+        if bracket.match_players.get(0).is_none() && bracket.match_players.get(1).is_none() {
+            return true;
+        }
+        false
+    }
+
+    fn check_full(bracket: &Match) -> bool {
+        if bracket.match_players.get(0).is_some() && bracket.match_players.get(1).is_some() {
+            return true;
+        }
+        false
+    }
+
+    fn check_bye(bracket: &Match) -> bool {
+        if bracket.match_players.get(0).is_some() && bracket.match_players.get(1).is_none() {
+            return true;
+        }
+        false
+    }
+
     #[test]
-    fn creates_two_matches() {
+    fn creates_two_rounds() {
         const USERCOUNT: i32 = 4;
-        let users: Vec<Player> = create_dummies(USERCOUNT);
+        let players: Vec<Player> = create_dummies(USERCOUNT);
 
-        println!("{:?}", users);
+        println!("{:?}", players);
 
-        let matches = generate_matches_new_tournament(users, -1).unwrap();
+        let matches = generate_matches_new_tournament(players, -1).unwrap();
 
-        assert_eq!(matches.len(), 2);
-        matches.iter().enumerate().for_each(|(i, game_match)| {
-            assert_eq!(game_match.sequence().unwrap(), i as i32 + 1);
-            assert!(game_match.match_players.get(0).is_some());
-            assert!(game_match.match_players.get(1).is_some());
-        });
+        assert_eq!(matches.len(), 3);
+        assert!(check_full(&matches[0]));
+        assert!(check_full(&matches[1]));
+        assert!(check_empty(&matches[2]));
     }
 
     #[test]
@@ -797,11 +851,10 @@ mod tests {
 
         println!("{:?}", matches);
 
-        assert_eq!(matches.len(), 2);
-        assert!(matches[0].match_players.get(0).is_some());
-        assert!(matches[0].match_players.get(1).is_some());
-        assert!(matches[1].match_players.get(0).is_some());
-        assert!(matches[1].match_players.get(1).is_none());
+        assert_eq!(matches.len(), 3);
+        check_full(&matches[0]);
+        check_bye(&matches[1]);
+        check_bye(&matches[2]);
     }
 
     #[test]
@@ -813,17 +866,14 @@ mod tests {
 
         println!("{:?}", matches);
 
-        assert_eq!(matches.len(), 4);
+        assert_eq!(matches.len(), 7);
 
-        matches.iter().enumerate().for_each(|(i, gm)| match i {
-            2.. => {
-                assert!(gm.match_players.get(0).is_some());
-                assert!(gm.match_players.get(1).is_none());
-            }
-            _ => {
-                assert!(gm.match_players.get(0).is_some());
-                assert!(gm.match_players.get(1).is_some());
-            }
-        });
+        assert!(check_full(&matches[0]));
+        assert!(check_full(&matches[1]));
+        assert!(check_bye(&matches[2]));
+        assert!(check_bye(&matches[3]));
+        assert!(check_empty(&matches[4]));
+        assert!(check_full(&matches[5]));
+        assert!(check_empty(&matches[6]));
     }
 }

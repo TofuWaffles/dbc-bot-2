@@ -542,7 +542,7 @@ async fn disqualify(
     let opponent = bracket.get_opponent(&player.id.to_string())?;
     ctx.data()
         .database
-        .set_winner(&bracket.match_id, &opponent.user_id()?, "disqualified")
+        .set_winner(&bracket.match_id, &opponent.user_id()?, "DISQUALIFIED")
         .await?;
 
     ctx.send(
@@ -582,7 +582,7 @@ async fn disqualify(
                 bracket.match_id,
                 ctx.author().id.to_string()
             ))?;
-        finish_tournament(ctx, &bracket, &opponent_player).await?;
+        finish_tournament(ctx, &bracket, &opponent_player, "DISQUALIFIED").await?;
     }
     Ok(())
 }
