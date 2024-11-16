@@ -841,7 +841,7 @@ mod tests {
     }
 
     #[test]
-    fn creates_two_matches_with_one_bye() {
+    fn creates_two_rounds_with_one_bye() {
         const USERCOUNT: i32 = 3;
         let users = create_dummies(USERCOUNT);
 
@@ -858,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn creates_four_matches_with_two_byes() {
+    fn creates_three_rounds_with_two_byes() {
         const USERCOUNT: i32 = 6;
         let users = create_dummies(USERCOUNT);
 
