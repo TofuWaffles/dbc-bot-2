@@ -25,12 +25,14 @@ jobs:
           path: |
             ~/dbcbot/.cargo
             dbcbot/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/dbcbo/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/dbcbot/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
         
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+        with:
+          rustflags: ""
 
       - name: Build and test code
         run: |
