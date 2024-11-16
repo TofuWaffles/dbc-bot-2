@@ -168,7 +168,7 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         script: |
-          cd ~
+          cd ~/dbcbot
           echo "BRAWL_STARS_TOKEN=${{ secrets.BRAWL_STARS_TOKEN }}" > ~/.env
           echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" >> ~/.env
           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> ~/.env
