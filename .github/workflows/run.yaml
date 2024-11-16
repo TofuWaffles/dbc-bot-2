@@ -145,6 +145,7 @@ jobs:
         host: ${{ secrets.DROPLET_IP }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         source: docker-compose.yml
         target:  /root/dbcbot
 
@@ -154,6 +155,7 @@ jobs:
         host: ${{ secrets.DROPLET_IP }}
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
           cd ~/dbcbot
           echo "BRAWL_STARS_TOKEN=${{ secrets.BRAWL_STARS_TOKEN }}" > ~/.env
