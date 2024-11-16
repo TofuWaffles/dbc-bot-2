@@ -1,0 +1,213 @@
+name: Build, Test, and Deploy
+on:
+  workflow_dispatch:
+
+env:
+  DISCORD_TOKEN: ${{ secrets.DISCORD_TOKENS }}
+  BRAWL_STARS_TOKEN: ${{ secrets.BRAWL_STARS_TOKENS }}
+  POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+  POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+  POSTGRES_HOST: ${{ secrets.POSTGRES_DB }}
+  POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+  SQLX_OFFLINE: ${{ secrets.SQLX_OFFLINE }}
+  IMAGES_PORT: ${{ secrets.IMAGES_PORT }}
+  BRACKET_PORT: ${{ secrets.BRACKET_PORT }}
+jobs:
+  dbc-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Cache dependencies
+        uses: actions/cache@v4.1.2
+        with:
+          path: |
+            ~/dbcbot/.cargo
+            dbcbot/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/dbcbo/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+        
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1.10.1
+
+      - name: Build and test code
+        run: |
+          cd dbcbot
+          cargo build --verbose
+          cargo test --verbose
+  
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.0.0
+  
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3.0.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+  
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: dbcbot
+          dockerfile: Dockerfile
+          image_name: ${{ github.repository }}/dbcbot:latest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  bracket:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+    
+      - name: Cache dependencies
+        uses: actions/cache@v4.1.2
+        with:
+          path: |
+            dbc-bracket/node_modules
+            dbc-bracket/package-lock.json
+            dbc-bracket/package.json
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/dbc-bracket/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Setup Nodejs
+        uses: actions/setup-node@v4.1.0
+        with:
+          node-version: "21"
+          cache: 'npm'
+      
+      - name: Build and test code
+        run: |
+          cd dbc-bracket
+          npm ci
+          npm run build --if-present
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: dbc-bracket
+          dockerfile: Dockerfile
+          image_name: ${{ github.repository }}/bracket:latest 
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Cache dependencies
+        uses: actions/cache@v4.1.2
+        with: 
+          path: ~/images/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/images/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.13"
+        
+      - name: Install dependencies
+        run: |
+          cd images
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: dbc-bracket
+          dockerfile: Dockerfile
+          image_name: ${{ github.repository }}/images:latest 
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+  
+  deploy:
+    needs: dbc-bot
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.1.1
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3.0.0
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3.0.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Copy docker-compose.yml to droplet
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        source: docker-compose.yml
+        target:  /root/
+
+    - name: Create .env file on droplet
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~
+          echo "BRAWL_STARS_TOKEN=${{ secrets.BRAWL_STARS_TOKEN }}" > ~/.env
+          echo "DISCORD_TOKEN=${{ secrets.DISCORD_TOKEN }}" >> ~/.env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> ~/.env
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" >> ~/.env
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> ~/.env
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> ~/.env
+          echo "SQLX_OFFLINE=${{ secrets.SQLX_OFFLINE }}" >> ~/.env
+          echo "IMAGES_PORT=${{ secrets.IMAGES_PORT }}" >> ~/.env
+          echo "BRACKET_PORT=${{ secrets.BRACKET_PORT }}" >> ~/.env
+          echo "GITHUB_REPOSITORY=${{ github.repository }}" >> ~/.env
+
+    - name: Deploy
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          cd ~
+          docker compose down
+          docker system prune -a
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker pull ghcr.io/${{ github.repository }}/dbcbot:latest
+          docker pull ghcr.io/${{ github.repository }}/images:latest
+          docker pull ghcr.io/${{ github.repository }}/bracket:latest
+          docker compose up --build -d
+          docker compose logs
