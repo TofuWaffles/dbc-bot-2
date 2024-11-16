@@ -78,7 +78,7 @@ jobs:
         uses: macbre/push-to-ghcr@master
         with:
           context: dbc-bracket
-          dockerfile: ./bracket/Dockerfile
+          dockerfile: ./dbc-bracket/Dockerfile
           image_name: ${{ github.repository }}/bracket
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -177,8 +177,8 @@ jobs:
           cd ~/dbcbot
           docker compose down
           docker system prune -a
-          docker pull ghcr.io/${{ github.repository }}/dbcbot:latest
-          docker pull ghcr.io/${{ github.repository }}/images:latest
-          docker pull ghcr.io/${{ github.repository }}/bracket:latest
+          docker pull ghcr.io/${{ github.repository }}/dbcbot
+          docker pull ghcr.io/${{ github.repository }}/images
+          docker pull ghcr.io/${{ github.repository }}/bracket
           docker compose up --build -d dbc-bot images bracket
           docker compose logs
