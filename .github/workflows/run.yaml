@@ -79,7 +79,7 @@ jobs:
         with:
           context: dbc-bracket
           dockerfile: Dockerfile
-          image_name: ${{ github.repository }}/bracket:latest 
+          image_name: ${{ github.repository }}/bracket
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   images:
@@ -117,7 +117,7 @@ jobs:
       - name: Build and publish a Docker image for ${{ github.repository }}/images
         uses: macbre/push-to-ghcr@master
         with:
-          context: dbc-bracket
+          context: images
           dockerfile: Dockerfile
           image_name: ${{ github.repository }}/images
           github_token: ${{ secrets.GITHUB_TOKEN }}
