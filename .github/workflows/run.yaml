@@ -58,23 +58,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
-    
-      - name: Cache dependencies
-        uses: actions/cache@v4.1.2
-        with:
-          path: |
-            dbc-bracket/node_modules
-            dbc-bracket/package-lock.json
-            dbc-bracket/package.json
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/dbc-bracket/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
-
-      - name: Setup Nodejs
-        uses: actions/setup-node@v4.1.0
-        with:
-          node-version: "21"
-          cache: 'npm'
       
       - name: Build and test code
         run: |
@@ -134,7 +117,7 @@ jobs:
         with:
           context: dbc-bracket
           dockerfile: Dockerfile
-          image_name: ${{ github.repository }}/images:latest 
+          image_name: ${{ github.repository }}/images
           github_token: ${{ secrets.GITHUB_TOKEN }}
   
   deploy:
