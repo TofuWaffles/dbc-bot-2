@@ -1396,13 +1396,54 @@ pub async fn finish_tournament(
         .result_image(&winner, &loser, &bracket.score)
         .await?;
 
+    let mut semi_finalists_str = "".to_string();
+    match tournament.rounds {
+        2.. => {
+            semi_finalists_str.push_str("\n\nSemi-finalists:\n");
+            ctx.data()
+                .database
+                .get_matches_by_tournament(tournament_id, tournament.rounds - 1)
+                .await?
+                .into_iter()
+                .for_each(|sf| {
+                    if let Some(winner) = sf.winner {
+                        semi_finalists_str.push_str(&format!("- <@{}>\n", winner));
+                    }
+                })
+        }
+        _ => (),
+    };
+
+    let mut quarter_finalists_str = "".to_string();
+    match tournament.rounds {
+        3.. => {
+            quarter_finalists_str.push_str("\n\nQuarter-finalists:\n");
+            ctx.data()
+                .database
+                .get_matches_by_tournament(tournament_id, tournament.rounds - 2)
+                .await?
+                .into_iter()
+                .for_each(|qf| {
+                    if let Some(winner) = qf.winner {
+                        semi_finalists_str.push_str(&format!("- <@{}>\n", winner));
+                    }
+                })
+        }
+        _ => (),
+    };
+
+    let mut msg_str = format!(
+        "Congratulations to <@{}> for winning Tournament {}",
+        winner.discord_id, tournament.name
+    );
+
+    msg_str.push_str(&semi_finalists_str);
+    msg_str.push_str(&quarter_finalists_str);
+
     let reply = {
         let embed = CreateEmbed::new()
-            .title("Tournament Finished!")
-            .description(format!(
-                "Congratulations to <@{}> for winning Tournament {}",
-                winner.discord_id, tournament.name
-            ))
+            .title(format!("Tournament {} Finished!", tournament.name))
+            .description(msg_str)
             .thumbnail(winner.icon())
             .color(Color::DARK_GREEN);
         CreateMessage::default()
