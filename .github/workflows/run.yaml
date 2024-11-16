@@ -50,7 +50,7 @@ jobs:
         with:
           context: dbcbot
           dockerfile: ./dbcbot/Dockerfile
-          image_name: ${{ github.repository }}/dbcbot:latest
+          image_name: ${{ github.repository }}/dbcbot
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   bracket:
