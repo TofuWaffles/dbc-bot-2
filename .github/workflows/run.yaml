@@ -193,5 +193,5 @@ jobs:
           docker pull ghcr.io/${{ github.repository }}/dbcbot:latest
           docker pull ghcr.io/${{ github.repository }}/images:latest
           docker pull ghcr.io/${{ github.repository }}/bracket:latest
-          docker compose up --build -d
+          docker compose up --build -d dbc-bot images bracket
           docker compose logs
