@@ -65,6 +65,7 @@ pub type BotContext<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
 async fn main() {
+    #![allow(dead_code)]
     if let Err(e) = setup_tracing() {
         panic!("Error trying to setup tracing: {}", e);
     }
