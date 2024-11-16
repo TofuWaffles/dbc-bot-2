@@ -1558,7 +1558,8 @@ impl MatchDatabase for PgDatabase {
             PlayerType::Player,
         )
         .await?;
-        todo!();
+        
+        Ok(())
     }
 }
 pub trait BattleDatabase {

@@ -88,7 +88,8 @@ async fn get_player(ctx: BotContext<'_>, user: UserId) -> Result<(), BotError> {
             warn!("Player with Discord ID {} not found", user.get());
         }
     };
-    todo!()
+
+    Ok(())
 }
 
 /// Get information about a tournament.
