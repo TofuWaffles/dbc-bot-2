@@ -11,7 +11,7 @@ use crate::{
     log, BotContext, BotData, BotError,
 };
 use anyhow::anyhow;
-use models::{Match, MatchPlayer, Player, PlayerType, TournamentStatus};
+use models::{Match, Player, PlayerType, TournamentStatus};
 use poise::serenity_prelude::{Channel, Mentionable, Role, UserId};
 use poise::Modal;
 use poise::{

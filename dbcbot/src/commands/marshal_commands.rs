@@ -4,7 +4,7 @@ use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
 use crate::commands::user_commands::finish_tournament;
 use crate::database::models::{
-    BrawlMap, Match, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
+    BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
@@ -28,7 +28,6 @@ use poise::{
 };
 use prettytable::{row, Table};
 use tracing::{instrument, warn};
-use tracing_subscriber::field;
 
 /// CommandsContainer for the Marshal commands
 pub struct MarshalCommands;

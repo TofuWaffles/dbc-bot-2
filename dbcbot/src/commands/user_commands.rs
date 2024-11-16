@@ -1,9 +1,9 @@
-use crate::api::{images::ImagesAPI, official_brawl_stars::BattleLogItem};
+use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::is_tournament_paused;
+use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
-use crate::database::models::{PlayerType, Tournament};
 use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
@@ -13,7 +13,6 @@ use crate::utils::shorthand::BotContextExt;
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError};
 use anyhow::anyhow;
-use chrono::Utc;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
 use poise::{CreateReply, Modal, ReplyHandle};
