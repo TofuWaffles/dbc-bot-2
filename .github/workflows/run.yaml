@@ -150,7 +150,7 @@ jobs:
         target:  /root/dbcbot
 
     - name: Create .env file on droplet
-      uses: appleboy/ssh-action@master
+      uses: appleboy/ssh-action@v1.1.0
       with:
         host: ${{ secrets.DROPLET_IP }}
         username: root
@@ -171,7 +171,7 @@ jobs:
           echo "DOMAIN=${{ secrets.DOMAIN }}" >> ~/.env
 
     - name: Deploy
-      uses: appleboy/ssh-action@master
+      uses: appleboy/ssh-action@v1.1.0
       with:
         host: ${{ secrets.DROPLET_IP }}
         username: root
