@@ -181,10 +181,10 @@ jobs:
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
           cd ~/dbcbot
+          export REPO=$(echo "${{ github.repository }}" | awk '{print tolower($0)}')
           docker compose down
-          docker system prune -a
-          docker pull ghcr.io/${{ github.repository }}/dbcbot
-          docker pull ghcr.io/${{ github.repository }}/images
-          docker pull ghcr.io/${{ github.repository }}/bracket
+          docker pull ghcr.io/$REPO/dbcbot
+          docker pull ghcr.io/$REPO/images
+          docker pull ghcr.io/$REPO/bracket
           docker compose up --build -d dbc-bot images bracket
           docker compose logs
