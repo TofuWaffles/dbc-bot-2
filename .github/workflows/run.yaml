@@ -12,7 +12,7 @@ env:
   SQLX_OFFLINE: ${{ vars.SQLX_OFFLINE }}
   IMAGES_PORT: ${{ vars.IMAGES_PORT }}
   BRACKET_PORT: ${{ vars.BRACKET_PORT }}
-  DATABASE_URL: postgresql://${{secrets.POSTGRES_USER}}:${secrets.POSTGRES_PASSWORD}}@postgres:5432/${{secrets.POSTGRES_DB}}?sslmode=disable
+  DATABASE_URL: postgresql://${{secrets.POSTGRES_USER}}:${{secrets.POSTGRES_PASSWORD}}@postgres:5432/${{secrets.POSTGRES_DB}}?sslmode=disable
 
 jobs:
   dbc-bot:
