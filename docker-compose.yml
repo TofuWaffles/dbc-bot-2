@@ -32,7 +32,7 @@ services:
       retries: 5
 
   dbc-bot:
-    'image': ghcr.io/${ GITHUB.REPOSITORY }/dbcbot:latest
+    image: ghcr.io/${ GITHUB.REPOSITORY }/dbcbot:latest
     container_name: dbc-bot
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable"
@@ -54,7 +54,7 @@ services:
       - images
 
   images:
-    'image': ghcr.io/${ GITHUB.REPOSITORY }/images:latest
+    image: ghcr.io/${ GITHUB.REPOSITORY }/images:latest
     container_name: images-server
     build:
       context: ./images
@@ -69,7 +69,7 @@ services:
     command: "uvicorn main:app --reload --host 0.0.0.0 --port ${IMAGES_PORT}"
     
   bracket:
-    'image': ghcr.io/${ GITHUB.REPOSITORY }/images:latest
+    image: ghcr.io/${ GITHUB.REPOSITORY }/images:latest
     container_name: bracket
     build:
       context: ./dbc-bracket
