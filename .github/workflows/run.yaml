@@ -169,7 +169,7 @@ jobs:
           echo "SQLX_OFFLINE=${{ vars.SQLX_OFFLINE }}" >> ./.env
           echo "IMAGES_PORT=${{ vars.IMAGES_PORT }}" >> ./.env
           echo "BRACKET_PORT=${{ vars.BRACKET_PORT }}" >> ./.env
-          echo "GITHUB_REPOSITORY=${{ github.repository }}" | awk '{print tolower($0)}' >> ./.env
+          echo "GITHUB_REPOSITORY=$(echo '${{ github.repository }}' | awk '{print tolower($0)}')" >> .env
           echo "DOMAIN=${{ secrets.DOMAIN }}" >> ./.env
 
     - name: Deploy
