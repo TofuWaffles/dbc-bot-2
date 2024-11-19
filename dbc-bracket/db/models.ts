@@ -62,7 +62,7 @@ export type MatchType = {
     nextLooserMatchId?: number | string;
     tournamentRoundText?: string;
     startTime: string;
-    state: 'PLAYED' | 'NO_SHOW' | 'WALK_OVER' | 'NO_PARTY' | string;
+    state?: 'PLAYED' | 'NO_SHOW' | 'WALK_OVER' | 'NO_PARTY' | string;
     participants: ParticipantType[];
     [key: string]: any;
 };
