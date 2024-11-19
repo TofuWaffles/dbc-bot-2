@@ -8,6 +8,7 @@ import { GetServerSideProps } from 'next';
 import Image from 'next/image';
 import TournamentService from '@/services/tournament';
 import dynamic from 'next/dynamic';
+import Head from 'next/head';
 
 const LocalDate: React.FC<{ unix: number }> = ({ unix }) => {
   const [localDate, setLocalDate] = useState('');
@@ -42,11 +43,15 @@ const getParticipants = (participants: ParticipantType[]): { topParticipant: Par
 const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
   return (
     <div>
+      <Head>
+        <meta property="og:title" content="Discord Brawl Cup" />
+        <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}s`} />
+      </Head>
       <p className='w-full text-center pt-3 text-4xl'>{tournament.name}</p>
       <div className='w-full flex justify-evenly items-center'>
         <p>ID: {tournament.tournament_id}</p>
         <p>Current round: {tournament.current_round}</p>
-        <DynamicLocalDate unix={parseInt(tournament.created_at) * 1000}/>
+        <DynamicLocalDate unix={parseInt(tournament.created_at) * 1000} />
         <p>Status: {tournament.status}</p>
       </div>
       {matches.length > 0 ? <TournmanentSection matches={matches} /> : <div>Loading...</div>}
@@ -104,7 +109,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                         width={32}
                         height={32}
                         alt={topParticipant.name}
-                        className={`w-8 mr-2 ${topParticipant.isWinner ? 'border-2 border-yellow-500' : 'grayscale'}`}
+                        className={`w-8 mr-2 ${topParticipant.isWinner === true ? 'border-2 border-yellow-500' : topParticipant.isWinner === false ? 'grayscale' : ''}`}
                       />
                       <div className="flex-1">{topParticipant.name || 'Unknown'}</div>
                       <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
@@ -123,7 +128,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                         width={32}
                         height={32}
                         alt={bottomParticipant.name}
-                        className="w-8 mr-2"
+                        className={`w-8 mr-2 ${bottomParticipant.isWinner === true ? 'border-2 border-yellow-500' : bottomParticipant.isWinner === false ? 'grayscale' : ''}`}
                       />
                       <div className="flex-1">{bottomParticipant.name || 'Unknown'}</div>
                       <div>{bottomParticipant.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>

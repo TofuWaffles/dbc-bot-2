@@ -6,7 +6,7 @@ export default function Document() {
       <Head>
         <meta charSet="UTF-8" />
         <meta property="og:site_name" content="Discord Brawl Cup"/>
-        <meta property='og:description' content="Discord Brawl Cup is /r/BrawlStars Discord Server's in-house competition where players face each other in a 1v1 bracket-style tournament to win prizes!" />
+        <meta property='og:description' content="Discord Brawl Cup is /r/BrawlStars Discord Server's in-house competition where players face each other in a 1v1 bracket-style tournament to win in-game prizes!" />
         <meta property="og:type" content="website" />
         <meta name="theme-color" content="#000000" />
       </Head>
