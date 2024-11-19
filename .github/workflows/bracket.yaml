@@ -1,0 +1,71 @@
+name: Bracket Update
+
+on:
+  push:
+    paths:
+      - dbc-bracket/**  
+    
+jobs:
+  bracket:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+      
+      - name: Build and test code
+        env:
+          DATABASE_URL: "postgresql://PLACEHOLDER:PLACEHOLDER@PLACEHOLDER:5432/PLACEHOLDER"
+        run: |
+          cd dbc-bracket
+          npm ci
+          npm run build --if-present
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish a Docker image for ${{ github.repository }}/bracket
+        uses: macbre/push-to-ghcr@master
+        with:
+          context: dbc-bracket
+          dockerfile: ./dbc-bracket/Dockerfile
+          image_name: ${{ github.repository }}/bracket
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+
+  deploy:
+    needs: bracket
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.1.1
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3.0.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Deploy
+      uses: appleboy/ssh-action@v1.1.0
+      with:
+        host: ${{ secrets.DROPLET_IP }}
+        username: root
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        passphrase: ${{ secrets.SSH_PASSPHRASE }}
+        script: |
+          cd ~/dbcbot
+          export REPO=$(echo "${{ github.repository }}" | awk '{print tolower($0)}')
+          docker compose down
+          docker pull ghcr.io/$REPO/images
+          docker compose up -d bracket
+          docker compose logs

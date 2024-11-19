@@ -140,7 +140,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
   
   deploy:
-    needs: dbc-bot
+    needs: 
+      - dbc-bot
+      - bracket
+      - images
     runs-on: ubuntu-latest
 
     steps:
@@ -188,6 +191,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: Deploy
       uses: appleboy/ssh-action@v1.1.0
       with:
