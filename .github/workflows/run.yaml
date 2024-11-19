@@ -13,6 +13,7 @@ env:
   IMAGES_PORT: ${{ vars.IMAGES_PORT }}
   BRACKET_PORT: ${{ vars.BRACKET_PORT }}
   DATABASE_URL: postgresql://${{secrets.POSTGRES_USER}}:${{secrets.POSTGRES_PASSWORD}}@postgres:5432/${{secrets.POSTGRES_DB}}?sslmode=disable
+  
 
 jobs:
   dbc-bot:
@@ -201,5 +202,5 @@ jobs:
           docker pull ghcr.io/$REPO/dbcbot
           docker pull ghcr.io/$REPO/images
           docker pull ghcr.io/$REPO/bracket
-          docker compose up --build -d dbc-bot images bracket
+          docker compose up -d dbc-bot images bracket
           docker compose logs
