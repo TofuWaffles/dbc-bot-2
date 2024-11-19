@@ -17,6 +17,10 @@ env:
 jobs:
   dbc-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
@@ -59,6 +63,10 @@ jobs:
 
   bracket:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
@@ -88,6 +96,10 @@ jobs:
 
   images:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
