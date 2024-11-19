@@ -241,15 +241,16 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   const totalRounds = roundRaw.rows[0].rounds;
 
   const matches: MatchType[] = matchesRaw.rows.map(row => {
-    const matchIdParts = row.match_id.split('.');
-    const currentRound = row.round;
-    const sequence = parseInt(matchIdParts[2], 10);
-    const nextMatchId = currentRound < totalRounds ? `${row.tournament_id}.${currentRound + 1}.${Math.ceil(sequence / 2)}` : null;
+    const [[_, round, sequence], err2] = MatchService.metadata(row);
+    if (err2) {
+      return Err(err2);
+    }
+    const nextMatchId = round < totalRounds ? `${row.tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
 
     return {
       id: row.match_id,
       nextMatchId: nextMatchId,
-      tournamentRoundText: `Round ${currentRound}`,
+      tournamentRoundText: `Round ${round}`,
       startTime: null,
       participants: [],
     };
