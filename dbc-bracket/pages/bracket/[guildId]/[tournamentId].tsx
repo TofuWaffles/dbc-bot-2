@@ -48,11 +48,15 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
         <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}s`} />
       </Head>
       <p className='w-full text-center pt-3 text-4xl'>{tournament.name}</p>
-      <div className='w-full flex justify-evenly items-center'>
-        <p>ID: {tournament.tournament_id}</p>
-        <p>Current round: {tournament.current_round}</p>
+      <div className='w-full flex'>
+        <p className='w-1/2 text-center'>ID: {tournament.tournament_id}</p>
+        <p className='w-1/2 text-center'>Current round: {tournament.current_round}</p>
+      </div>
+      <div className='w-full flex'>
+        <div className='w-1/2 text-center'>
         <DynamicLocalDate unix={parseInt(tournament.created_at) * 1000} />
-        <p>Status: {tournament.status}</p>
+        </div>
+        <p className='w-1/2 text-center'>Status: {tournament.status}</p>
       </div>
       {matches.length > 0 ? <TournmanentSection matches={matches} /> : <div>Loading...</div>}
     </div>
@@ -62,8 +66,8 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
 const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
   const { width, height } = useWindowSize();
   return (
-    <div className="w-full h-full flex justify-center items-center p-20">
-      <div className="w-full h-full">
+    <div className="w-screen h-full flex justify-center items-center overflow-x-auto">
+      <div className="">
         <SingleEliminationBracket
           matches={matches}
           options={{
