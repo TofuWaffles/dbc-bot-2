@@ -23,7 +23,7 @@ export default async function getMatchData(
   if (error) {
     return [[], error];
   }
-  const [matches, error1] = await getPreAllMatches(tournamentId);
+  const [matches, error1] = await getAllPreMatches(tournamentId);
   if (error1) {
     return [[], error1];
   }
@@ -197,56 +197,70 @@ export async function getTournamentById(id: string): Promise<Result<Tournament>>
   return Ok(result.rows[0]);
 }
 
-export async function getPreAllMatches(tournamentId: number): Promise<Result<MatchType[]>> {
-  if(cache[tournamentId]){
+export async function getAllPreMatches(tournamentId: number): Promise<Result<MatchType[]>> {
+  if (cache[tournamentId]) {
     return Ok(cache[tournamentId].matches);
   }
+
   const [roundRaw, err] = await pool
-    .query<{rounds: number}>({text: "SELECT rounds FROM tournaments WHERE tournament_id = $1", values: [tournamentId]})
+    .query<{rounds: number}>({
+      text: `
+        SELECT 
+          rounds 
+        FROM tournaments 
+        WHERE tournament_id = $1
+      `,
+      values: [tournamentId]
+    })
     .wrapper();
   if (err) {
-    console.log("Raw:",roundRaw);
     console.error(err);
     return Err(err);
   }
-  const [playerCount, err1] = await pool
-    .query<{count: number}>({text: `
-      SELECT COUNT(m.*) AS count
-      FROM match_players AS m 
-      INNER JOIN tournaments AS t 
-      ON SPLIT_PART(m.match_id, '.', 1)::INTEGER = t.tournament_id
-      WHERE t.tournament_id = $1
-      `, values: [tournamentId]})
+
+  const [matchesRaw, err1] = await pool
+    .query<{ match_id: string, round: number, start: number }>({
+      text: `
+        SELECT 
+          match_id,
+          round,
+          start
+        FROM matches
+        WHERE tournament_id = $1
+        ORDER BY round, match_id
+      `,
+      values: [tournamentId]
+    })
     .wrapper();
+
   if (err1) {
     console.error(err1);
     return Err(err1);
   }
-  const rounds = roundRaw.rows[0].rounds;
-  const players = playerCount.rows[0].count;
-  const matchCount = (playerCount: number, round: number) => {
-    const roundedUp = Math.pow(2, Math.ceil(Math.log2(playerCount)));
-    return roundedUp >> (round+1)};
-  const matches: MatchType[] = [];
-  let idx = 0;
-  let idxCache: { [key: string]: number } = {};
-  for(let round=1; round<=rounds; round++){
-    let count = matchCount(players, round);
-    for(let sequence=1; sequence<=count; sequence++){
-      const matchId = `${tournamentId}.${round}.${sequence}`;
-      const nextMatchId = round < rounds?`${tournamentId}.${round+1}.${Math.floor((sequence + 1) / 2)}`:null;
-      matches.push({
-        id: matchId,
-        nextMatchId: nextMatchId,
-        tournamentRoundText: `${round}`,
-        startTime: null,
-        state: MATCH_STATES.WALK_OVER,
-        participants: [],
-      });
-      idxCache[matchId] = idx;
-      idx++;
-    }
-  }
-  cache[tournamentId] = {matches, idxCache};
+
+  const totalRounds = roundRaw.rows[0].rounds;
+
+  const matches: MatchType[] = matchesRaw.rows.map(row => {
+    const matchIdParts = row.match_id.split('.');
+    const currentRound = row.round;
+    const sequence = parseInt(matchIdParts[2], 10);
+    const nextMatchId = currentRound < totalRounds ? `${row.tournament_id}.${currentRound + 1}.${Math.ceil(sequence / 2)}` : null;
+
+    return {
+      id: row.match_id,
+      nextMatchId: nextMatchId,
+      tournamentRoundText: `Round ${currentRound}`,
+      startTime: null,
+      participants: [],
+    };
+  });
+
+  const idxCache: { [key: string]: number } = {};
+  matches.forEach((match, index) => {
+    idxCache[match.id] = index;
+  });
+
+  cache[tournamentId] = { matches, idxCache };
+
   return Ok(matches);
 }
