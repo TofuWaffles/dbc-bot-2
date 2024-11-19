@@ -7,6 +7,7 @@ import {
   PlayerService,
   Player,
   MatchService,
+  BaseMatch,
 } from "@/db/models";
 import "@/utils";
 import { Err, Ok, Result } from "@/utils";
@@ -219,17 +220,14 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   }
 
   const [matchesRaw, err1] = await pool
-    .query<{ match_id: string, round: number, start: number }>({
+    .query<Match>({
       text: `
-        SELECT 
-          match_id,
-          round,
-          start
+        SELECT *
         FROM matches
-        WHERE tournament_id = $1
-        ORDER BY round, match_id
+        WHERE match_id LIKE $1
+        ORDER BY match_id
       `,
-      values: [tournamentId]
+      values: [`${tournamentId}.%`]
     })
     .wrapper();
 
@@ -239,23 +237,22 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   }
 
   const totalRounds = roundRaw.rows[0].rounds;
-
-  const matches: MatchType[] = matchesRaw.rows.map(row => {
-    const [[_, round, sequence], err2] = MatchService.metadata(row);
+  const matches: MatchType[] = [];
+  for(const match of matchesRaw.rows) {
+    const [[tournament_id, round, sequence], err2] = MatchService.metadata(match);
     if (err2) {
       return Err(err2);
     }
-    const nextMatchId = round < totalRounds ? `${row.tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
-
-    return {
-      id: row.match_id,
+    const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
+    matches.push({
+      id: match.match_id,
       nextMatchId: nextMatchId,
       tournamentRoundText: `Round ${round}`,
-      startTime: null,
+      startTime: String(match.start),
       participants: [],
-    };
-  });
+    });
 
+  }
   const idxCache: { [key: string]: number } = {};
   matches.forEach((match, index) => {
     idxCache[match.id] = index;

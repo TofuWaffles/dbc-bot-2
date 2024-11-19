@@ -26,11 +26,14 @@ export enum TournamentStatus {
     Inactive = 'Inactive/Completed'
 };
 
-export interface Match {
+export interface BaseMatch{
     match_id: string,
+    start: number,
+}
+
+export interface Match extends BaseMatch{
     winner: string,
     score: string,
-    start: number,
     end: number,
 };
 
@@ -128,7 +131,7 @@ const sequence = (match: Match): Result<number> => {
     }
 }
 
-const metadata = (match: Match): Result<[number, number, number]> => {
+const metadata = (match: BaseMatch): Result<[number, number, number]> => {
     const parts = match.match_id.split('.');
     const [rawId, error1] = parts.get(0);
     if (error1) {
