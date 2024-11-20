@@ -1282,10 +1282,6 @@ async fn submit(
         ctx.data().apis.images.result_image(adv, &elim, &score),
         target.user(ctx)
     );
-    ctx.data()
-        .database
-        .update_end_time(&bracket.match_id)
-        .await?;
 
     finish_match(ctx, tournament, bracket, &target, &score).await?;
 
@@ -1518,6 +1514,8 @@ pub async fn finish_match(
     score: &str,
 ) -> Result<(), BotError> {
     ctx.data().database.set_winner(&bracket.match_id, &winner.user_id()?, score).await?;
+
+    ctx.data().database.update_end_time(&bracket.match_id).await?;
 
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
