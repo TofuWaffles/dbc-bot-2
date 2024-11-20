@@ -91,16 +91,18 @@ async fn run() -> Result<(), BotError> {
     println!("Successfully connected to the database");
     let apis_container = APIsContainer::new();
 
-    let commands: Vec<poise::Command<_, _>> = vec![
+    let mut commands: Vec<poise::Command<_, _>> = vec![
         OwnerCommands::get_all(),
         ManagerCommands::get_all(),
         MarshalCommands::get_all(),
         UserCommands::get_all(),
-        TestCommands::get_all(),
     ]
     .into_iter()
     .flatten()
     .collect();
+
+    #[cfg(debug_assertions)]
+    TestCommands::get_all().into_iter().for_each(|c| commands.push(c));
 
     let output = commands
         .iter()
