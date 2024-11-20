@@ -54,7 +54,7 @@ export default async function getMatchData(
       participants: playerData.map((player) => ({
         id: player.discord_id,
         resultText: MatchService.getScore(match, player),
-        isWinner: match.winner === player.discord_id,
+        isWinner: match.winner === null ? null : match.winner === player.discord_id
         name: player.player_name,
         iconUrl: String(player.icon),
       })),
