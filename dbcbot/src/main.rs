@@ -57,6 +57,14 @@ pub type BotData = Data<PgDatabase>;
 /// A thread-safe Error type used by the bot.
 pub type BotError = anyhow::Error;
 
+pub struct BracketURL;
+
+impl BracketURL {
+    pub fn get_url() -> String {
+        "https://discordbrawlcup.ddns.net/".to_string()
+    }
+}
+
 /// A context that gives the bot information about the action that invoked it.
 ///
 /// It also includes other useful data that the bot uses such as the database.

@@ -11,7 +11,7 @@ use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotContextExt;
 use crate::{api::APIResult, commands::checks::is_config_set};
-use crate::{BotContext, BotData, BotError};
+use crate::{BotContext, BotData, BotError, BracketURL};
 use anyhow::anyhow;
 use futures::Stream;
 use poise::serenity_prelude::{futures::StreamExt, *};
@@ -107,7 +107,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
         ];
         ctx.prompt(
             msg,
-            CreateEmbed::new().title("Main Menu").description("Welcome to the menu! You have not joined a tournament yet. Click on the Tournaments button to join one now!").color(Color::BLUE),
+            CreateEmbed::new().title("Main Menu").description(format!("Welcome to the menu! You have not joined a tournament yet. Click on the Tournaments button to join one now!\n\nVisit {} to check out all available and on-going tournaments!", BracketURL::get_url())).color(Color::BLUE),
             buttons
         ).await?;
     } else if player_active_tournaments.len() == 1 {
@@ -1303,14 +1303,21 @@ async fn submit(
                 .add_file(CreateAttachment::bytes(image?, "result.png")),
         )
         .await?;
+
+    let mut bracket_link = BracketURL::get_url();
+    bracket_link.push_str(&format!(
+        "/brackets/{}/{}",
+        ctx.guild_id().unwrap().to_string(),
+        tournament.tournament_id.to_string()
+    ));
     ctx.prompt(
         msg,
         CreateEmbed::new()
             .title("Result has been recorded successfully!")
             .description(format!(
-                "Click [here]({}) to see the result\nOr head to {} to view other results!",
+                "Click [here]({}) to see the result\n\nCheck out your current stand in the tournament at {}",
                 result_msg.link(),
-                channel.mention()
+                bracket_link,
             )),
         None,
     )
