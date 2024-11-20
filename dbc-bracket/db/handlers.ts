@@ -8,10 +8,17 @@ import {
   Player,
   MatchService,
   BaseMatch,
+  ParticipantType,
 } from "@/db/models";
 import "@/utils";
 import { Err, Ok, Result } from "@/utils";
-
+const skeletonParticipants: ParticipantType = {
+  id: "0",
+  resultText: null,
+  isWinner: null,
+  name: "tbd",
+  iconUrl: null
+}
 const cache: { [key: number]: {
   matches: MatchType[],
   idxCache: { [key: string]: number }
@@ -46,6 +53,7 @@ export default async function getMatchData(
     }
     const matchId = match.match_id;
     const idx = cache[tournamentId].idxCache[matchId];
+
     matches[idx] = {
       ...matches[idx],
       tournamentRoundText: `${round}`,
@@ -59,7 +67,11 @@ export default async function getMatchData(
         iconUrl: String(player.icon),
       })),
     }
+    if(matches[idx].participants.length==1){
+      matches[idx].participants.push(skeletonParticipants)
+    }
   }
+  console.log(JSON.stringify(matches, null, 2));
   return Ok(matches);
 }
 
@@ -249,9 +261,8 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
       nextMatchId: nextMatchId,
       tournamentRoundText: `Round ${round}`,
       startTime: String(match.start),
-      participants: [],
+      participants: [skeletonParticipants, skeletonParticipants]
     });
-
   }
   const idxCache: { [key: string]: number } = {};
   matches.forEach((match, index) => {

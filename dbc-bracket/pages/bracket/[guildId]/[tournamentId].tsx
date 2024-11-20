@@ -58,14 +58,17 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
         </div>
         <p className='w-1/2 text-center'>Status: {tournament.status}</p>
       </div>
-      {matches.length > 0 ? <TournmanentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full'>No matches available</div>}
+      <div className='w-full h-full justify-center items-center flex'>
+      {matches.length > 0 ? <TournmanentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
+      </div>
+      
     </div>
   );
 };
 
 const Pending: React.FC = () => {
   return(
-    <div className='w-full h-full'>
+    <div className='w-full h-full text-center'>
       The tournament has not started yet. Please stay tuned for more information.
     </div>
   )
@@ -113,7 +116,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
               <div className='w-full h-full'>
                 <p>{startTime || <>&nbsp;</>}</p>
                 <div className="flex flex-col">
-                  {topParticipant ? (
+                  {topParticipant && topParticipant?.id !== "0" ? (
                     <div className="flex items-center">
                       <Image
                         loader={() => topParticipant.iconUrl}
@@ -124,7 +127,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                         className={`w-8 mr-2 ${topParticipant.isWinner === true ? 'border-2 border-yellow-500' : topParticipant.isWinner === false ? 'grayscale' : ''}`}
                       />
                       <div className="flex-1">{topParticipant.name || 'Unknown'}</div>
-                      <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
+                      <div>{topParticipant?.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
                     <TBD />
@@ -132,7 +135,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
 
                   <div className="h-px w-full bg-yellow-500"></div>
 
-                  {bottomParticipant ? (
+                  {bottomParticipant && bottomParticipant?.id !== "0" ? (
                     <div className="flex items-center">
                       <Image
                         loader={() => bottomParticipant.iconUrl}
@@ -143,7 +146,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                         className={`w-8 mr-2 ${bottomParticipant.isWinner === true ? 'border-2 border-yellow-500' : bottomParticipant.isWinner === false ? 'grayscale' : ''}`}
                       />
                       <div className="flex-1">{bottomParticipant.name || 'Unknown'}</div>
-                      <div>{bottomParticipant.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>
+                      <div>{bottomParticipant?.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
                     <TBD/>
@@ -194,7 +197,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
   const [matches, err] = await BracketService.getBracket(tournament.guild_id, tournament.tournament_id);
-  // console.log("Matches before rendering: ",JSON.stringify(matches, null, 2));
+  console.log("Matches before rendering: ",JSON.stringify(matches, null, 2));
   if (err) {
     console.error(err);
     return {

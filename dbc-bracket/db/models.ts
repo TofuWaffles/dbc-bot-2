@@ -48,11 +48,11 @@ export interface Tournament {
 };
 
 export type ParticipantType = {
-    id: string | number;
+    id: string;
     isWinner?: boolean;
     name?: string;
     status?: 'PLAYED' | 'NO_SHOW' | 'WALK_OVER' | 'NO_PARTY' | string | null;
-    resultText?: string | null;
+    resultText: string
     iconUrl?: string;
     [key: string]: any;
 };
