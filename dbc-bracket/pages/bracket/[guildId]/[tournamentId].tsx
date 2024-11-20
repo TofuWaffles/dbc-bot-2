@@ -58,10 +58,18 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
         </div>
         <p className='w-1/2 text-center'>Status: {tournament.status}</p>
       </div>
-      {matches.length > 0 ? <TournmanentSection matches={matches} /> : <div>Loading...</div>}
+      {matches.length > 0 ? <TournmanentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full'>No matches available</div>}
     </div>
   );
 };
+
+const Pending: React.FC = () => {
+  return(
+    <div className='w-full h-full'>
+      The tournament has not started yet. Please stay tuned for more information.
+    </div>
+  )
+}
 
 const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
   const { width, height } = useWindowSize();

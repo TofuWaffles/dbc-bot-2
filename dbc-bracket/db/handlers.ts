@@ -167,7 +167,7 @@ export async function getMatchesByTournamentId(
 
 export async function getAllAvailableTournaments(): Promise<Result<Tournament[]>> {
   const [result, err] = await pool
-    .query<Tournament>({text: "SELECT * FROM tournaments WHERE status = 'started'"})
+    .query<Tournament>({text: "SELECT * FROM tournaments WHERE status = 'started' OR status = 'pending'"})
     .wrapper();
   if (err) {
     console.error(err);
