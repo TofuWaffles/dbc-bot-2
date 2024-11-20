@@ -45,7 +45,7 @@ const TournamentPage: React.FC<TournamentPage> = ({ tournament, matches }) => {
     <div>
       <Head>
         <meta property="og:title" content="Discord Brawl Cup" />
-        <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}s`} />
+        <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}`} />
       </Head>
       <p className='w-full text-center pt-3 text-4xl'>{tournament.name}</p>
       <div className='w-full flex'>
@@ -119,7 +119,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <TBD />
+                    <TBD bye={bottomParticipant.resultText === 'bye'} />
                   )}
 
                   <div className="h-px w-full bg-yellow-500"></div>
@@ -138,7 +138,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <div>{bottomParticipant.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <TBD />
+                    <TBD bye={topParticipant.resultText === 'bye'}/>
                   )}
                 </div>
               </div>
@@ -152,22 +152,29 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
   )
 };
 
-const TBD: React.FC = () => {
+const TBD: React.FC<{ bye?: boolean }> = ({ bye = false }) => {
   return (
     <div className="flex items-center">
-      <Image
-        loader={() => "https://cdn.brawlify.com/profile-icons/regular/28000000.png"}
-        src="tbd.png"
-        alt="TBD"
-        width={32}
-        height={32}
-        className="w-8 mr-2"
-      />
-      <div className="flex-1">TBD</div>
-      <div>TBD</div>
+      {!bye ? (
+        <>
+          <Image
+            loader={() => "https://cdn.brawlify.com/profile-icons/regular/28000000.png"}
+            src="tbd.png"
+            alt="TBD"
+            width={32}
+            height={32}
+            className="w-8 mr-2"
+          />
+          <div className="flex-1">TBD</div>
+          <div>TBD</div>
+        </>
+      ) : (
+        <div className="w-full h-8 invisible" />
+      )}
     </div>
-  )
-}
+  );
+};
+
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
   const { tournamentId } = context.params as { tournamentId: string };
