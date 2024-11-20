@@ -52,6 +52,11 @@ services:
     depends_on:
       - postgres
       - images
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100k"
+        max-file: "20"
 
   images:
     image: ghcr.io/${GITHUB_REPOSITORY}/images:latest
@@ -67,6 +72,11 @@ services:
     networks:
       - images
     command: "uvicorn main:app --reload --host 0.0.0.0 --port ${IMAGES_PORT}"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100k"
+        max-file: "20"
     
   bracket:
     image: ghcr.io/${GITHUB_REPOSITORY}/bracket:latest
@@ -86,6 +96,11 @@ services:
       - postgresql
       - bracket
     restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100k"
+        max-file: "20"
   
   webserver:
     image: nginx:latest
