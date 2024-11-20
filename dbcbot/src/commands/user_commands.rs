@@ -1396,7 +1396,7 @@ pub async fn finish_tournament(
                 .into_iter()
                 .for_each(|qf| {
                     if let Some(winner) = qf.winner {
-                        semi_finalists_str.push_str(&format!("- <@{}>\n", winner));
+                        quarter_finalists_str.push_str(&format!("- <@{}>\n", winner));
                     }
                 })
         }
