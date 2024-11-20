@@ -581,7 +581,7 @@ async fn disqualify(
         .database
         .get_player_by_discord_id(
             &bracket
-                .get_opponent(&ctx.author().id.to_string())?
+                .get_opponent(&player.id.to_string())?
                 .user_id()?,
         )
         .await?
