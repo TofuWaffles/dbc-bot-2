@@ -423,9 +423,9 @@ async fn user_display_match(
                 let notification_message = if opponent.ready {
                     format!(
                         r#"
-                        {}-{}.
+{}-{},
 
-                        Both players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!
+Both players are ready to battle. Please complete your matches and press the "Submit" button once you're finished. Good luck to both of you!
                         "#,
                         player.mention(),
                         opponent_user.mention()
@@ -1513,9 +1513,15 @@ pub async fn finish_match(
     winner: &Player,
     score: &str,
 ) -> Result<(), BotError> {
-    ctx.data().database.set_winner(&bracket.match_id, &winner.user_id()?, score).await?;
+    ctx.data()
+        .database
+        .set_winner(&bracket.match_id, &winner.user_id()?, score)
+        .await?;
 
-    ctx.data().database.update_end_time(&bracket.match_id).await?;
+    ctx.data()
+        .database
+        .update_end_time(&bracket.match_id)
+        .await?;
 
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
