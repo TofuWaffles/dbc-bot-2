@@ -1214,6 +1214,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 }
 
 pub trait MatchDatabase {
+    async fn update_start_time(&self, match_id: &str) -> Result<(), Self::Error>;
     async fn update_end_time(&self, match_id: &str) -> Result<(), Self::Error>;
     async fn count_finished_matches(&self, tournament_id: i32, round: i32)
         -> Result<i64, BotError>;
@@ -1258,17 +1259,19 @@ pub trait MatchDatabase {
         round: impl Into<Option<i32>>,
     ) -> Result<Vec<Match>, Self::Error>;
 
-    /// Advances the player to the next round and sets them as the winner for the current round.
+    /// Advances the player to the next round.
     ///
     /// The caller is responsible to determine whether or not this is a valid operation that
     /// maintains the tournament's integrity.
+    ///
+    /// This function does NOT set the winner for the current match. The caller is responsible for
+    /// doing that separately.
     ///
     /// If this is the final round, you may simply set_winner and make the announcement.
     async fn advance_player(
         &self,
         tournament_id: i32,
         discord_id: &UserId,
-        score: &str,
     ) -> Result<(), Self::Error>;
 }
 
@@ -1535,7 +1538,6 @@ impl MatchDatabase for PgDatabase {
         &self,
         tournament_id: i32,
         discord_id: &UserId,
-        score: &str,
     ) -> Result<(), Self::Error> {
         let bracket = self
             .get_match_by_player(tournament_id, discord_id)
@@ -1545,9 +1547,6 @@ impl MatchDatabase for PgDatabase {
                 discord_id,
                 tournament_id
             ))?;
-
-        self.set_winner(&bracket.match_id, discord_id, score)
-            .await?;
 
         let next_match_sequence = (bracket.sequence()? + 1) >> 1;
         let next_round = bracket.round()? + 1;
@@ -1559,6 +1558,22 @@ impl MatchDatabase for PgDatabase {
         )
         .await?;
         
+        Ok(())
+    }
+
+    async fn update_start_time(&self, match_id: &str) -> Result<(), Self::Error> {
+        let start = chrono::Utc::now().timestamp();
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET start = $1
+            WHERE match_id = $2
+            "#,
+            start,
+            match_id
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 }

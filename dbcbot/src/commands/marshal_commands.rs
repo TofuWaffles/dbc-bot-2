@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use super::user_commands::finish_match;
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
-use crate::commands::user_commands::finish_tournament;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
@@ -576,11 +576,21 @@ async fn disqualify(
         }
     };
 
-    let opponent = bracket.get_opponent(&player.id.to_string())?;
-    ctx.data()
+    let opponent = ctx
+        .data()
         .database
-        .set_winner(&bracket.match_id, &opponent.user_id()?, "DISQUALIFIED")
-        .await?;
+        .get_player_by_discord_id(
+            &bracket
+                .get_opponent(&ctx.author().id.to_string())?
+                .user_id()?,
+        )
+        .await?
+        .ok_or(anyhow!(
+            "Unable to find opponent for player {} in match {}",
+            ctx.author().id,
+            bracket.match_id
+        ))?;
+    finish_match(ctx, tournament, &bracket, &opponent, "DISQUALIFIED").await?;
 
     ctx.send(
         CreateReply::default()
@@ -608,19 +618,6 @@ async fn disqualify(
         .fields(fields);
     ctx.log(log).await?;
 
-    if bracket.round()? == tournament.rounds {
-        let opponent_player = ctx
-            .data()
-            .database
-            .get_player_by_discord_id(&UserId::from_str(&opponent.discord_id)?)
-            .await?
-            .ok_or(anyhow!(
-                "Error disqualifying player from match {}: Player {} not found in database",
-                bracket.match_id,
-                ctx.author().id.to_string()
-            ))?;
-        finish_tournament(ctx, &bracket, &opponent_player, "DISQUALIFIED").await?;
-    }
     Ok(())
 }
 

@@ -480,11 +480,21 @@ async fn user_forfeit(
                     .await?;
 
     if forfeit {
-        let opponent = bracket.get_opponent(&ctx.author().id.to_string())?;
-        ctx.data()
+        let opponent = ctx
+            .data()
             .database
-            .set_winner(&bracket.match_id, &opponent.user_id()?, "FORFEITED")
-            .await?;
+            .get_player_by_discord_id(
+                &bracket
+                    .get_opponent(&ctx.author().id.to_string())?
+                    .user_id()?,
+            )
+            .await?
+            .ok_or(anyhow!(
+                "Unable to find opponent for player {} in match {}",
+                ctx.author().id,
+                bracket.match_id
+            ))?;
+        finish_match(ctx, tournament, bracket, &opponent, "FORFEITED").await?;
         msg.edit(
             *ctx,
             CreateReply::default()
@@ -492,25 +502,6 @@ async fn user_forfeit(
                 .ephemeral(true),
         )
         .await?;
-        // End the tournament if this is the final round
-        if bracket.round()? == tournament.rounds {
-            let opponent = ctx
-                .data()
-                .database
-                .get_player_by_discord_id(
-                    &bracket
-                        .get_opponent(&ctx.author().id.to_string())?
-                        .user_id()?,
-                )
-                .await?
-                .ok_or(anyhow!(
-                    "Error forfeiting match {} for player {}: Opponent not found in the database.",
-                    bracket.match_id,
-                    ctx.author().id.to_string()
-                ))?;
-            // Final round. Announce the winner and finish the tournament
-            finish_tournament(ctx, &bracket, &opponent, "FORFEITED").await?;
-        }
     } else {
         msg.edit(
             *ctx,
@@ -1293,18 +1284,10 @@ async fn submit(
     );
     ctx.data()
         .database
-        .update_end_time(&current_match.match_id)
+        .update_end_time(&bracket.match_id)
         .await?;
-    // Final round. Announce the winner and finish the tournament
-    if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, &target, &score).await?;
-        return Ok(());
-    }
 
-    ctx.data()
-        .database
-        .advance_player(tournament.tournament_id, &target.user_id()?, &score)
-        .await?;
+    finish_match(ctx, tournament, bracket, &target, &score).await?;
 
     let embed = CreateEmbed::new()
         .title("Match submission!")
@@ -1356,14 +1339,6 @@ pub async fn finish_tournament(
     winner: &Player,
     score: &str,
 ) -> Result<(), BotError> {
-    ctx.data()
-        .database
-        .set_winner(
-            &bracket.match_id,
-            &UserId::new(winner.discord_id.parse::<u64>()?),
-            score,
-        )
-        .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let announcement_channel_id = ctx
         .data()
@@ -1393,7 +1368,7 @@ pub async fn finish_tournament(
         .data()
         .apis
         .images
-        .result_image(&winner, &loser, &bracket.score)
+        .result_image(&winner, &loser, score)
         .await?;
 
     let mut semi_finalists_str = "".to_string();
@@ -1532,5 +1507,28 @@ async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
         None,
     )
     .await?;
+    Ok(())
+}
+
+pub async fn finish_match(
+    ctx: &BotContext<'_>,
+    tournament: &Tournament,
+    bracket: &Match,
+    winner: &Player,
+    score: &str,
+) -> Result<(), BotError> {
+    ctx.data().database.set_winner(&bracket.match_id, &winner.user_id()?, score).await?;
+
+    // Final round. Announce the winner and finish the tournament
+    if bracket.round()? == tournament.rounds {
+        finish_tournament(ctx, bracket, winner, score).await?;
+        return Ok(());
+    }
+
+    ctx.data()
+        .database
+        .advance_player(tournament.tournament_id, &winner.user_id()?)
+        .await?;
+
     Ok(())
 }
