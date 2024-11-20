@@ -1091,7 +1091,7 @@ async fn submit(
                 ))
             }
         };
-        let mut tags = vec![p1.player_tag.clone(), p2.player_tag.clone()];
+        let mut tags = [p1.player_tag.clone(), p2.player_tag.clone()];
         tags.sort();
         let compare_tag = |s1: &str, s2: &str| {
             s1.chars()
@@ -1110,10 +1110,8 @@ async fn submit(
                         .to_lowercase()
                         .eq(&BattleType::friendly.to_string().to_lowercase())
                     && {
-                        let mut log_tags = vec![
-                            format!("{}", &log.battle.teams[0][0].tag),
-                            format!("{}", &log.battle.teams[1][0].tag),
-                        ];
+                        let mut log_tags = [format!("{}", &log.battle.teams[0][0].tag),
+                            format!("{}", &log.battle.teams[1][0].tag)];
                         log_tags.sort();
                         tags.iter()
                             .zip(log_tags.iter())
@@ -1307,8 +1305,8 @@ async fn submit(
     let mut bracket_link = BracketURL::get_url();
     bracket_link.push_str(&format!(
         "/brackets/{}/{}",
-        ctx.guild_id().unwrap().to_string(),
-        tournament.tournament_id.to_string()
+        ctx.guild_id().unwrap(),
+        tournament.tournament_id
     ));
     ctx.prompt(
         msg,
@@ -1371,43 +1369,37 @@ pub async fn finish_tournament(
         .data()
         .apis
         .images
-        .result_image(&winner, &loser, score)
+        .result_image(winner, &loser, score)
         .await?;
 
     let mut semi_finalists_str = "".to_string();
-    match tournament.rounds {
-        2.. => {
-            semi_finalists_str.push_str("\n\nSemi-finalists:\n");
-            ctx.data()
-                .database
-                .get_matches_by_tournament(tournament_id, tournament.rounds - 1)
-                .await?
-                .into_iter()
-                .for_each(|sf| {
-                    if let Some(winner) = sf.winner {
-                        semi_finalists_str.push_str(&format!("- <@{}>\n", winner));
-                    }
-                })
-        }
-        _ => (),
+    if let 2.. = tournament.rounds {
+        semi_finalists_str.push_str("\n\nSemi-finalists:\n");
+        ctx.data()
+            .database
+            .get_matches_by_tournament(tournament_id, tournament.rounds - 1)
+            .await?
+            .into_iter()
+            .for_each(|sf| {
+                if let Some(winner) = sf.winner {
+                    semi_finalists_str.push_str(&format!("- <@{}>\n", winner));
+                }
+            })
     };
 
     let mut quarter_finalists_str = "".to_string();
-    match tournament.rounds {
-        3.. => {
-            quarter_finalists_str.push_str("\n\nQuarter-finalists:\n");
-            ctx.data()
-                .database
-                .get_matches_by_tournament(tournament_id, tournament.rounds - 2)
-                .await?
-                .into_iter()
-                .for_each(|qf| {
-                    if let Some(winner) = qf.winner {
-                        quarter_finalists_str.push_str(&format!("- <@{}>\n", winner));
-                    }
-                })
-        }
-        _ => (),
+    if let 3.. = tournament.rounds {
+        quarter_finalists_str.push_str("\n\nQuarter-finalists:\n");
+        ctx.data()
+            .database
+            .get_matches_by_tournament(tournament_id, tournament.rounds - 2)
+            .await?
+            .into_iter()
+            .for_each(|qf| {
+                if let Some(winner) = qf.winner {
+                    quarter_finalists_str.push_str(&format!("- <@{}>\n", winner));
+                }
+            })
     };
 
     let mut msg_str = format!(

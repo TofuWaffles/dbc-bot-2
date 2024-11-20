@@ -177,8 +177,8 @@ async fn run() -> Result<(), BotError> {
 
                     let fields = vec![
                         ("Cause", error_msg.as_str(), false),
-                        ("User", &user_field, false),
-                        ("Tournaments", &tournaments_field, false),
+                        ("User", user_field, false),
+                        ("Tournaments", tournaments_field, false),
                     ];
 
                     discord_log_error(

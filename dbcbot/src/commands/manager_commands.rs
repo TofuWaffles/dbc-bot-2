@@ -12,13 +12,12 @@ use crate::{
 };
 use anyhow::anyhow;
 use models::{Match, Player, PlayerType, TournamentStatus};
-use poise::serenity_prelude::{Channel, Mentionable, Role, UserId};
+use poise::serenity_prelude::{Channel, Mentionable, Role};
 use poise::Modal;
 use poise::{
     serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
     CreateReply, ReplyHandle,
 };
-use std::str::FromStr;
 use tracing::{error, info, instrument};
 const DEFAULT_WIN_REQUIRED: i32 = 2;
 /// CommandsContainer for the Manager commands.

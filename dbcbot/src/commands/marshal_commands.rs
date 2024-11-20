@@ -782,8 +782,7 @@ async fn list_matches(
             "{},{},{},{},{}\n",
             bracket.match_id,
             bracket
-                .match_players
-                .get(0)
+                .match_players.first()
                 .unwrap_or(&empty_player)
                 .discord_id,
             bracket

@@ -47,7 +47,7 @@ impl BrawlStarsAPI {
         let response = self
             .client
             .get(
-                &self
+                self
                     .endpoint
                     .append_path(&format!("players/%23{}", player_tag)),
             )
@@ -63,7 +63,7 @@ impl BrawlStarsAPI {
         let response = self
             .client
             .get(
-                &self
+                self
                     .endpoint
                     .append_path(&format!("players/%23{}/battlelog", player_tag)),
             )
@@ -79,7 +79,7 @@ impl BrawlStarsAPI {
         // Make some arbitrary request to the server; it doesn't matter what it is
         let response = self
             .client
-            .get(&self.endpoint.append_path("events/rotation"))
+            .get(self.endpoint.append_path("events/rotation"))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
@@ -97,7 +97,7 @@ impl BrawlStarsAPI {
     pub async fn get_all_brawlers(&self) -> Result<APIResult<Vec<Brawler>>, BotError> {
         let response = self
             .client
-            .get(&self.endpoint.append_path("brawlers"))
+            .get(self.endpoint.append_path("brawlers"))
             .header("Authorization", format!("Bearer {}", self.token))
             .send()
             .await?;
