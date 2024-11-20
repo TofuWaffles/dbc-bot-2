@@ -197,7 +197,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
     };
   }
   const [matches, err] = await BracketService.getBracket(tournament.guild_id, tournament.tournament_id);
-  console.log("Matches before rendering: ",JSON.stringify(matches, null, 2));
   if (err) {
     console.error(err);
     return {
