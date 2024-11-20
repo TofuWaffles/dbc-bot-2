@@ -119,7 +119,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <div>{topParticipant.resultText || (topParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <TBD bye={bottomParticipant.resultText === 'bye'} />
+                    <TBD />
                   )}
 
                   <div className="h-px w-full bg-yellow-500"></div>
@@ -138,7 +138,7 @@ const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => 
                       <div>{bottomParticipant.resultText || (bottomParticipant.isWinner ? 'Win' : 'Loss')}</div>
                     </div>
                   ) : (
-                    <TBD bye={topParticipant.resultText === 'bye'}/>
+                    <TBD/>
                   )}
                 </div>
               </div>
