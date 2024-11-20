@@ -206,5 +206,5 @@ jobs:
           docker pull ghcr.io/$REPO/dbcbot
           docker pull ghcr.io/$REPO/images
           docker pull ghcr.io/$REPO/bracket
-          docker compose up -d dbc-bot images bracket
+          docker compose up -d
           docker compose logs
