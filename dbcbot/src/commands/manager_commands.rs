@@ -743,6 +743,7 @@ fn generate_matches_new_tournament(
                 bracket.match_players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", matches_count, tournament_players.len()))?.into());
                 if bracket.match_players.len() == 1 {
                     bracket.winner = bracket.match_players[0].discord_id.to_string().into();
+                    bracket.score = "BYE".to_string();
                 }
             } else if round == 2 {
                 // For the second round, we check for any bye rounds in the previous round
