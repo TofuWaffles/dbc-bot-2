@@ -727,7 +727,6 @@ fn generate_matches_new_tournament(
     let mut matches = Vec::new();
     let mut round = 1;
 
-    // Generate first round
     while matches_count != 0 {
         // We use range from 1 to match_count inclusive for convenience
         // Because it makes it easier to calculate the parent brackets (i << 1 - 1, i << 1)
@@ -746,7 +745,7 @@ fn generate_matches_new_tournament(
                     bracket.score = "BYE".to_string();
                 }
             } else if round == 2 {
-                // For the second round, we check for any bye rounds in the previous round
+                // For the second round, we check for any bye matches in the previous round
                 let left: &Match = &matches[((i << 1) - 2) as usize];
                 let right: &Match = &matches[((i << 1) - 1) as usize];
                 if left.winner.is_some() {
