@@ -376,7 +376,13 @@ async fn start_tournament(
     for bracket in matches {
         ctx.data()
             .database
-            .create_match(tournament_id, bracket.round()?, bracket.sequence()?)
+            .create_match(
+                tournament_id,
+                bracket.round()?,
+                bracket.sequence()?,
+                bracket.winner,
+                bracket.score.into(),
+            )
             .await?;
         for player in bracket.match_players {
             let player_id = player.user_id()?;
@@ -834,9 +840,10 @@ mod tests {
         println!("{:?}", matches);
 
         assert_eq!(matches.len(), 3);
-        check_full(&matches[0]);
-        check_bye(&matches[1]);
-        check_bye(&matches[2]);
+        assert!(check_full(&matches[0]));
+        assert!(check_bye(&matches[1]));
+        assert!(matches[1].winner.is_some());
+        assert!(check_bye(&matches[2]));
     }
 
     #[test]
@@ -853,7 +860,9 @@ mod tests {
         assert!(check_full(&matches[0]));
         assert!(check_full(&matches[1]));
         assert!(check_bye(&matches[2]));
+        assert!(matches[2].winner.is_some());
         assert!(check_bye(&matches[3]));
+        assert!(matches[3].winner.is_some());
         assert!(check_empty(&matches[4]));
         assert!(check_full(&matches[5]));
         assert!(check_empty(&matches[6]));

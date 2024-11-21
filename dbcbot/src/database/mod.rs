@@ -1220,11 +1220,17 @@ pub trait MatchDatabase {
         -> Result<i64, BotError>;
     type Error;
     /// Creates a match associated with a tournament.
+    ///
+    /// If no winner is passed in, a null value will be stored in the database
+    ///
+    /// If no score is passed in, the default value written will be "0-0"
     async fn create_match(
         &self,
         tournament_id: i32,
         round: i32,
         sequence_in_round: i32,
+        winner: Option<String>,
+        score: Option<String>,
     ) -> Result<(), Self::Error>;
 
     /// Enter a player into a match
@@ -1282,18 +1288,21 @@ impl MatchDatabase for PgDatabase {
         tournament_id: i32,
         round: i32,
         sequence_in_round: i32,
+        winner: Option<String>,
+        score: Option<String>,
     ) -> Result<(), Self::Error> {
         let match_id = Match::generate_id(tournament_id, round, sequence_in_round);
         let start = chrono::Utc::now().timestamp();
         sqlx::query!(
             r#"
-            INSERT INTO matches (match_id, score, start)
-            VALUES ($1, $2, $3)
+            INSERT INTO matches (match_id, score, start, winner)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (match_id) DO NOTHING
             "#,
             match_id,
-            "0-0",
+            score.unwrap_or("0-0".to_string()),
             start,
+            winner,
         )
         .execute(&self.pool)
         .await?;
@@ -1557,7 +1566,7 @@ impl MatchDatabase for PgDatabase {
             PlayerType::Player,
         )
         .await?;
-        
+
         Ok(())
     }
 
