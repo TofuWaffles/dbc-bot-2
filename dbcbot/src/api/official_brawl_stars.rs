@@ -47,8 +47,7 @@ impl BrawlStarsAPI {
         let response = self
             .client
             .get(
-                self
-                    .endpoint
+                self.endpoint
                     .append_path(&format!("players/%23{}", player_tag)),
             )
             .header("Authorization", format!("Bearer {}", self.token))
@@ -63,8 +62,7 @@ impl BrawlStarsAPI {
         let response = self
             .client
             .get(
-                self
-                    .endpoint
+                self.endpoint
                     .append_path(&format!("players/%23{}/battlelog", player_tag)),
             )
             .header("Authorization", format!("Bearer {}", self.token))

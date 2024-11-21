@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO matches (match_id, score, start, winner)\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (match_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fe55ef25cba82361e908ab760ede4632af775cdd9a5f59c1be5f4f2ca01fe351"
+}

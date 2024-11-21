@@ -110,7 +110,9 @@ async fn run() -> Result<(), BotError> {
     .collect();
 
     #[cfg(debug_assertions)]
-    TestCommands::get_all().into_iter().for_each(|c| commands.push(c));
+    TestCommands::get_all()
+        .into_iter()
+        .for_each(|c| commands.push(c));
 
     let output = commands
         .iter()

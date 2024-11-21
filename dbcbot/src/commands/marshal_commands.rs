@@ -579,11 +579,7 @@ async fn disqualify(
     let opponent = ctx
         .data()
         .database
-        .get_player_by_discord_id(
-            &bracket
-                .get_opponent(&player.id.to_string())?
-                .user_id()?,
-        )
+        .get_player_by_discord_id(&bracket.get_opponent(&player.id.to_string())?.user_id()?)
         .await?
         .ok_or(anyhow!(
             "Unable to find opponent for player {} in match {}",
@@ -782,7 +778,8 @@ async fn list_matches(
             "{},{},{},{},{}\n",
             bracket.match_id,
             bracket
-                .match_players.first()
+                .match_players
+                .first()
                 .unwrap_or(&empty_player)
                 .discord_id,
             bracket

@@ -1110,8 +1110,10 @@ async fn submit(
                         .to_lowercase()
                         .eq(&BattleType::friendly.to_string().to_lowercase())
                     && {
-                        let mut log_tags = [(&log.battle.teams[0][0].tag).to_string(),
-                            (&log.battle.teams[1][0].tag).to_string()];
+                        let mut log_tags = [
+                            (&log.battle.teams[0][0].tag).to_string(),
+                            (&log.battle.teams[1][0].tag).to_string(),
+                        ];
                         log_tags.sort();
                         tags.iter()
                             .zip(log_tags.iter())
