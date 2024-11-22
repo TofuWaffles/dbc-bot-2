@@ -2,7 +2,7 @@ import React, { FC } from 'react';
 import Link from 'next/link';
 import TournamentService from '@/services/tournament';
 import { Tournament } from '@/db/models';
-import { GetServerSideProps, GetStaticProps } from 'next';
+import { GetServerSideProps } from 'next';
 import Head from 'next/head';
 
 
