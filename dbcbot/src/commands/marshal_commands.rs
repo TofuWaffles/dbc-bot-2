@@ -586,7 +586,7 @@ async fn disqualify(
             ctx.author().id,
             bracket.match_id
         ))?;
-    finish_match(ctx, tournament, &bracket, &opponent, "DISQUALIFIED").await?;
+    finish_match(ctx, tournament, &bracket, &opponent, "WON-DISQUALIFIED").await?;
 
     ctx.send(
         CreateReply::default()

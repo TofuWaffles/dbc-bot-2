@@ -494,7 +494,7 @@ async fn user_forfeit(
                 ctx.author().id,
                 bracket.match_id
             ))?;
-        finish_match(ctx, tournament, bracket, &opponent, "FORFEITED").await?;
+        finish_match(ctx, tournament, bracket, &opponent, "WON-FORFEITED").await?;
         msg.edit(
             *ctx,
             CreateReply::default()
