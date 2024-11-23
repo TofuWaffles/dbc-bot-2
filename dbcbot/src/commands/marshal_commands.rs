@@ -18,7 +18,8 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
 use poise::serenity_prelude::{
-    CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter, CreateSelectMenu, CreateSelectMenuKind, CreateSelectMenuOption, Mentionable, ReactionType, UserId
+    CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter, CreateSelectMenu,
+    CreateSelectMenuKind, CreateSelectMenuOption, Mentionable, ReactionType, UserId,
 };
 use poise::ReplyHandle;
 use poise::{
@@ -49,7 +50,7 @@ impl CommandsContainer for MarshalCommands {
             list_matches(),
             list_players(),
             marshal_menu(),
-            add_map_slash()
+            add_map_slash(),
         ]
     }
 }
@@ -947,7 +948,12 @@ async fn get_battle_logs(
         msg: &ReplyHandle<'_>,
         match_id: String,
     ) -> Result<(), BotError> {
-        let current_match = ctx.data().database.get_match_by_id(&match_id).await?.ok_or(anyhow!("Match not found for this player"))?;
+        let current_match = ctx
+            .data()
+            .database
+            .get_match_by_id(&match_id)
+            .await?
+            .ok_or(anyhow!("Match not found for this player"))?;
         let record = ctx
             .data()
             .database
@@ -1091,11 +1097,11 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
             "players" => {
                 interactions.defer(&ctx.http()).await?;
                 player_page(&ctx, &msg, &tournament).await?;
-            },
+            }
             "utilities" => {
                 interactions.defer(&ctx.http()).await?;
                 utilities_page(&ctx, &msg, &tournament).await?;
-            },
+            }
             _ => {}
         }
     }
@@ -1355,18 +1361,20 @@ async fn player_page(
     Ok(())
 }
 
-async fn utilities_page(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, tournament: &Tournament) -> Result<(), BotError>{
+async fn utilities_page(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    tournament: &Tournament,
+) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
             .title("Utilities")
             .description("Tourmament utitlies includes\n-Add map: Update the latest map from Brawlify to the database")
             .footer(CreateEmbedFooter::new("This may take a while."));
     let buttons = {
-            vec![
-                CreateButton::new("add_map")
-                    .label("Map update")
-                    .style(poise::serenity_prelude::ButtonStyle::Primary),
-            ]
-        };
+        vec![CreateButton::new("add_map")
+            .label("Map update")
+            .style(poise::serenity_prelude::ButtonStyle::Primary)]
+    };
     ctx.prompt(msg, embed, buttons).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     if let Some(interactions) = &ic.next().await {
@@ -1383,9 +1391,9 @@ async fn utilities_page(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, tournament:
 
 pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
-            .title("Adding maps to the database")
-            .description("This command will add all maps to the database.")
-            .footer(CreateEmbedFooter::new("This may take a while."));
+        .title("Adding maps to the database")
+        .description("This command will add all maps to the database.")
+        .footer(CreateEmbedFooter::new("This may take a while."));
     ctx.prompt(msg, embed, None).await?;
     let raw = ctx.data().apis.brawlify.get_maps().await?;
     let mut maps = match raw.handler(&ctx, &msg).await? {

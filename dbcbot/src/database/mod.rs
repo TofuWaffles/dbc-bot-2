@@ -229,7 +229,11 @@ pub trait UserDatabase {
     ///
     /// This will return the match with the highest round number within the user's currently entered
     /// tournament.
-    async fn get_current_match(&self, tournament_id: i32, discord_id: &UserId) -> Result<Option<Match>, Self::Error>;
+    async fn get_current_match(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+    ) -> Result<Option<Match>, Self::Error>;
 
     async fn get_all_user_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error>;
 }
@@ -399,7 +403,11 @@ impl UserDatabase for PgDatabase {
         Ok(tournament_id)
     }
 
-    async fn get_current_match(&self, tournament_id: i32, discord_id: &UserId) -> Result<Option<Match>, Self::Error> {
+    async fn get_current_match(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+    ) -> Result<Option<Match>, Self::Error> {
         let current_round = self.current_round(tournament_id).await?;
         let current_match = sqlx::query!(
             r#"

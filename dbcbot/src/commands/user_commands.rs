@@ -302,7 +302,10 @@ async fn user_display_match(
 
     let player = current_match.get_player(&ctx.author().id.to_string())?;
     let discord_id = ctx.author().id;
-    ctx.data().database.get_current_match(tournament.tournament_id, &discord_id).await?;
+    ctx.data()
+        .database
+        .get_current_match(tournament.tournament_id, &discord_id)
+        .await?;
     let p1 = ctx
         .get_player_from_discord_id(None)
         .await?
@@ -1186,7 +1189,12 @@ async fn submit(
         Ok(())
     }
     let caller = ctx.author().id;
-    let current_match = match ctx.data().database.get_current_match(tournament.tournament_id, &caller).await? {
+    let current_match = match ctx
+        .data()
+        .database
+        .get_current_match(tournament.tournament_id, &caller)
+        .await?
+    {
         Some(m) => m,
         None => {
             ctx.prompt(
