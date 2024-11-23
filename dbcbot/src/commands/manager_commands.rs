@@ -741,7 +741,14 @@ fn generate_matches_new_tournament(
 
             if round == 1 {
                 // Not guaranteed to have a player, this would be a bye round if there is no player
-                if (matches_count as usize) <= tournament_players.len() {
+                //
+                // We use a greedy approach by determining a threshold using the number of slots
+                // still available
+                //
+                // The # of slots is the number of (total # of matches - current # of matches) * 2
+                // If the number of players remaining is above this threshold, we put both players
+                // in.
+                if tournament_players.len() >= (matches_count as usize - matches.len()) << 1  {
                     bracket.match_players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", matches_count, tournament_players.len()))?.into());
                 }
                 // Guaranteed to have a player
@@ -835,15 +842,35 @@ mod tests {
 
         println!("{:?}", users);
 
-        let matches = generate_matches_new_tournament(users, -2).unwrap();
+        let matches = generate_matches_new_tournament(users, -1).unwrap();
 
         println!("{:?}", matches);
 
         assert_eq!(matches.len(), 3);
-        assert!(check_full(&matches[0]));
-        assert!(check_bye(&matches[1]));
-        assert!(matches[1].winner.is_some());
+        assert!(check_bye(&matches[0]));
+        assert!(matches[0].winner.is_some());
+        assert!(check_full(&matches[1]));
         assert!(check_bye(&matches[2]));
+        assert!(matches[2].winner.is_none());
+    }
+
+    #[test]
+    fn creates_three_rounds() {
+        const USERCOUNT: i32 = 8;
+        let users = create_dummies(USERCOUNT);
+
+        println!("{:?}", users);
+
+        let matches = generate_matches_new_tournament(users, -1).unwrap();
+
+        assert_eq!(matches.len(), 7);
+
+        matches.iter().enumerate().for_each(|(i, m)| {
+            match i {
+                0..5 => check_full(m),
+                _ => check_empty(m),
+            };
+        });
     }
 
     #[test]
@@ -851,20 +878,76 @@ mod tests {
         const USERCOUNT: i32 = 6;
         let users = create_dummies(USERCOUNT);
 
-        let matches = generate_matches_new_tournament(users, -3).unwrap();
+        let matches = generate_matches_new_tournament(users, -1).unwrap();
 
         println!("{:?}", matches);
 
         assert_eq!(matches.len(), 7);
 
-        assert!(check_full(&matches[0]));
-        assert!(check_full(&matches[1]));
-        assert!(check_bye(&matches[2]));
-        assert!(matches[2].winner.is_some());
-        assert!(check_bye(&matches[3]));
-        assert!(matches[3].winner.is_some());
-        assert!(check_empty(&matches[4]));
-        assert!(check_full(&matches[5]));
+        assert!(check_bye(&matches[0]));
+        assert!(matches[0].winner.is_some());
+        assert!(check_bye(&matches[1]));
+        assert!(matches[1].winner.is_some());
+        assert!(check_full(&matches[2]));
+        assert!(check_full(&matches[3]));
+        assert!(check_full(&matches[4]));
+        assert!(check_empty(&matches[5]));
         assert!(check_empty(&matches[6]));
+    }
+
+    #[test]
+    fn create_four_rounds() {
+        const USERCOUNT: i32 = 16;
+        let users = create_dummies(USERCOUNT);
+
+        let matches = generate_matches_new_tournament(users, -1).unwrap();
+
+        println!("{:?}", matches);
+
+        assert_eq!(matches.len(), 15);
+
+        matches.iter().enumerate().for_each(|(i, m)| {
+            match i {
+                0..8 => assert!(check_full(m)),
+                _ => assert!(check_empty(m)),
+            };
+        });
+    }
+
+    #[test]
+
+    fn create_four_rounds_with_seven_byes() {
+        const USERCOUNT: i32 = 9;
+
+        let users = create_dummies(USERCOUNT);
+
+        let matches = generate_matches_new_tournament(users, -1).unwrap();
+
+        println!("{:?}", matches);
+
+        assert_eq!(matches.len(), 15);
+
+        matches.iter().enumerate().for_each(|(i, m)| {
+            match i {
+                0..7 => {
+                    assert!(check_bye(m));
+                    assert!(m.winner.is_some());
+                },
+                7 => {
+                    assert!(check_full(m));
+                    assert!(m.winner.is_none());
+                },
+                8..11 => {
+                    assert!(check_full(m));
+                    assert!(m.winner.is_none());
+                },
+                11 => {
+                    assert!(check_bye(m));
+                    assert!(m.winner.is_none());
+                },
+                _ => assert!(check_empty(m)),
+            }
+        });
+            
     }
 }
