@@ -9,7 +9,7 @@ use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::BotContextExt;
+use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError, BracketURL};
 use anyhow::anyhow;
@@ -65,7 +65,7 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         }
     }
 
-    ctx.prompt(
+    ctx.components().prompt(
         &msg,
         CreateEmbed::new()
             .title("Registration Page Menu")
@@ -105,7 +105,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 .label("Deregister")
                 .style(ButtonStyle::Danger),
         ];
-        ctx.prompt(
+        ctx.components().prompt(
             msg,
             CreateEmbed::new().title("Main Menu").description(format!("Welcome to the menu! You have not joined a tournament yet. Click on the Tournaments button to join one now!\n\nVisit {} to check out all available and on-going tournaments!", BracketURL::get_url())).color(Color::BLUE),
             buttons
@@ -155,7 +155,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     .style(ButtonStyle::Danger),
             );
         }
-        ctx.prompt(msg, embed, buttons).await?;
+        ctx.components().prompt(msg, embed, buttons).await?;
     } else {
         return Err(anyhow!(
             "User {} with ID {} has enetered more than one active tournament",
@@ -168,7 +168,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.prompt(
+                ctx.components().prompt(
                     msg,
                     CreateEmbed::new()
                         .title("Tournaments")
@@ -189,7 +189,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             }
             "menu_match" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.prompt(
+                ctx.components().prompt(
                     msg,
                     CreateEmbed::new()
                         .title("Match Information")
@@ -237,7 +237,7 @@ async fn user_display_match(
     {
         Some(m) => m,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new().title("Match Not Found").description(
                     "You are not currently in a match. Please wait for the next round to begin.",
@@ -253,7 +253,7 @@ async fn user_display_match(
         // User has advanced to the next round but the current round is behind.
         // This probably means that not everyone has finished their matches yet for the current
         // round.
-        ctx.prompt(msg,
+        ctx.components().prompt(msg,
             CreateEmbed::new().title("Match Information.")
             .description("Woah there, partner! The upcoming round hasn't started yet. The next round will start once all players have completed their matches for the current round.",
             )
@@ -270,7 +270,7 @@ async fn user_display_match(
     // Users shouldn't be able to access this with the current set up, this is kept just in case
     if !current_match.is_not_bye() {
         // This is a bye round, so do nothing.
-        ctx.prompt(msg,
+        ctx.components().prompt(msg,
             CreateEmbed::new().title("Match Information.")
             .description( "You have no opponents for the current round. See you in the next round, partner!",
             )
@@ -285,7 +285,7 @@ async fn user_display_match(
     }
 
     if let Some(ref winner) = current_match.winner {
-        ctx.prompt(msg,
+        ctx.components().prompt(msg,
             CreateEmbed::new().title("Match Information.")
             .description(
                 format!("Congratulations to <@{}> for winning the current match! Hope to see you in the next round!", winner),
@@ -402,7 +402,7 @@ async fn user_display_match(
         match interaction.data.custom_id.as_str() {
             "match_menu_ready" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.prompt(
+                ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Ready Confirmation")
@@ -474,7 +474,7 @@ async fn user_forfeit(
     tournament: &Tournament,
     bracket: &Match,
 ) -> Result<(), BotError> {
-    let forfeit = ctx.confirmation(msg, CreateEmbed::new()
+    let forfeit = ctx.components().confirmation(msg, CreateEmbed::new()
                      .title("⚠️Forfeit Match⚠️")
                      .description("Warning: Forfeiting the match means that you will drop out of the tournament and your opponent will automatically win. This action is NOT reversable.\n\nAre you sure you want to continue?"))
                     .await?;
@@ -575,7 +575,7 @@ async fn user_display_tournaments(
             let embed = CreateEmbed::new()
                 .title("Tournament Enrollment")
                 .description(description);
-            if ctx.confirmation(msg, embed).await? {
+            if ctx.components().confirmation(msg, embed).await? {
                 break selected;
             }
         }
@@ -587,7 +587,7 @@ async fn user_display_tournaments(
             .await?
             .unwrap()
             .announcement_channel_id;
-        ctx.prompt(
+        ctx.components().prompt(
             msg,
             CreateEmbed::new()
                 .title("Tournament Enrollment")
@@ -615,7 +615,7 @@ async fn user_display_tournaments(
                 log::Model::TOURNAMENT,
             );
             ctx.log(log).await?;
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Tournament Enrollment")
@@ -638,7 +638,7 @@ async fn user_display_tournaments(
                 log::Model::TOURNAMENT,
             );
             ctx.log(log).await?;
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Tournament Enrollment")
@@ -663,7 +663,7 @@ async fn user_display_registration(
     let buttons = vec![CreateButton::new("player_profile_registration")
         .label("Register")
         .style(ButtonStyle::Primary)];
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Registration Page")
@@ -712,7 +712,7 @@ async fn user_display_registration(
 
     let user_id = ctx.author().id.to_string();
     if ctx.get_player_from_tag(&user.player_tag).await?.is_some() {
-        ctx.prompt(
+        ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Registration Error")
@@ -729,7 +729,7 @@ async fn user_display_registration(
         return Ok(());
     }
 
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Profile Registration")
@@ -770,7 +770,7 @@ async fn user_display_registration(
                     .timestamp(ctx.created_at())
                     .color(0x0000FF)
             };
-            match ctx.confirmation(msg, embed).await? {
+            match ctx.components().confirmation(msg, embed).await? {
                 true => {
                     user.brawlers = json!(player.brawlers);
                     user.player_name = player.name.clone();
@@ -779,7 +779,7 @@ async fn user_display_registration(
                     user.discord_name = ctx.author().name.clone();
                     user.discord_id = user_id.clone();
                     ctx.data().database.create_user(&user).await?;
-                    ctx.prompt(msg,
+                    ctx.components().prompt(msg,
                             CreateEmbed::new()
                                 .title("Registration Success!")
                                 .description("Your profile has been successfully registered! Please run the /menu command again to access the Player menu and join a tournament!"),
@@ -793,7 +793,7 @@ async fn user_display_registration(
                     ctx.log(log).await?;
                 }
                 false => {
-                    ctx.prompt(
+                    ctx.components().prompt(
                         msg,
                         CreateEmbed::new()
                             .title("Registration Cancelled")
@@ -805,7 +805,7 @@ async fn user_display_registration(
             }
         }
         APIResult::NotFound => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Player Not Found")
@@ -822,7 +822,7 @@ async fn user_display_registration(
             ctx.log(log).await?;
         }
         APIResult::Maintenance => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Maintenance")
@@ -849,7 +849,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
     {
         Some(player) => player,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Profile Not Found")
@@ -928,7 +928,7 @@ async fn user_profile(
     let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
         Ok(Some(player)) => player,
         Ok(None) => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new()
                     .title("Profile Not Found")
@@ -938,7 +938,7 @@ async fn user_profile(
             return Ok(());
         }
         Err(e) => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new().title("Error").description(
                     "An error occurred while fetching the user profile. Please try again later.",
@@ -959,7 +959,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
         .title("Deregister Profile")
         .description("Are you sure you want to deregister?")
         .color(0xFF0000);
-    match ctx.confirmation(msg, embed).await? {
+    match ctx.components().confirmation(msg, embed).await? {
         true => {
             ctx.data().database.delete_user(&discord_id).await?;
             let log = ctx.build_log(
@@ -969,7 +969,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
                 log::Model::PLAYER,
             );
             ctx.log(log).await?;
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                 .title("Deregistration Success")
@@ -978,7 +978,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
             ).await?;
         }
         false => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                 .title("Deregistration (Cancelled)")
@@ -998,7 +998,7 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
         .get_active_tournaments_from_player(&discord_id)
         .await?;
     if tournaments.is_empty() {
-        ctx.prompt(
+        ctx.components().prompt(
             msg,
             CreateEmbed::new()
                 .title("Leaving a tournament")
@@ -1031,13 +1031,13 @@ Tournament name: {}"#,
         .title("Leave Tournament")
         .description(description)
         .color(0xFF0000);
-    match ctx.confirmation(msg, embed).await? {
+    match ctx.components().confirmation(msg, embed).await? {
         true => {
             ctx.data()
                 .database
                 .exit_tournament(&selected_tournament.tournament_id, &discord_id)
                 .await?;
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Leaving a tournament")
@@ -1047,7 +1047,7 @@ Tournament name: {}"#,
             .await?;
         }
         false => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Leaving a tournament (Cancelled)")
@@ -1154,7 +1154,7 @@ async fn submit(
         ctx: &BotContext<'_>,
         msg: &ReplyHandle<'_>,
     ) -> Result<(), BotError> {
-        ctx.prompt(
+        ctx.components().prompt(
             msg,
             CreateEmbed::new()
                 .title("Insufficient Matches")
@@ -1189,7 +1189,7 @@ async fn submit(
     let current_match = match ctx.data().database.get_current_match(&caller).await? {
         Some(m) => m,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new().title("Match Not Found").description(
                     "You are not currently in a match. Please wait for the next round to begin.",
@@ -1215,7 +1215,7 @@ async fn submit(
     let logs = match raw.handler(ctx, msg).await? {
         Some(logs) => logs,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                     msg,
                     CreateEmbed::new()
                         .title("Battle Log Not Found")
@@ -1226,7 +1226,7 @@ async fn submit(
             return Ok(());
         }
     };
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Analyzing results")
@@ -1310,7 +1310,7 @@ async fn submit(
         ctx.guild_id().unwrap(),
         tournament.tournament_id
     ));
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Result has been recorded successfully!")
@@ -1498,7 +1498,7 @@ async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
         .await?;
     let description = "";
 
-    ctx.prompt(
+    ctx.components().prompt(
         &msg,
         CreateEmbed::new().title("Credit").description(description),
         None,

@@ -9,6 +9,7 @@ use crate::database::models::{
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::discord::{modal, select_channel, select_options, select_role};
 use crate::utils::error::CommonError::*;
+use crate::utils::shorthand::BotComponent;
 use crate::{
     log::{self, Log},
     utils::shorthand::BotContextExt,
@@ -235,7 +236,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError
         }
     };
     let mode = tournament.mode;
-    let map = ctx.map_selection(&msg, &mode).await?;
+    let map = ctx.components().map_selection(&msg, &mode).await?;
     ctx.data()
         .database
         .set_map(tournament_id, &map.clone().into())
@@ -822,7 +823,7 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     {
         Some(tournament) => tournament,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new()
                     .title("No ID was given")
@@ -854,7 +855,7 @@ async fn next_round_helper(
 
     for (predicate, title, message) in conditions {
         if predicate(tournament) {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new().title(title).description(message),
                 None,
@@ -885,7 +886,7 @@ async fn next_round_helper(
         .database
         .set_current_round(tournament.tournament_id, new_round)
         .await?;
-    if ctx
+    if ctx.components()
         .confirmation(
             msg,
             CreateEmbed::default().description("Do you want to select map for next round?"),
@@ -893,7 +894,7 @@ async fn next_round_helper(
         .await?
     {
         let mode = tournament.mode;
-        let map = ctx.map_selection(msg, &mode).await?;
+        let map = ctx.components().map_selection(msg, &mode).await?;
         ctx.data()
             .database
             .set_map(tournament.tournament_id, &(map.into()))
@@ -985,7 +986,7 @@ async fn get_battle_logs(
         let embed = CreateEmbed::new()
             .title("An error encoutered!")
             .description(format!("{}", e));
-        ctx.prompt(&msg, embed, None).await?;
+        ctx.components().prompt(&msg, embed, None).await?;
     }
     Ok(())
 }
@@ -1008,7 +1009,7 @@ async fn update_map(ctx: BotContext<'_>) -> Result<(), BotError> {
             let m: BrawlMap = map.into();
             db.add_map(&m).await?;
         }
-        ctx.prompt(
+        ctx.components().prompt(
             &msg,
             CreateEmbed::new()
                 .title("Updated successfully")
@@ -1035,7 +1036,7 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         let embed = CreateEmbed::new()
             .title("No tournaments found")
             .description("There are no tournaments found in this server.");
-        ctx.prompt(&msg, embed, None).await?;
+        ctx.components().prompt(&msg, embed, None).await?;
         return Ok(());
     }
     let embed = {
@@ -1066,7 +1067,7 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
         ]
     };
-    ctx.prompt(
+    ctx.components().prompt(
         &msg,
         CreateEmbed::new()
             .title(format!("Tournament Menu for {}", tournament.name))
@@ -1169,7 +1170,7 @@ async fn tournament_property_page(
                 ("Map", t.map.name.clone(), true),
             ])
     };
-    ctx.prompt(msg, embed(&t), buttons(&t)).await?;
+    ctx.components().prompt(msg, embed(&t), buttons(&t)).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interactions) = &ic.next().await {
         match interactions.data.custom_id.as_str() {
@@ -1205,13 +1206,13 @@ async fn tournament_property_page(
             }
             "mode" => {
                 interactions.defer(ctx.http()).await?;
-                let mode = ctx.mode_selection(msg).await?;
+                let mode = ctx.components().mode_selection(msg).await?;
                 ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
             }
             "map" => {
                 interactions.defer(ctx.http()).await?;
-                let map = ctx.map_selection(msg, &t.mode).await?;
+                let map = ctx.components().map_selection(msg, &t.mode).await?;
                 ctx.data()
                     .database
                     .set_map(t.tournament_id, &map.into())
@@ -1224,7 +1225,7 @@ async fn tournament_property_page(
             _ => {}
         }
         t = update(ctx, &t).await?;
-        ctx.prompt(msg, embed(&t), buttons(&t)).await?;
+        ctx.components().prompt(msg, embed(&t), buttons(&t)).await?;
     }
     Ok(())
 }
@@ -1332,7 +1333,7 @@ async fn player_page(
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
         ]
     };
-    ctx.prompt(msg, embed, buttons).await?;
+    ctx.components().prompt(msg, embed, buttons).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
@@ -1373,7 +1374,7 @@ async fn utilities_page(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, tournament:
                     .style(poise::serenity_prelude::ButtonStyle::Primary),
             ]
         };
-    ctx.prompt(msg, embed, buttons).await?;
+    ctx.components().prompt(msg, embed, buttons).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     if let Some(interactions) = &ic.next().await {
         match interactions.data.custom_id.as_str() {
@@ -1392,12 +1393,12 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
             .title("Adding maps to the database")
             .description("This command will add all maps to the database.")
             .footer(CreateEmbedFooter::new("This may take a while."));
-    ctx.prompt(msg, embed, None).await?;
+    ctx.components().prompt(msg, embed, None).await?;
     let raw = ctx.data().apis.brawlify.get_maps().await?;
     let mut maps = match raw.handler(&ctx, &msg).await? {
         Some(maps) => maps,
         None => {
-            return ctx
+            return ctx.components()
                 .prompt(
                     &msg,
                     CreateEmbed::default().description("No maps were added!"),
@@ -1410,7 +1411,7 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
         let brawl_map = BrawlMap::from(map);
         ctx.data().database.add_map(&brawl_map).await?;
     }
-    ctx.prompt(
+    ctx.components().prompt(
         &msg,
         CreateEmbed::default().description("All maps were added!"),
         None,

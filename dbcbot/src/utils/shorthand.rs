@@ -26,9 +26,6 @@ use poise::{
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
     async fn default_map(&self, tournament_id: i32) -> Result<(), BotError>;
-    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError>;
-    async fn map_selection(&self, msg: &ReplyHandle<'_>, mode: &Mode)
-        -> Result<BrawlMap, BotError>;
     /// Amount of time in milliseconds before message interactions (usually buttons) expire for user
     const USER_CMD_TIMEOUT: u64;
     async fn create_interaction_collector(
@@ -45,26 +42,7 @@ pub trait BotContextExt<'a> {
     /// Returns a `Result` containing a `ReplyHandle` if the message was sent successfully.
     /// # Errors
     /// Returns a `BotError` if there is an issue sending the message.
-    async fn prompt(
-        &self,
-        msg: &ReplyHandle<'a>,
-        embed: CreateEmbed,
-        buttons: impl Into<Option<Vec<CreateButton>>>,
-    ) -> Result<(), BotError>;
-    /// Retrieves the configuration for the current guild.
-    ///
-    /// This function retrieves the configuration specific to the guild where the command
-    /// is being executed.
-    ///
-    /// # Returns
-    ///
-    /// Returns a `Result` containing an optional `GuildConfig` object wrapped in an `Option`.
-    ///
-    /// # Errors
-    ///
-    /// Returns a `BotError` if:
-    /// - The command is not executed within a guild context.
-    /// - There is an issue with fetching the guild configuration from the database.
+
     async fn get_config(&self) -> Result<Option<GuildConfig>, BotError>;
 
     /// Get a player from a Discord user ID.
@@ -101,20 +79,6 @@ pub trait BotContextExt<'a> {
 
     async fn get_current_round(&self, tournament_id: i32) -> Result<i32, BotError>;
 
-    /// Prompt the user with a confirmation message.
-    /// # Arguments
-    /// * `msg` - The message to reply to.
-    /// * `embed` - The embed to send with the confirmation message.
-    /// # Returns
-    /// Returns a `Result` containing a `bool` indicating whether the user confirmed the action.
-    /// # Errors
-    /// Returns a `BotError` if there is an issue sending the confirmation message.
-    async fn confirmation(
-        &self,
-        msg: &ReplyHandle<'_>,
-        embed: CreateEmbed,
-    ) -> Result<bool, BotError>;
-
     /// Get the current time in seconds since the Unix epoch.
     /// # Returns
     /// Returns the current time in seconds since the Unix epoch.
@@ -125,16 +89,6 @@ pub trait BotContextExt<'a> {
     /// # Note
     /// This function is useful for logging timestamps.
     fn now(&self) -> poise::serenity_prelude::model::Timestamp;
-
-    async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
-
-    /// Prompt the user to select a brawler.
-    /// # Arguments
-    /// * `ctx` - The context of the command.
-    /// * `msg` - The message to reply to.
-    /// # Returns
-    /// Returns a `Result` containing a `String` representing the selected brawler.
-    async fn brawler_selection(&self, msg: &ReplyHandle<'_>) -> Result<Brawler, BotError>;
 }
 
 impl<'a> BotContextExt<'a> for BotContext<'a> {
@@ -153,34 +107,14 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Ok(ic)
     }
 
-    async fn prompt(
-        &self,
-        msg: &ReplyHandle<'a>,
-        embed: CreateEmbed,
-        buttons: impl Into<Option<Vec<CreateButton>>>,
-    ) -> Result<(), BotError> {
-        let components = match buttons.into() {
-            Some(buttons) => {
-                let chunked_buttons: Vec<Vec<CreateButton>> =
-                    buttons.chunks(5).map(|c| c.to_vec()).collect();
-                chunked_buttons
-                    .iter()
-                    .map(|chunk| CreateActionRow::Buttons(chunk.to_vec()))
-                    .collect()
-            }
-            _ => vec![],
-        };
-        let builder = CreateReply::default()
-            .components(components)
-            .embed(embed)
-            .ephemeral(true);
-        msg.edit(*self, builder).await?;
-        Ok(())
-    }
     async fn get_config(&self) -> Result<Option<GuildConfig>, BotError> {
         let guild_id = self.guild_id().ok_or(NotInAGuild)?;
         let config = self.data().database.get_config(&guild_id).await?;
         Ok(config)
+    }
+
+    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError> {
+        self.data().database.set_default_map(tournament_id).await
     }
 
     async fn get_player_from_discord_id(
@@ -233,8 +167,41 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
     fn now(&self) -> poise::serenity_prelude::model::Timestamp {
         self.created_at()
     }
+}
+pub struct Component<'a>{
+    pub ctx: BotContext<'a>
+}
 
-    async fn confirmation(
+pub trait BotComponent<'a>{
+    fn components(&self) -> Component;
+}
+
+
+impl <'a> BotComponent<'a> for BotContext<'a>{
+    fn components(&self) -> Component{
+        Component{
+            ctx: *self
+        }
+    }
+}
+
+impl<'a> Component<'a>{
+    const USER_CMD_TIMEOUT: u64 = 120_000;
+    async fn create_interaction_collector(
+        &self,
+        msg: &ReplyHandle<'_>,
+    ) -> Result<impl Stream<Item = ComponentInteraction> + Unpin, BotError> {
+        let ic = msg
+            .clone()
+            .into_message()
+            .await?
+            .await_component_interaction(&self.ctx.serenity_context().shard)
+            .timeout(Duration::from_millis(Self::USER_CMD_TIMEOUT))
+            .stream();
+        Ok(ic)
+    }
+
+    pub async fn confirmation(
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
@@ -252,10 +219,10 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .embed(embed)
                 .components(vec![buttons])
         };
-        msg.edit(*self, reply).await?;
+        msg.edit(self.ctx, reply).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
-            interactions.defer(self.http()).await?;
+            interactions.defer(self.ctx.http()).await?;
             match interactions.data.custom_id.as_str() {
                 "confirm" => {
                     return Ok(true);
@@ -271,7 +238,32 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Err(anyhow!("User did not respond in time"))
     }
 
-    async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+    pub async fn prompt(
+        &self,
+        msg: &ReplyHandle<'a>,
+        embed: CreateEmbed,
+        buttons: impl Into<Option<Vec<CreateButton>>>,
+    ) -> Result<(), BotError> {
+        let components = match buttons.into() {
+            Some(buttons) => {
+                let chunked_buttons: Vec<Vec<CreateButton>> =
+                    buttons.chunks(5).map(|c| c.to_vec()).collect();
+                chunked_buttons
+                    .iter()
+                    .map(|chunk| CreateActionRow::Buttons(chunk.to_vec()))
+                    .collect()
+            }
+            _ => vec![],
+        };
+        let builder = CreateReply::default()
+            .components(components)
+            .embed(embed)
+            .ephemeral(true);
+        msg.edit(self.ctx, builder).await?;
+        Ok(())
+    }
+
+    pub async fn dismiss(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
         self.prompt(
             msg,
             CreateEmbed::new().description("You can dismiss this safely!"),
@@ -280,9 +272,9 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         .await
     }
 
-    async fn brawler_selection(&self, msg: &ReplyHandle<'_>) -> Result<Brawler, BotError> {
+    pub async fn brawler_selection(&self, msg: &ReplyHandle<'_>) -> Result<Brawler, BotError> {
         const CAPACITY: usize = 25;
-        let brawlers = match self.data().apis.brawlify.get_brawlers().await? {
+        let brawlers = match self.ctx.data().apis.brawlify.get_brawlers().await? {
             APIResult::Ok(b) => b,
             APIResult::NotFound => return Err(anyhow!("Brawlers not found")),
             APIResult::Maintenance => {
@@ -303,7 +295,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .embed(embed)
                 .components(vec![buttons])
         };
-        msg.edit(*self, reply).await?;
+        msg.edit(self.ctx, reply).await?;
         let (prev, next) = (String::from("prev"), String::from("next"));
         let buttons = CreateActionRow::Buttons(vec![
             CreateButton::new(prev.clone())
@@ -325,7 +317,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         let mut ic = self.create_interaction_collector(msg).await?;
 
         while let Some(interactions) = &ic.next().await {
-            interactions.defer(self.http()).await?;
+            interactions.defer(self.ctx.http()).await?;
             match interactions.data.custom_id.as_str() {
                 "0" => {
                     let brawlers: Vec<Vec<FullBrawler>> = brawlers
@@ -337,7 +329,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                     let mut chunk: &[FullBrawler] = brawlers[page_number].as_ref();
                     loop {
                         let selected = match select_options(
-                            self,
+                            &self.ctx,
                             msg,
                             embed(chunk),
                             vec![buttons.clone()],
@@ -377,14 +369,14 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         Err(anyhow!("No option selected"))
     }
 
-    async fn map_selection(
+    pub async fn map_selection(
         &self,
         msg: &ReplyHandle<'_>,
         mode: &Mode,
     ) -> Result<BrawlMap, BotError> {
-        let raw = self.data().apis.brawlify.get_maps().await?;
+        let raw = self.ctx.data().apis.brawlify.get_maps().await?;
         let maps = raw
-            .handler(self, msg)
+            .handler(&self.ctx, msg)
             .await?
             .ok_or(CommonError::APIError("No maps found".to_string()))?;
         let filtered_maps = maps.to_owned().filter_map_by_mode(mode);
@@ -431,7 +423,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 .components(vec![buttons])
         };
         let mut page_number: usize = 0;
-        msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
+        msg.edit(self.ctx, reply(filtered_maps[page_number].to_owned()))
             .await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
@@ -440,11 +432,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                     page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
-                    interactions.defer(self.http()).await?;
+                    interactions.defer(self.ctx.http()).await?;
                     return Ok(filtered_maps[page_number].clone());
                 }
                 "any" => {
-                    interactions.defer(self.http()).await?;
+                    interactions.defer(self.ctx.http()).await?;
                     let selected = BrawlMap::default();
                     return Ok(selected);
                 }
@@ -453,21 +445,17 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 }
                 _ => unreachable!(),
             }
-            interactions.defer(self.http()).await?;
-            msg.edit(*self, reply(filtered_maps[page_number].to_owned()))
+            interactions.defer(self.ctx.http()).await?;
+            msg.edit(self.ctx, reply(filtered_maps[page_number].to_owned()))
                 .await?;
         }
         Err(NoSelection.into())
     }
 
-    async fn default_map(&self, tournament_id: i32) -> Result<(), BotError> {
-        self.data().database.set_default_map(tournament_id).await
-    }
-
-    async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {
-        let raw = self.data().apis.brawlify.get_modes().await?;
+    pub async fn mode_selection(&self, msg: &ReplyHandle<'_>) -> Result<FullGameMode, BotError> {
+        let raw = self.ctx.data().apis.brawlify.get_modes().await?;
         let modes = raw
-            .handler(self, msg)
+            .handler(&self.ctx, msg)
             .await?
             .ok_or(CommonError::APIError("No modes found".to_string()))?;
         let (prev, select, next) = (
@@ -504,7 +492,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         };
         let mut page_number: usize = 0;
         let mut selected = modes.list[page_number].to_owned();
-        msg.edit(*self, reply(selected.to_owned())).await?;
+        msg.edit(self.ctx, reply(selected.to_owned())).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
@@ -512,7 +500,7 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                     page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
-                    interactions.defer(self.http()).await?;
+                    interactions.defer(self.ctx.http()).await?;
                     return Ok(selected.clone());
                 }
                 "next" => {
@@ -520,10 +508,11 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
                 }
                 _ => unreachable!(),
             }
-            interactions.defer(self.http()).await?;
+            interactions.defer(self.ctx.http()).await?;
             selected = modes.list[page_number].to_owned();
-            msg.edit(*self, reply(selected.to_owned())).await?;
+            msg.edit(self.ctx, reply(selected.to_owned())).await?;
         }
         Err(NoSelection.into())
     }
 }
+

@@ -5,6 +5,7 @@ use crate::log::Log;
 use crate::mail::model::MailType;
 use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::*;
+use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
@@ -182,7 +183,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             "Your mail has been sent to {} successfully!\n You can safely dismiss this message!",
             recipient.mention()
         ));
-        self.prompt(msg, embed, None).await?;
+        self.components().prompt(msg, embed, None).await?;
         Ok(())
     }
 
@@ -214,7 +215,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             let embed = CreateEmbed::new()
                 .title("No unread mail")
                 .description("You have no unread mail!");
-            self.prompt(msg, embed, None).await?;
+            self.components().prompt(msg, embed, None).await?;
             return Ok(());
         }
         let chunked_mail: Vec<&[Mail]> = mails.chunks(CHUNK).collect();
@@ -420,7 +421,7 @@ Reported by: {recipient}.
     };
     let thread_id = log.create_thread(ctx.http(), thread).await?;
     thread_id.send_message(ctx.http(), reply).await?;
-    ctx.prompt(msg,
+    ctx.components().prompt(msg,
         CreateEmbed::new()
             .title("This mail has been reported!")
             .description("You can safely dismiss this mail. The marshals will keep you up-to-date about this report!"), 

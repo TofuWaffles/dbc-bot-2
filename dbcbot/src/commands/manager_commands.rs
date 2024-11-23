@@ -4,7 +4,7 @@ use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::BotContextExt;
+use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{
     commands::checks::{is_config_set, is_manager},
     database::*,
@@ -146,7 +146,7 @@ async fn start_tournament_slash(
     {
         Some(tournament) => tournament,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::default()
                     .title("Tournament not found")
@@ -172,7 +172,7 @@ async fn set_config(
     let announcement_channel_id = match announcement_channel.guild() {
         Some(guild) => guild.id,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Invalid announcement channel")
@@ -198,7 +198,7 @@ async fn set_config(
     let log_channel_id = match log_channel.guild() {
         Some(guild) => guild.id,
         None => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
                     .title("Invalid log channel")
@@ -230,7 +230,7 @@ async fn set_config(
             announcement_channel_id.as_ref(),
         )
         .await?;
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Configuration set successfully!")
@@ -282,7 +282,7 @@ async fn create_tournament(
             wins_required,
         )
         .await?;
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::new()
             .title("Successfully create a new tournament")
@@ -333,7 +333,7 @@ async fn start_tournament(
     match tournament.status {
         TournamentStatus::Pending => (),
         _ => {
-            ctx.prompt(
+            ctx.components().prompt(
                 msg,
                 CreateEmbed::default()
                     .title("Tournament already started or ended")
@@ -406,7 +406,7 @@ async fn start_tournament(
         .database
         .set_rounds(tournament_id, rounds_count)
         .await?;
-    ctx.prompt(
+    ctx.components().prompt(
         msg,
         CreateEmbed::default()
             .title("Tournament started!")
@@ -571,7 +571,7 @@ Log channel: <#{log}>.
                 "Please select the channel where the bot will log all the actions it takes.",
             );
         let log_channel = select_channel(ctx, msg, lembed).await?;
-        if ctx
+        if ctx.components()
             .confirmation(
                 msg,
                 embed(&marshal_role, &announcement_channel, &log_channel),
@@ -653,7 +653,7 @@ async fn step_by_step_create_tournament(
             .title("Select Role")
             .description("Please select the role for the tournament.");
         let role = select_role(ctx, msg, rembed).await?;
-        if ctx
+        if ctx.components()
             .confirmation(
                 msg,
                 embed(&modal, &role, &announcement_channel, &notification_channel),

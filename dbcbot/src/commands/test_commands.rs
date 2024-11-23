@@ -6,7 +6,7 @@ use crate::database::{Database, TournamentDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::discord::modal;
-use crate::utils::shorthand::BotContextExt;
+use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{BotContext, BotData, BotError};
 use anyhow::anyhow;
 
@@ -105,7 +105,7 @@ async fn match_image(
     let image = match image_api.match_image(&p1, &p2).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new()
                     .title("An error has occured!")
@@ -178,7 +178,7 @@ async fn result_image(
     let image = match image_api.result_image(&p1, &p2, &score).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new()
                     .title("An error has occured!")
@@ -253,7 +253,7 @@ async fn profile_image(
     let image = match image_api.profile_image(&user, tournament_id).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.prompt(
+            ctx.components().prompt(
                 &msg,
                 CreateEmbed::new()
                     .title("An error has occured!")
@@ -292,7 +292,7 @@ async fn profile_image(
 async fn choose_brawler_command(ctx: BotContext<'_>) -> Result<(), BotError> {
     ctx.defer().await?;
     let msg = ctx.reply("Choose a brawler").await?;
-    let brawler = ctx.brawler_selection(&msg).await?;
+    let brawler = ctx.components().brawler_selection(&msg).await?;
     ctx.say(format!("You chose {}", brawler.name)).await?;
     Ok(())
 }
@@ -302,7 +302,7 @@ async fn choose_brawler_command(ctx: BotContext<'_>) -> Result<(), BotError> {
 async fn choose_map_command(ctx: BotContext<'_>, mode: Mode) -> Result<(), BotError> {
     ctx.defer().await?;
     let msg = ctx.reply("Test choosing map").await?;
-    let map = ctx.map_selection(&msg, &mode).await?;
+    let map = ctx.components().map_selection(&msg, &mode).await?;
     let reply = {
         let embed = CreateEmbed::default()
             .title(map.name.to_string())
@@ -326,7 +326,7 @@ async fn choose_map_command(ctx: BotContext<'_>, mode: Mode) -> Result<(), BotEr
 async fn choose_gamemode_command(ctx: BotContext<'_>) -> Result<(), BotError> {
     ctx.defer().await?;
     let msg = ctx.reply("Choose a game mode").await?;
-    let mode = ctx.mode_selection(&msg).await?;
+    let mode = ctx.components().mode_selection(&msg).await?;
     let reply = {
         let embed = CreateEmbed::default()
             .title(mode.name.to_string())
@@ -372,6 +372,7 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
         Some(maps) => maps,
         None => {
             return ctx
+                .components()
                 .prompt(
                     &msg,
                     CreateEmbed::default().description("No maps were added!"),
@@ -385,7 +386,7 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
         let brawl_map = BrawlMap::from(map);
         ctx.data().database.add_map(&brawl_map).await?;
     }
-    ctx.prompt(
+    ctx.components().prompt(
         &msg,
         CreateEmbed::default().description("All maps were added!"),
         None,
