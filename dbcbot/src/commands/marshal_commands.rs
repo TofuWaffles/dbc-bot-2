@@ -931,8 +931,7 @@ async fn next_round_helper(
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn get_battle_logs(
     ctx: BotContext<'_>,
-    #[description = "The player to get the battle log for"] player: User,
-    #[description = "The match ID to get the battle log for"] match_id: Option<String>,
+    #[description = "The match ID to get the battle log for"] match_id: String,
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
@@ -946,14 +945,9 @@ async fn get_battle_logs(
     async fn inner(
         ctx: &BotContext<'_>,
         msg: &ReplyHandle<'_>,
-        player: &User,
-        match_id: Option<String>,
+        match_id: String,
     ) -> Result<(), BotError> {
-        let current_match = match match_id {
-            Some(mid) => ctx.data().database.get_match_by_id(&mid).await?,
-            None => ctx.data().database.get_current_match(&player.id).await?,
-        }
-        .ok_or(anyhow!("Match not found for this player"))?;
+        let current_match = ctx.data().database.get_match_by_id(&match_id).await?.ok_or(anyhow!("Match not found for this player"))?;
         let record = ctx
             .data()
             .database
@@ -981,7 +975,7 @@ async fn get_battle_logs(
         msg.delete(*ctx).await?;
         Ok(())
     }
-    if let Err(e) = inner(&ctx, &msg, &player, match_id.clone()).await {
+    if let Err(e) = inner(&ctx, &msg, match_id).await {
         let embed = CreateEmbed::new()
             .title("An error encoutered!")
             .description(format!("{}", e));
