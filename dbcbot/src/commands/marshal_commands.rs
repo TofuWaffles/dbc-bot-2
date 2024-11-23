@@ -7,7 +7,6 @@ use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
-use crate::utils::discord::{modal, select_channel, select_options, select_role};
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{
@@ -1049,7 +1048,7 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
             .description("Here are some of the tournaments that you can manage.")
             .fields(fields)
     };
-    let tid = select_options(&ctx, &msg, embed, None, &tournaments).await?;
+    let tid = ctx.components().select_options(&msg, embed, None, &tournaments).await?;
     let tournament = tournaments
         .into_iter()
         .find(|t| t.tournament_id.to_string() == tid)
@@ -1197,7 +1196,7 @@ async fn tournament_property_page(
                 let embed = CreateEmbed::new()
                     .title("Win requirement")
                     .description("Enter the number of wins required to win a match");
-                let res = modal::<WinModal>(ctx, msg, embed).await?;
+                let res = ctx.components().modal::<WinModal>(msg, embed).await?;
                 let wins: i32 = res.wins_required.unwrap_or("3".to_string()).parse()?;
                 ctx.data()
                     .database
@@ -1279,17 +1278,17 @@ Current configuration:
             "announcement" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                select_channel(ctx, msg, embed).await?;
+                ctx.components().select_channel(msg, embed).await?;
             }
             "notification" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                select_channel(ctx, msg, embed).await?;
+                ctx.components().select_channel(msg, embed).await?;
             }
             "participant" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                select_role(ctx, msg, embed).await?;
+                ctx.components().select_role(msg, embed).await?;
             }
             _ => continue,
         }
@@ -1343,8 +1342,7 @@ async fn player_page(
                     #[name = "Player"]
                     player: Option<String>,
                 }
-                let res = modal::<DisqualifyModal>(
-                    ctx,
+                let res = ctx.components().modal::<DisqualifyModal>(
                     msg,
                     CreateEmbed::new().title("Disqualify a player"),
                 )

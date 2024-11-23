@@ -7,7 +7,6 @@ use crate::database::models::{
 use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
-use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{api::APIResult, commands::checks::is_config_set};
@@ -553,8 +552,7 @@ async fn user_display_tournaments(
 
     let selected_tournament = if !tournaments.is_empty() {
         loop {
-            let selected = select_options(
-                ctx,
+            let selected = ctx.components().select_options(
                 msg,
                 CreateEmbed::default()
                     .title("Tournament Enrollment")
@@ -695,7 +693,7 @@ async fn user_display_registration(
                 .description("Please enter your in-game player tag (without the #) The tutorial below would help you find your player tag (wait patiently for the gif to load)")
                 .image("https://i.imgur.com/bejTDlO.gif")
                 .color(0x0000FF);
-                let mut player_tag = modal::<ProfileRegistrationModal>(ctx, msg, embed)
+                let mut player_tag = ctx.components().modal::<ProfileRegistrationModal>(msg, embed)
                     .await?
                     .player_tag
                     .to_uppercase();
@@ -1011,8 +1009,7 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
         .await?;
         return Ok(());
     }
-    let selected_tournament_id = select_options(
-        ctx,
+    let selected_tournament_id = ctx.components().select_options(
         msg,
         CreateEmbed::default()
             .title("Leaving a tournament")

@@ -1,6 +1,4 @@
 use std::str::FromStr;
-
-use super::discord::select_options;
 use super::error::CommonError;
 use crate::database::*;
 use crate::utils::error::CommonError::*;
@@ -15,14 +13,20 @@ use crate::{
 };
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-use poise::serenity_prelude::UserId;
+use models::Selectable;
 use poise::{
     serenity_prelude::{
-        ButtonStyle, ComponentInteraction, CreateActionRow, CreateButton, CreateEmbed,
-        CreateEmbedFooter,
+        self as serenity, ButtonStyle, Channel, ChannelId, ChannelType, Colour,
+        ComponentInteraction, ComponentInteractionCollector,
+        ComponentInteractionDataKind::{ChannelSelect, RoleSelect}, CreateActionRow, 
+        CreateButton, CreateEmbed, CreateEmbedFooter, CreateSelectMenu, 
+        CreateSelectMenuKind, CreateSelectMenuOption, GuildChannel, GuildId, 
+        PartialGuild, Role, RoleId, User, UserId,
     },
     CreateReply, ReplyHandle,
 };
+
+
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
     async fn default_map(&self, tournament_id: i32) -> Result<(), BotError>;
@@ -168,6 +172,8 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
         self.created_at()
     }
 }
+
+#[derive(Debug, Copy, Clone)]
 pub struct Component<'a>{
     pub ctx: BotContext<'a>
 }
@@ -328,8 +334,7 @@ impl<'a> Component<'a>{
                         .collect();
                     let mut chunk: &[FullBrawler] = brawlers[page_number].as_ref();
                     loop {
-                        let selected = match select_options(
-                            &self.ctx,
+                        let selected = match self.select_options(
                             msg,
                             embed(chunk),
                             vec![buttons.clone()],
@@ -426,7 +431,7 @@ impl<'a> Component<'a>{
         msg.edit(self.ctx, reply(filtered_maps[page_number].to_owned()))
             .await?;
         let mut ic = self.create_interaction_collector(msg).await?;
-        while let Some(interactions) = &ic.next().await {
+        if let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
                 "prev" => {
                     page_number = page_number.saturating_sub(1);
@@ -514,5 +519,134 @@ impl<'a> Component<'a>{
         }
         Err(NoSelection.into())
     }
+
+    pub async fn select_channel(
+        &self,
+        msg: &ReplyHandle<'_>,
+        embed: CreateEmbed,
+    ) -> Result<Channel, BotError> {
+        let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
+            "channel",
+            CreateSelectMenuKind::Channel {
+                default_channels: None,
+                channel_types: Some(vec![ChannelType::Text]),
+            },
+        ))];
+        let builder = CreateReply::default().embed(embed).components(component);
+        msg.edit(self.ctx, builder).await?;
+        let mut ic = self.create_interaction_collector(msg).await?;
+        while let Some(mci) = ic.next().await {
+            mci.defer(self.ctx.http()).await?;
+            if let ChannelSelect { values } = mci.data.kind {
+                let channel = values[0].to_channel(self.ctx.http()).await?;
+                return Ok(channel);
+            }
+        }
+        Err(NoSelection.into())
+    }
+    
+    pub async fn select_role(
+        &self,
+        msg: &ReplyHandle<'_>,
+        embed: CreateEmbed,
+    ) -> Result<Role, BotError> {
+        let component = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
+            "role",
+            CreateSelectMenuKind::Role {
+                default_roles: None,
+            },
+        ))];
+        let builder = CreateReply::default().embed(embed).components(component);
+        msg.edit(self.ctx, builder).await?;
+        if let Some(mci) = ComponentInteractionCollector::new(self.ctx)
+            .author_id(self.ctx.author().id)
+            .channel_id(self.ctx.channel_id())
+            .timeout(std::time::Duration::from_secs(120))
+            .filter(move |mci| mci.data.custom_id == "role")
+            .await
+        {
+            mci.defer(self.ctx.http()).await?;
+            if let RoleSelect { values } = mci.data.kind {
+                let guild = self.ctx.guild().unwrap();
+                let role = guild.roles.get(&values[0]).unwrap().clone();
+                return Ok(role);
+            }
+        }
+        Err(NoSelection.into())
+    }
+    
+    pub async fn select_options<T: Selectable>(
+        &self,
+        msg: &ReplyHandle<'_>,
+        embed: CreateEmbed,
+        buttons: impl Into<Option<Vec<CreateActionRow>>>,
+        items: &[T],
+    ) -> Result<String, BotError> {
+        let options = items
+            .iter()
+            .map(|t| CreateSelectMenuOption::new(t.label(), t.identifier()))
+            .collect();
+        let mut buttons: Vec<CreateActionRow> = buttons.into().unwrap_or(vec![]);
+        let mut component = vec![CreateActionRow::SelectMenu(
+            CreateSelectMenu::new("option", CreateSelectMenuKind::String { options })
+                .disabled(items.is_empty()),
+        )];
+        component.append(&mut buttons);
+    
+        let builder = CreateReply::default().embed(embed).components(component);
+        msg.edit(self.ctx, builder).await?;
+        let mut ic = self.create_interaction_collector(msg).await?;
+        if let Some(interactions) = &ic.next().await {
+            match interactions.data.custom_id.as_str() {
+                "option" => {
+                    interactions.defer(self.ctx.http()).await?;
+                    if let poise::serenity_prelude::ComponentInteractionDataKind::StringSelect {
+                        values,
+                    } = interactions.clone().data.kind
+                    {
+                        return Ok(values[0].clone());
+                    }
+                }
+                button => {
+                    interactions.defer(self.ctx.http()).await?;
+                    return Ok(button.to_string());
+                }
+            }
+        }
+        Err(NoSelection.into())
+    }
+    
+    pub async fn modal<T: poise::modal::Modal>(
+        &self,
+        msg: &ReplyHandle<'_>,
+        embed: CreateEmbed,
+    ) -> Result<T, BotError> {
+        let builder = {
+            let components = vec![serenity::CreateActionRow::Buttons(vec![
+                serenity::CreateButton::new("open_modal")
+                    .label("Continue")
+                    .style(poise::serenity_prelude::ButtonStyle::Success),
+            ])];
+    
+            poise::CreateReply::default()
+                .embed(embed)
+                .components(components)
+        };
+    
+        msg.edit(self.ctx, builder).await?;
+    
+        if let Some(mci) = serenity::ComponentInteractionCollector::new(self.ctx.serenity_context())
+            .timeout(std::time::Duration::from_secs(120))
+            .filter(move |mci| mci.data.custom_id == "open_modal")
+            .await
+        {
+            let response = poise::execute_modal_on_component_interaction::<T>(self.ctx, mci, None, None)
+                .await?
+                .ok_or(NoSelection)?;
+            return Ok(response);
+        }
+        Err(NoSelection.into())
+    }
+    
 }
 

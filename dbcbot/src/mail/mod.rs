@@ -3,7 +3,6 @@ pub mod model;
 use crate::database::ConfigDatabase;
 use crate::log::Log;
 use crate::mail::model::MailType;
-use crate::utils::discord::{modal, select_options};
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
@@ -156,7 +155,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             .description("Please press at the button below to compose a mail");
         let mail = match auto_subject.into() {
             None => {
-                let modal = modal::<ComposeMail>(self, msg, embed).await?;
+                let modal = self.components().modal::<ComposeMail>(msg, embed).await?;
                 Mail::new(
                     self.author().id.to_string(),
                     recipient.to_string(),
@@ -167,7 +166,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                 .await
             }
             Some(subject) => {
-                let modal = modal::<ComposeMailWithoutSubject>(self, msg, embed).await?;
+                let modal = self.components().modal::<ComposeMailWithoutSubject>(msg, embed).await?;
                 Mail::new(
                     self.author().id.to_string(),
                     recipient.to_string(),
@@ -347,8 +346,7 @@ async fn inbox_helper(
             .style(ButtonStyle::Primary),
     ]);
     loop {
-        let selected = select_options(
-            ctx,
+        let selected = ctx.components().select_options(
             msg,
             detail(ctx, chunked_mail[page_number]).await?,
             vec![buttons.clone()],

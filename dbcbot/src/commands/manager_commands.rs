@@ -2,7 +2,7 @@ use super::CommandsContainer;
 use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
-use crate::utils::discord::{modal, select_channel, select_options, select_role, splash};
+use crate::utils::discord::splash;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{
@@ -555,7 +555,7 @@ Log channel: <#{log}>.
             .description(
                 "Please select the role that will be able to manage the tournament system.",
             );
-        let marshal_role = select_role(ctx, msg, membed).await?;
+        let marshal_role = ctx.components().select_role(msg, membed).await?;
         splash(ctx, msg).await?;
         let aembed = CreateEmbed::default()
             .title("Select Announcement Channel")
@@ -563,14 +563,14 @@ Log channel: <#{log}>.
             "Please select the channel where the bot will announce the progress of the tournament.",
         );
 
-        let announcement_channel = select_channel(ctx, msg, aembed).await?;
+        let announcement_channel = ctx.components().select_channel( msg, aembed).await?;
         splash(ctx, msg).await?;
         let lembed = CreateEmbed::default()
             .title("Select Log Channel")
             .description(
                 "Please select the channel where the bot will log all the actions it takes.",
             );
-        let log_channel = select_channel(ctx, msg, lembed).await?;
+        let log_channel = ctx.components().select_channel( msg, lembed).await?;
         if ctx.components()
             .confirmation(
                 msg,
@@ -626,9 +626,8 @@ async fn step_by_step_create_tournament(
         let m_embed = CreateEmbed::new()
             .title("Creating a new tournament")
             .description("Please provide the name of the tournament.");
-        let modal = modal::<TournamentName>(ctx, msg, m_embed.clone()).await?;
-        let mode = select_options::<Mode>(
-            ctx,
+        let modal = ctx.components().modal::<TournamentName>(msg, m_embed.clone()).await?;
+        let mode = ctx.components().select_options::<Mode>(
             msg,
             CreateEmbed::default()
                 .title("Select Mode")
@@ -643,16 +642,16 @@ async fn step_by_step_create_tournament(
             .description(
             "Please select the channel where the bot will announce the progress of the tournament.",
         );
-        let announcement_channel = select_channel(ctx, msg, aembed).await?;
+        let announcement_channel = ctx.components().select_channel(msg, aembed).await?;
         splash(ctx, msg).await?;
         let nembed = CreateEmbed::default()
             .title("Select Notification Channel")
             .description("Please select the channel where the bot will send notifications to players about their progress and matches.");
-        let notification_channel = select_channel(ctx, msg, nembed).await?;
+        let notification_channel = ctx.components().select_channel(msg, nembed).await?;
         let rembed = CreateEmbed::default()
             .title("Select Role")
             .description("Please select the role for the tournament.");
-        let role = select_role(ctx, msg, rembed).await?;
+        let role = ctx.components().select_role(msg, rembed).await?;
         if ctx.components()
             .confirmation(
                 msg,
@@ -701,8 +700,7 @@ async fn step_by_step_start_tournament(
     }
     let guild_id = ctx.guild_id().ok_or(anyhow!("No guild id found"))?;
     let tournaments = ctx.data().database.get_all_tournaments(&guild_id).await?;
-    let id = select_options::<Tournament>(
-        ctx,
+    let id = ctx.components().select_options::<Tournament>(
         msg,
         CreateEmbed::default()
             .title("Start Tournament")
