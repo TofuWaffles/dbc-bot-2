@@ -748,7 +748,7 @@ fn generate_matches_new_tournament(
                 // The # of slots is the number of (total # of matches - current # of matches) * 2
                 // If the number of players remaining is above this threshold, we put both players
                 // in.
-                if tournament_players.len() >= (matches_count as usize - matches.len()) << 1  {
+                if tournament_players.len() >= (matches_count as usize - matches.len()) << 1 {
                     bracket.match_players.push(tournament_players.pop().ok_or(anyhow!("Error generation matches for new tournament: the match count ({}), does not match the number of players ({})", matches_count, tournament_players.len()))?.into());
                 }
                 // Guaranteed to have a player
@@ -927,27 +927,24 @@ mod tests {
 
         assert_eq!(matches.len(), 15);
 
-        matches.iter().enumerate().for_each(|(i, m)| {
-            match i {
-                0..7 => {
-                    assert!(check_bye(m));
-                    assert!(m.winner.is_some());
-                },
-                7 => {
-                    assert!(check_full(m));
-                    assert!(m.winner.is_none());
-                },
-                8..11 => {
-                    assert!(check_full(m));
-                    assert!(m.winner.is_none());
-                },
-                11 => {
-                    assert!(check_bye(m));
-                    assert!(m.winner.is_none());
-                },
-                _ => assert!(check_empty(m)),
+        matches.iter().enumerate().for_each(|(i, m)| match i {
+            0..7 => {
+                assert!(check_bye(m));
+                assert!(m.winner.is_some());
             }
+            7 => {
+                assert!(check_full(m));
+                assert!(m.winner.is_none());
+            }
+            8..11 => {
+                assert!(check_full(m));
+                assert!(m.winner.is_none());
+            }
+            11 => {
+                assert!(check_bye(m));
+                assert!(m.winner.is_none());
+            }
+            _ => assert!(check_empty(m)),
         });
-            
     }
 }
