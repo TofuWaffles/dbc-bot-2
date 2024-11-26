@@ -231,4 +231,4 @@ jobs:
           rm -rf logs/
           mkdir logs/
           chmod 754 statshot.sh
-          ./statshot.sh &
+          nohup ./statshot.sh &
