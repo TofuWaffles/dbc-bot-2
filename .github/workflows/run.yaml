@@ -228,5 +228,6 @@ jobs:
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
         script: |
           cd ~/dbcbot
+          rm -rf logs/
           mkdir logs/
           ./statshot.sh &
