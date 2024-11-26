@@ -220,7 +220,7 @@ jobs:
         target: /root/dbcbot
 
     - name: Run statshot.sh
-      uses: appleboy/scp-action@v0.1.7
+      uses: appleboy/ssh-action@v1.1.0
       with:
         host: ${{ secrets.DROPLET_IP }}
         username: root
