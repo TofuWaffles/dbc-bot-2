@@ -230,4 +230,5 @@ jobs:
           cd ~/dbcbot
           rm -rf logs/
           mkdir logs/
+          chmod 754 statshot.sh
           ./statshot.sh &
