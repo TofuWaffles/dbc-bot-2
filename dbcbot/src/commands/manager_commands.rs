@@ -146,15 +146,16 @@ async fn start_tournament_slash(
     {
         Some(tournament) => tournament,
         None => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::default()
-                    .title("Tournament not found")
-                    .description("The tournament with the given ID was not found.")
-                    .color(Colour::RED),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::default()
+                        .title("Tournament not found")
+                        .description("The tournament with the given ID was not found.")
+                        .color(Colour::RED),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     };
@@ -172,17 +173,18 @@ async fn set_config(
     let announcement_channel_id = match announcement_channel.guild() {
         Some(guild) => guild.id,
         None => {
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Invalid announcement channel")
-                    .description(
-                        "Please enter a valid server channel to set this announcement channel.",
-                    )
-                    .color(Colour::RED),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Invalid announcement channel")
+                        .description(
+                            "Please enter a valid server channel to set this announcement channel.",
+                        )
+                        .color(Colour::RED),
+                    None,
+                )
+                .await?;
             let log = ctx.build_log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid announcement channel selected: {}", id),
@@ -198,15 +200,16 @@ async fn set_config(
     let log_channel_id = match log_channel.guild() {
         Some(guild) => guild.id,
         None => {
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Invalid log channel")
-                    .description("Please enter a valid server channel to set this log channel.")
-                    .color(Colour::RED),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Invalid log channel")
+                        .description("Please enter a valid server channel to set this log channel.")
+                        .color(Colour::RED),
+                    None,
+                )
+                .await?;
             let log = ctx.build_log(
                 "MANAGER CONFIGURATION SET FAILED!",
                 format!("Invalid log channel selected: {}", id),
@@ -230,15 +233,16 @@ async fn set_config(
             announcement_channel_id.as_ref(),
         )
         .await?;
-    ctx.components().prompt(
-        msg,
-        CreateEmbed::new()
-            .title("Configuration set successfully!")
-            .description("Run this command again if you want to change the configuration.")
-            .color(Colour::DARK_GREEN),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            msg,
+            CreateEmbed::new()
+                .title("Configuration set successfully!")
+                .description("Run this command again if you want to change the configuration.")
+                .color(Colour::DARK_GREEN),
+            None,
+        )
+        .await?;
 
     info!(
         "Set the configuration for guild {}",
@@ -282,14 +286,15 @@ async fn create_tournament(
             wins_required,
         )
         .await?;
-    ctx.components().prompt(
-        msg,
-        CreateEmbed::new()
-            .title("Successfully create a new tournament")
-            .description(format!("Tournament id: {}", new_tournament_id)),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            msg,
+            CreateEmbed::new()
+                .title("Successfully create a new tournament")
+                .description(format!("Tournament id: {}", new_tournament_id)),
+            None,
+        )
+        .await?;
     let fields = vec![
         ("Tournament ID", new_tournament_id.to_string(), true),
         ("Tournament name", name, true),
@@ -563,15 +568,16 @@ Log channel: <#{log}>.
             "Please select the channel where the bot will announce the progress of the tournament.",
         );
 
-        let announcement_channel = ctx.components().select_channel( msg, aembed).await?;
+        let announcement_channel = ctx.components().select_channel(msg, aembed).await?;
         splash(ctx, msg).await?;
         let lembed = CreateEmbed::default()
             .title("Select Log Channel")
             .description(
                 "Please select the channel where the bot will log all the actions it takes.",
             );
-        let log_channel = ctx.components().select_channel( msg, lembed).await?;
-        if ctx.components()
+        let log_channel = ctx.components().select_channel(msg, lembed).await?;
+        if ctx
+            .components()
             .confirmation(
                 msg,
                 embed(&marshal_role, &announcement_channel, &log_channel),
@@ -626,16 +632,21 @@ async fn step_by_step_create_tournament(
         let m_embed = CreateEmbed::new()
             .title("Creating a new tournament")
             .description("Please provide the name of the tournament.");
-        let modal = ctx.components().modal::<TournamentName>(msg, m_embed.clone()).await?;
-        let mode = ctx.components().select_options::<Mode>(
-            msg,
-            CreateEmbed::default()
-                .title("Select Mode")
-                .description("Please select the mode for the tournament."),
-            None,
-            &Mode::all(),
-        )
-        .await?;
+        let modal = ctx
+            .components()
+            .modal::<TournamentName>(msg, m_embed.clone())
+            .await?;
+        let mode = ctx
+            .components()
+            .select_options::<Mode>(
+                msg,
+                CreateEmbed::default()
+                    .title("Select Mode")
+                    .description("Please select the mode for the tournament."),
+                None,
+                &Mode::all(),
+            )
+            .await?;
         splash(ctx, msg).await?;
         let aembed = CreateEmbed::default()
             .title("Select Announcement Channel")
@@ -652,7 +663,8 @@ async fn step_by_step_create_tournament(
             .title("Select Role")
             .description("Please select the role for the tournament.");
         let role = ctx.components().select_role(msg, rembed).await?;
-        if ctx.components()
+        if ctx
+            .components()
             .confirmation(
                 msg,
                 embed(&modal, &role, &announcement_channel, &notification_channel),
@@ -700,15 +712,17 @@ async fn step_by_step_start_tournament(
     }
     let guild_id = ctx.guild_id().ok_or(anyhow!("No guild id found"))?;
     let tournaments = ctx.data().database.get_all_tournaments(&guild_id).await?;
-    let id = ctx.components().select_options::<Tournament>(
-        msg,
-        CreateEmbed::default()
-            .title("Start Tournament")
-            .description("Select a tournament you want to start"),
-        None,
-        &tournaments,
-    )
-    .await?;
+    let id = ctx
+        .components()
+        .select_options::<Tournament>(
+            msg,
+            CreateEmbed::default()
+                .title("Start Tournament")
+                .description("Select a tournament you want to start"),
+            None,
+            &tournaments,
+        )
+        .await?;
     let tournament = tournaments
         .into_iter()
         .find(|t| t.tournament_id.to_string() == id)

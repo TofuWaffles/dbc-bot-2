@@ -823,14 +823,15 @@ async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotEr
     {
         Some(tournament) => tournament,
         None => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("No ID was given")
-                    .description("Try again with an existing tournament ID."),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("No ID was given")
+                        .description("Try again with an existing tournament ID."),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     };
@@ -855,12 +856,13 @@ async fn next_round_helper(
 
     for (predicate, title, message) in conditions {
         if predicate(tournament) {
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new().title(title).description(message),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new().title(title).description(message),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     }
@@ -886,7 +888,8 @@ async fn next_round_helper(
         .database
         .set_current_round(tournament.tournament_id, new_round)
         .await?;
-    if ctx.components()
+    if ctx
+        .components()
         .confirmation(
             msg,
             CreateEmbed::default().description("Do you want to select map for next round?"),
@@ -1008,14 +1011,15 @@ async fn update_map(ctx: BotContext<'_>) -> Result<(), BotError> {
             let m: BrawlMap = map.into();
             db.add_map(&m).await?;
         }
-        ctx.components().prompt(
-            &msg,
-            CreateEmbed::new()
-                .title("Updated successfully")
-                .description("All maps have been updated"),
-            None,
-        )
-        .await?;
+        ctx.components()
+            .prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("Updated successfully")
+                    .description("All maps have been updated"),
+                None,
+            )
+            .await?;
     }
     Ok(())
 }
@@ -1048,7 +1052,10 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
             .description("Here are some of the tournaments that you can manage.")
             .fields(fields)
     };
-    let tid = ctx.components().select_options(&msg, embed, None, &tournaments).await?;
+    let tid = ctx
+        .components()
+        .select_options(&msg, embed, None, &tournaments)
+        .await?;
     let tournament = tournaments
         .into_iter()
         .find(|t| t.tournament_id.to_string() == tid)
@@ -1066,27 +1073,28 @@ async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
         ]
     };
-    ctx.components().prompt(
-        &msg,
-        CreateEmbed::new()
-            .title(format!("Tournament Menu for {}", tournament.name))
-            .description("Below are the information about the tournament")
-            .fields(vec![
-                ("Tournament", tournament.name.clone(), true),
-                ("ID", tournament.tournament_id.to_string(), true),
-                ("Mode", tournament.mode.to_string(), true),
-                ("Status", tournament.status.to_string(), true),
-                (
-                    "Round",
-                    format!("{}/{}", tournament.current_round, tournament.rounds),
-                    true,
-                ),
-                ("Wins required", tournament.wins_required.to_string(), true),
-                ("Map", tournament.map.name.clone(), true),
-            ]),
-        buttons,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            &msg,
+            CreateEmbed::new()
+                .title(format!("Tournament Menu for {}", tournament.name))
+                .description("Below are the information about the tournament")
+                .fields(vec![
+                    ("Tournament", tournament.name.clone(), true),
+                    ("ID", tournament.tournament_id.to_string(), true),
+                    ("Mode", tournament.mode.to_string(), true),
+                    ("Status", tournament.status.to_string(), true),
+                    (
+                        "Round",
+                        format!("{}/{}", tournament.current_round, tournament.rounds),
+                        true,
+                    ),
+                    ("Wins required", tournament.wins_required.to_string(), true),
+                    ("Map", tournament.map.name.clone(), true),
+                ]),
+            buttons,
+        )
+        .await?;
     let mut ic = ctx.create_interaction_collector(&msg).await?;
     while let Some(interactions) = &ic.next().await {
         match interactions.data.custom_id.as_str() {
@@ -1342,11 +1350,10 @@ async fn player_page(
                     #[name = "Player"]
                     player: Option<String>,
                 }
-                let res = ctx.components().modal::<DisqualifyModal>(
-                    msg,
-                    CreateEmbed::new().title("Disqualify a player"),
-                )
-                .await?;
+                let res = ctx
+                    .components()
+                    .modal::<DisqualifyModal>(msg, CreateEmbed::new().title("Disqualify a player"))
+                    .await?;
                 let id = res.player.ok_or(anyhow!("No player was given"))?;
                 let player = UserId::from_str(&id)?;
                 disqualify(ctx, t, player.to_user(ctx).await?).await?;
@@ -1370,12 +1377,10 @@ async fn utilities_page(
             .description("Tourmament utitlies includes\n-Add map: Update the latest map from Brawlify to the database")
             .footer(CreateEmbedFooter::new("This may take a while."));
     let buttons = {
-            vec![
-                CreateButton::new("add_map")
-                    .label("Map update")
-                    .style(poise::serenity_prelude::ButtonStyle::Primary),
-            ]
-        };
+        vec![CreateButton::new("add_map")
+            .label("Map update")
+            .style(poise::serenity_prelude::ButtonStyle::Primary)]
+    };
     ctx.components().prompt(msg, embed, buttons).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     if let Some(interactions) = &ic.next().await {
@@ -1392,15 +1397,16 @@ async fn utilities_page(
 
 pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
-            .title("Adding maps to the database")
-            .description("This command will add all maps to the database.")
-            .footer(CreateEmbedFooter::new("This may take a while."));
+        .title("Adding maps to the database")
+        .description("This command will add all maps to the database.")
+        .footer(CreateEmbedFooter::new("This may take a while."));
     ctx.components().prompt(msg, embed, None).await?;
     let raw = ctx.data().apis.brawlify.get_maps().await?;
     let mut maps = match raw.handler(&ctx, &msg).await? {
         Some(maps) => maps,
         None => {
-            return ctx.components()
+            return ctx
+                .components()
                 .prompt(
                     &msg,
                     CreateEmbed::default().description("No maps were added!"),
@@ -1413,12 +1419,13 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
         let brawl_map = BrawlMap::from(map);
         ctx.data().database.add_map(&brawl_map).await?;
     }
-    ctx.components().prompt(
-        &msg,
-        CreateEmbed::default().description("All maps were added!"),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            &msg,
+            CreateEmbed::default().description("All maps were added!"),
+            None,
+        )
+        .await?;
     Ok(())
 }
 

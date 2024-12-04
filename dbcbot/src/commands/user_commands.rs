@@ -64,15 +64,16 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
         }
     }
 
-    ctx.components().prompt(
-        &msg,
-        CreateEmbed::new()
-            .title("Registration Page Menu")
-            .description("Loading registration page...")
-            .color(Color::BLUE),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            &msg,
+            CreateEmbed::new()
+                .title("Registration Page Menu")
+                .description("Loading registration page...")
+                .color(Color::BLUE),
+            None,
+        )
+        .await?;
     return user_display_registration(&ctx, &msg, interaction_collector).await;
 }
 
@@ -167,15 +168,16 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.components().prompt(
-                    msg,
-                    CreateEmbed::new()
-                        .title("Tournaments")
-                        .description("Loading tournaments...")
-                        .color(Color::BLUE),
-                    None,
-                )
-                .await?;
+                ctx.components()
+                    .prompt(
+                        msg,
+                        CreateEmbed::new()
+                            .title("Tournaments")
+                            .description("Loading tournaments...")
+                            .color(Color::BLUE),
+                        None,
+                    )
+                    .await?;
                 return user_display_tournaments(ctx, msg).await;
             }
             "deregister" => {
@@ -188,15 +190,16 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             }
             "menu_match" => {
                 interaction.defer(ctx.http()).await?;
-                ctx.components().prompt(
-                    msg,
-                    CreateEmbed::new()
-                        .title("Match Information")
-                        .description("Loading your match...")
-                        .color(Color::BLUE),
-                    None,
-                )
-                .await?;
+                ctx.components()
+                    .prompt(
+                        msg,
+                        CreateEmbed::new()
+                            .title("Match Information")
+                            .description("Loading your match...")
+                            .color(Color::BLUE),
+                        None,
+                    )
+                    .await?;
 
                 return user_display_match(ctx, msg, player_active_tournaments.remove(0), true)
                     .await;
@@ -616,15 +619,16 @@ async fn user_display_tournaments(
                 log::Model::TOURNAMENT,
             );
             ctx.log(log).await?;
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Tournament Enrollment")
-                    .description("You have successfully joined the tournament! Good luck!")
-                    .color(Color::DARK_GREEN),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Tournament Enrollment")
+                        .description("You have successfully joined the tournament! Good luck!")
+                        .color(Color::DARK_GREEN),
+                    None,
+                )
+                .await?;
         }
         Err(e) => {
             let log = ctx.build_log(
@@ -693,7 +697,9 @@ async fn user_display_registration(
                 .description("Please enter your in-game player tag (without the #) The tutorial below would help you find your player tag (wait patiently for the gif to load)")
                 .image("https://i.imgur.com/bejTDlO.gif")
                 .color(0x0000FF);
-                let mut player_tag = ctx.components().modal::<ProfileRegistrationModal>(msg, embed)
+                let mut player_tag = ctx
+                    .components()
+                    .modal::<ProfileRegistrationModal>(msg, embed)
                     .await?
                     .player_tag
                     .to_uppercase();
@@ -730,15 +736,16 @@ async fn user_display_registration(
         return Ok(());
     }
 
-    ctx.components().prompt(
-        msg,
-        CreateEmbed::new()
-            .title("Profile Registration")
-            .description("Please wait while we fetch your game account details.")
-            .color(Color::BLUE),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            msg,
+            CreateEmbed::new()
+                .title("Profile Registration")
+                .description("Please wait while we fetch your game account details.")
+                .color(Color::BLUE),
+            None,
+        )
+        .await?;
     let api_result = ctx
         .data()
         .apis
@@ -806,14 +813,15 @@ async fn user_display_registration(
             }
         }
         APIResult::NotFound => {
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Player Not Found")
-                    .description("The player tag you entered was not found. Please try again."),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Player Not Found")
+                        .description("The player tag you entered was not found. Please try again."),
+                    None,
+                )
+                .await?;
             let log = ctx.build_log(
                 "Player",
                 format!("Player tag {} not found", user.player_tag),
@@ -999,25 +1007,28 @@ async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result
         .get_active_tournaments_from_player(&discord_id)
         .await?;
     if tournaments.is_empty() {
-        ctx.components().prompt(
-            msg,
-            CreateEmbed::new()
-                .title("Leaving a tournament")
-                .description("You are not in any tournament."),
-            None,
-        )
-        .await?;
+        ctx.components()
+            .prompt(
+                msg,
+                CreateEmbed::new()
+                    .title("Leaving a tournament")
+                    .description("You are not in any tournament."),
+                None,
+            )
+            .await?;
         return Ok(());
     }
-    let selected_tournament_id = ctx.components().select_options(
-        msg,
-        CreateEmbed::default()
-            .title("Leaving a tournament")
-            .description("Select the tournament you want to leave"),
-        None,
-        &tournaments,
-    )
-    .await?;
+    let selected_tournament_id = ctx
+        .components()
+        .select_options(
+            msg,
+            CreateEmbed::default()
+                .title("Leaving a tournament")
+                .description("Select the tournament you want to leave"),
+            None,
+            &tournaments,
+        )
+        .await?;
     let selected_tournament = tournaments
         .iter()
         .find(|t| t.tournament_id == selected_tournament_id.parse::<i32>().unwrap())
@@ -1037,14 +1048,15 @@ Tournament name: {}"#,
                 .database
                 .exit_tournament(&selected_tournament.tournament_id, &discord_id)
                 .await?;
-            ctx.components().prompt(
-                msg,
-                CreateEmbed::new()
-                    .title("Leaving a tournament")
-                    .description("You have successfully left the tournament."),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Leaving a tournament")
+                        .description("You have successfully left the tournament."),
+                    None,
+                )
+                .await?;
         }
         false => {
             ctx.components().prompt(
@@ -1231,14 +1243,15 @@ async fn submit(
             return Ok(());
         }
     };
-    ctx.components().prompt(
-        msg,
-        CreateEmbed::new()
-            .title("Analyzing results")
-            .description("Hold on. I am analyzing the battle records..."),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            msg,
+            CreateEmbed::new()
+                .title("Analyzing results")
+                .description("Hold on. I am analyzing the battle records..."),
+            None,
+        )
+        .await?;
     let battles = filter(ctx, &logs.items, &current_match, tournament).await?;
     if battles.len() < tournament.wins_required as usize {
         return handle_not_enough_matches(ctx, msg).await;
@@ -1503,12 +1516,13 @@ async fn credit(ctx: BotContext<'_>) -> Result<(), BotError> {
         .await?;
     let description = "";
 
-    ctx.components().prompt(
-        &msg,
-        CreateEmbed::new().title("Credit").description(description),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            &msg,
+            CreateEmbed::new().title("Credit").description(description),
+            None,
+        )
+        .await?;
     Ok(())
 }
 
