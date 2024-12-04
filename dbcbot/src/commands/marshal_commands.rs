@@ -41,8 +41,6 @@ impl CommandsContainer for MarshalCommands {
             get_tournament(),
             get_active_tournaments(),
             next_round(),
-            pause_tournament(),
-            unpause_tournament(),
             get_match(),
             get_battle_logs(),
             set_map(),
@@ -212,7 +210,7 @@ async fn get_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
 #[instrument]
 async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
     let msg = ctx
-        .send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps...")))
+        .send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps...")).ephemeral(true))
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
