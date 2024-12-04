@@ -1370,7 +1370,7 @@ pub async fn finish_tournament(
     let announcement_channel_id = ctx
         .data()
         .database
-        .get_config(&guild_id)
+        .get_tournament(&ctx.guild_id().unwrap(), bracket.tournament()?)
         .await?
         .ok_or(anyhow!("Config not found for {}", guild_id.to_string()))?
         .announcement_channel_id;
