@@ -999,6 +999,9 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
     Ok(())
 }
 
+/// Removed a player from a tournament.
+///
+/// This is only allowed for tournaments with the status "pending".
 async fn leave_tournament(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
     let discord_id = ctx.author().id;
     let tournaments = ctx
@@ -1071,6 +1074,7 @@ Tournament name: {}"#,
     Ok(())
 }
 
+/// Reads and parses the in-game battle log to determine the winner of the current match.
 async fn submit(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
@@ -1354,6 +1358,8 @@ async fn submit(
     Ok(())
 }
 
+/// Finishes the tournament by making an announcement and setting the tournament status
+/// accordingly.
 pub async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,

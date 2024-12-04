@@ -1429,8 +1429,10 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
     Ok(())
 }
 
-/// Add all maps to the database.
-#[poise::command(slash_command)]
+/// Retrieves all active maps from the game and updates the internal database.
+///
+/// This command might take a while to run.
+#[poise::command(slash_command, rename = "add_maps")]
 pub async fn add_map_slash(ctx: BotContext<'_>) -> Result<(), BotError> {
     let reply = {
         let embed = CreateEmbed::default()

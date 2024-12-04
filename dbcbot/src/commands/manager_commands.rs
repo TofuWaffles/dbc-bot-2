@@ -73,8 +73,9 @@ async fn set_config_slash(
     set_config(ctx, &msg, marshal_role, announcement_channel, log_channel).await
 }
 
-/// Create a new tournament.
+/// Creates a new tournament.
 ///
+/// Tournament names do not have to be unique.
 #[poise::command(
     slash_command,
     prefix_command,
@@ -116,6 +117,8 @@ async fn create_tournament_slash(
 }
 
 /// Start a tournament.
+///
+/// The default number of wins required is 2.
 #[poise::command(
     slash_command,
     prefix_command,
@@ -162,6 +165,7 @@ async fn start_tournament_slash(
     start_tournament(ctx, &msg, tournament).await
 }
 
+/// Set the configuration for the current server.
 async fn set_config(
     ctx: BotContext<'_>,
     msg: &ReplyHandle<'_>,
@@ -443,6 +447,8 @@ async fn start_tournament(
 }
 
 /// Marshal menu command.
+///
+/// Allow access to all marshal commands using an easy-to-use Graphical User Interface.
 #[poise::command(slash_command, prefix_command, guild_only, check = "is_manager")]
 async fn manager_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     ctx.defer_ephemeral().await?;
