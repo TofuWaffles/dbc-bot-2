@@ -19,7 +19,6 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
         const eventSource = new EventSource(`${window.location.origin}${path}`);
 
         eventSource.onmessage = (event: MessageEvent) => {
-            console.log('does it run')
             setData(JSON.parse(event.data));
         };
 
