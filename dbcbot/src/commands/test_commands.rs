@@ -104,14 +104,15 @@ async fn match_image(
     let image = match image_api.match_image(&p1, &p2).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("An error has occured!")
-                    .description(e.to_string()),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("An error has occured!")
+                        .description(e.to_string()),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     };
@@ -177,14 +178,15 @@ async fn result_image(
     let image = match image_api.result_image(&p1, &p2, &score).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("An error has occured!")
-                    .description(e.to_string()),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("An error has occured!")
+                        .description(e.to_string()),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     };
@@ -252,14 +254,15 @@ async fn profile_image(
     let image = match image_api.profile_image(&user, tournament_id).await {
         Ok(image) => image,
         Err(e) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("An error has occured!")
-                    .description(e.to_string()),
-                None,
-            )
-            .await?;
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("An error has occured!")
+                        .description(e.to_string()),
+                    None,
+                )
+                .await?;
             return Ok(());
         }
     };
@@ -385,12 +388,13 @@ pub async fn add_maps(ctx: BotContext<'_>) -> Result<(), BotError> {
         let brawl_map = BrawlMap::from(map);
         ctx.data().database.add_map(&brawl_map).await?;
     }
-    ctx.components().prompt(
-        &msg,
-        CreateEmbed::default().description("All maps were added!"),
-        None,
-    )
-    .await?;
+    ctx.components()
+        .prompt(
+            &msg,
+            CreateEmbed::default().description("All maps were added!"),
+            None,
+        )
+        .await?;
     Ok(())
 }
 

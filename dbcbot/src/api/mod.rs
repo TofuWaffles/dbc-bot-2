@@ -1,7 +1,10 @@
 pub mod brawlify;
 pub mod images;
 pub mod official_brawl_stars;
-use crate::{utils::shorthand::{BotComponent, BotContextExt}, BotContext};
+use crate::{
+    utils::shorthand::{BotComponent, BotContextExt},
+    BotContext,
+};
 use poise::ReplyHandle;
 
 use crate::BotError;
@@ -70,21 +73,23 @@ where
         match self {
             Self::Ok(data) => Ok(Some(data)),
             Self::NotFound => {
-                ctx.components().prompt(
-                    msg,
-                    CreateEmbed::default().description("Resource not found."),
-                    None,
-                )
-                .await?;
+                ctx.components()
+                    .prompt(
+                        msg,
+                        CreateEmbed::default().description("Resource not found."),
+                        None,
+                    )
+                    .await?;
                 Ok(None)
             }
             Self::Maintenance => {
-                ctx.components().prompt(
-                    msg,
-                    CreateEmbed::default().description("API is currently under maintenance."),
-                    None,
-                )
-                .await?;
+                ctx.components()
+                    .prompt(
+                        msg,
+                        CreateEmbed::default().description("API is currently under maintenance."),
+                        None,
+                    )
+                    .await?;
                 Ok(None)
             }
         }
