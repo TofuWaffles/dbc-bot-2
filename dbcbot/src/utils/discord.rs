@@ -2,17 +2,14 @@ use std::str::FromStr;
 
 use crate::utils::error::CommonError::*;
 use crate::{
-    database::{self, models::Selectable},
+    database::{self},
     BotContext, BotError,
 };
 use anyhow::anyhow;
-use futures::StreamExt;
 use poise::{
     serenity_prelude::{
-        self as serenity, Channel, ChannelId, ChannelType, Colour, ComponentInteractionCollector,
-        ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
-        CreateActionRow, CreateEmbed, CreateSelectMenu, CreateSelectMenuKind,
-        CreateSelectMenuOption, GuildChannel, GuildId, PartialGuild, Role, RoleId, User, UserId,
+        ChannelId, Colour, CreateEmbed, GuildChannel, GuildId, PartialGuild, Role, RoleId, User,
+        UserId,
     },
     CreateReply, ReplyHandle,
 };

@@ -210,7 +210,11 @@ async fn get_active_tournaments(ctx: BotContext<'_>) -> Result<(), BotError> {
 #[instrument]
 async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
     let msg = ctx
-        .send(CreateReply::default().embed(CreateEmbed::default().description("Loading maps...")).ephemeral(true))
+        .send(
+            CreateReply::default()
+                .embed(CreateEmbed::default().description("Loading maps..."))
+                .ephemeral(true),
+        )
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
@@ -1259,7 +1263,11 @@ Current configuration:
                 .fields(vec![
                     ("Announcement Channel", ac.mention().to_string(), true),
                     ("Notification Channel", nc.mention().to_string(), true),
-                    ("Participant Role", pr.mention().to_string(), true),
+                    if let Some(role) = pr {
+                        ("Participant Role", role.mention().to_string(), true)
+                    } else {
+                        ("Participant Role", "None".to_string(), true)
+                    },
                 ])
         };
         let components = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(

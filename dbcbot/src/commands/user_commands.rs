@@ -608,6 +608,23 @@ async fn user_display_tournaments(
         .await
     {
         Ok(_) => {
+            let tournament = ctx
+                .data()
+                .database
+                .get_tournament(&guild_id, selected_tournament.parse::<i32>()?)
+                .await?
+                .ok_or(anyhow!(
+                    "Unable to find the tournament that the user has selected. Tournament ID: {}",
+                    selected_tournament
+                ))?;
+            if let Some(role_id) = tournament.tournament_role_id {
+                ctx.guild_id()
+                    .unwrap()
+                    .member(ctx, ctx.author().id)
+                    .await?
+                    .add_role(ctx, RoleId::from(role_id.parse::<u64>()?))
+                    .await?;
+            }
             let log = ctx.build_log(
                 "Tournament enrollment success",
                 format!(
@@ -1455,6 +1472,13 @@ pub async fn finish_tournament(
         .database
         .set_tournament_status(tournament_id, TournamentStatus::Inactive)
         .await?;
+
+    if let Some(role_id) = tournament.tournament_role_id {
+        ctx.guild_id()
+            .unwrap()
+            .delete_role(ctx, role_id.parse::<u64>()?)
+            .await?;
+    }
 
     Ok(())
 }

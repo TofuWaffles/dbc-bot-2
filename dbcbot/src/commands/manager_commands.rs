@@ -88,12 +88,12 @@ async fn create_tournament_slash(
     ctx: BotContext<'_>,
     #[description = "Tournament name"] name: String,
     #[description = "Mode for the tournament"] mode: Mode,
-    #[description = "Role for the tournament"] role: serenity::Role,
     #[description = "Announcement channel for the tournament"] announcement: serenity::Channel,
     #[description = "Notification channel for the tournament"] notification: serenity::Channel,
     #[description = "Number of wins required to win a match. Default: 2"] wins_required: Option<
         i32,
     >,
+    #[description = "Role for the tournament"] role: Option<serenity::RoleId>,
 ) -> Result<(), BotError> {
     let wins_required = wins_required.unwrap_or(2).max(1);
     let msg = ctx
@@ -269,13 +269,12 @@ async fn create_tournament(
     msg: &ReplyHandle<'_>,
     name: String,
     mode: Mode,
-    role: serenity::Role,
+    role: Option<serenity::RoleId>,
     announcement_channel: serenity::Channel,
     notification_channel: serenity::Channel,
     wins_required: i32,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-    let role_id = role.id;
     let new_tournament_id = ctx
         .data()
         .database
@@ -284,7 +283,7 @@ async fn create_tournament(
             &name,
             &mode,
             None,
-            &role_id,
+            &role,
             &announcement_channel.id(),
             &notification_channel.id(),
             wins_required,
@@ -303,7 +302,7 @@ async fn create_tournament(
         ("Tournament ID", new_tournament_id.to_string(), true),
         ("Tournament name", name, true),
         ("Mode", mode.to_string(), true),
-        ("Role", role.mention().to_string(), true),
+        ("Role", role.unwrap().mention().to_string(), true),
         (
             "Announcement channel",
             announcement_channel.mention().to_string(),
@@ -697,7 +696,7 @@ async fn step_by_step_create_tournament(
         msg,
         name,
         Mode::from_string(mode),
-        r,
+        r.id.into(),
         a,
         n,
         wins_required,

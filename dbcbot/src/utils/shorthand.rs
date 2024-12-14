@@ -15,12 +15,11 @@ use futures::{Stream, StreamExt};
 use models::Selectable;
 use poise::{
     serenity_prelude::{
-        self as serenity, ButtonStyle, Channel, ChannelId, ChannelType, Colour,
-        ComponentInteraction, ComponentInteractionCollector,
+        self as serenity, ButtonStyle, Channel, ChannelType, ComponentInteraction,
+        ComponentInteractionCollector,
         ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
         CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateSelectMenu,
-        CreateSelectMenuKind, CreateSelectMenuOption, GuildChannel, GuildId, PartialGuild, Role,
-        RoleId, User, UserId,
+        CreateSelectMenuKind, CreateSelectMenuOption, Role, UserId,
     },
     CreateReply, ReplyHandle,
 };

@@ -86,7 +86,7 @@ pub struct Tournament {
     pub created_at: i64,
     pub start_time: Option<i64>,
     pub status: TournamentStatus,
-    pub tournament_role_id: String,
+    pub tournament_role_id: Option<String>,
     #[serde(default)]
     pub mode: Mode,
     pub map: BrawlMap,
@@ -115,10 +115,16 @@ impl Tournament {
             .await
             .map_err(|_| ChannelNotExists(self.notification_channel_id.clone()))?)
     }
-    pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Role, BotError> {
-        Ok(Self::to_role(ctx, &self.tournament_role_id)
-            .await
-            .map_err(|_| RoleNotExists(self.tournament_role_id.clone()))?)
+    pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Option<Role>, BotError> {
+        if let Some(role) = &self.tournament_role_id {
+            return Ok(Some(
+                Self::to_role(ctx, &role)
+                    .await
+                    .map_err(|_| RoleNotExists(role.to_string()))?,
+            ));
+        }
+
+        Ok(None)
     }
 
     #[inline]

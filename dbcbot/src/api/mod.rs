@@ -1,10 +1,7 @@
 pub mod brawlify;
 pub mod images;
 pub mod official_brawl_stars;
-use crate::{
-    utils::shorthand::{BotComponent, BotContextExt},
-    BotContext,
-};
+use crate::{utils::shorthand::BotComponent, BotContext};
 use poise::ReplyHandle;
 
 use crate::BotError;
