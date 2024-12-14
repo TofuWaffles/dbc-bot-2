@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO tournaments (guild_id, name, mode, created_at, tournament_id, rounds, current_round, announcement_channel_id, notification_channel_id)\n            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7)\n            ON CONFLICT (tournament_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        {
+          "Custom": {
+            "name": "mode",
+            "kind": {
+              "Enum": [
+                "brawl_ball",
+                "gem_grab",
+                "heist",
+                "bounty",
+                "siege",
+                "solo_showdown",
+                "duo_showdown",
+                "hot_zone",
+                "knockout",
+                "takedown",
+                "lone_star",
+                "big_game",
+                "robo_rumble",
+                "boss_fight",
+                "wipeout",
+                "duels",
+                "paint_brawl",
+                "brawl_ball5v5",
+                "gem_grab5v5",
+                "bounty5v5",
+                "knockout5v5",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Int4",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c6cccded1565bb001130b9c6ecdd2301fbe81810e30fd1e06ec50cc467859bd"
+}
