@@ -17,6 +17,17 @@ const nextConfig = {
         
         return config;
     },
+    async headers() {
+        return [
+            {
+                source: "/api/:path*",
+                headers: [
+                    { key: "Cache-Control", value: "no-cache" },
+                    { key: "Content-Type", value: "text/event-stream" },
+                ],
+            },
+        ];
+    },
 };
 
 export default nextConfig;
