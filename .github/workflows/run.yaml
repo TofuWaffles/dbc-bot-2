@@ -157,7 +157,7 @@ jobs:
         username: root
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         passphrase: ${{ secrets.SSH_PASSPHRASE }}
-        source: docker-compose.yml
+        source: prod.docker-compose.yml
         target:  /root/dbcbot
 
     - name: Create .env file on droplet
@@ -206,8 +206,8 @@ jobs:
           docker pull ghcr.io/$REPO/dbcbot
           docker pull ghcr.io/$REPO/images
           docker pull ghcr.io/$REPO/bracket
-          docker compose up -d
-          docker compose logs
+          docker compose -f prod.docker-compose.yml up -d
+          docker compose -f prod.docker-compose.yml logs
 
     - name: Copy statshot.sh to droplet
       uses: appleboy/scp-action@v0.1.7

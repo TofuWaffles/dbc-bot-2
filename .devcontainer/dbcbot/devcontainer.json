@@ -1,0 +1,17 @@
+{
+	"name": "Discord Brawl Cup Bot Container",
+    "dockerComposeFile": ["../../dev.docker-compose.yml"],
+    "service": "dbc-bot",
+	"customizations": {
+		"vscode": {
+			"settings": {},
+			"extensions": [
+				"streetsidesoftware.code-spell-checker",
+                "rust-lang.rust-analyzer"
+			]
+		}
+	},
+    "shutdownAction": "none",
+    "workspaceFolder": "/workspace/dbcbot",
+	"remoteUser": "root"
+}

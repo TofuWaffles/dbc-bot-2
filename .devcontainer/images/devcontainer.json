@@ -1,0 +1,9 @@
+{
+    "name": "Images Container",
+    "dockerComposeFile": ["../../dev.docker-compose.yml"],
+    "service": "images",
+    "shutdownAction": "none",
+    "workspaceFolder": "/workspace/images",
+    "remoteUser": "root"
+  }
+  

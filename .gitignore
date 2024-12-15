@@ -1,6 +1,6 @@
 
 /dbcbot/target
-.env
+*.env
 /dbcbot/*.excalidraw
 .idea
 /dbcbot/debug.log

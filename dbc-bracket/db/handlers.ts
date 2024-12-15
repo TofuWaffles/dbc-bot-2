@@ -24,6 +24,14 @@ const cache: { [key: number]: {
   idxCache: { [key: string]: number }
 }} = {};
 
+interface Cache{
+  tournamentId: number,
+  matches: MatchType[],
+  players: Player[]
+}
+
+
+
 export default async function getMatchData(
   tournamentId: number
 ): Promise<Result<MatchType[]>> {
@@ -272,4 +280,27 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   cache[tournamentId] = { matches, idxCache };
 
   return Ok(matches);
+}
+
+async function getPlayersFromTournament(tournamentId: number): Promise<Result<Player[]>>{
+  const [result, err] = await pool
+    .query<Player>({
+      text: `
+        SELECT 
+          u.discord_id,
+          u.player_name,
+          u.icon
+        FROM users u
+        JOIN tournament_players tp
+        ON u.discord_id = tp.discord_id
+        WHERE tp.tournament_id = $1
+      `,
+      values: [tournamentId]
+    })
+    .wrapper();
+  if (err) {
+    console.error(err);
+    return Err(err);
+  }
+  return Ok(result.rows);
 }

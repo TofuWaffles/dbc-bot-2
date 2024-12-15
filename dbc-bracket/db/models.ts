@@ -56,7 +56,8 @@ export type ParticipantType = {
     iconUrl?: string;
     [key: string]: any;
 };
-
+// starting: database
+// result: MatchType[]
 export type MatchType = {
     id: number | string;
     href?: string;

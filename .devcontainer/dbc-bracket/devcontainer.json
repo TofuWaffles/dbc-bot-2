@@ -1,0 +1,9 @@
+{
+    "name": "Bracket Container",
+    "dockerComposeFile": ["../../dev.docker-compose.yml"],
+    "service": "bracket",
+    "shutdownAction": "none",
+    "workspaceFolder": "/workspace/dbc-bracket",
+    "remoteUser": "root"
+  }
+  
