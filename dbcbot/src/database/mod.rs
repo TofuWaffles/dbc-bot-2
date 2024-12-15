@@ -689,7 +689,7 @@ impl TournamentDatabase for PgDatabase {
                 SET tournament_role_id = $1
                 WHERE tournament_id = $2
                 "#,
-                role_id.get() as i32,
+                role_id.get().to_string(),
                 tournament_id
             )
             .execute(&self.pool)
@@ -777,7 +777,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         });
@@ -831,7 +831,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -886,7 +886,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -943,7 +943,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1053,7 +1053,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })

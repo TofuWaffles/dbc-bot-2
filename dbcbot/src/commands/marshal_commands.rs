@@ -661,7 +661,6 @@ async fn list_players_slash(
     Ok(())
 }
 
-
 async fn list_players(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
