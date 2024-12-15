@@ -13,5 +13,6 @@
 	},
     "shutdownAction": "none",
     "workspaceFolder": "/workspace/dbcbot",
-	"remoteUser": "root"
+	"remoteUser": "root",
+	"postCreateCommand": "./setup.sh"
 }
