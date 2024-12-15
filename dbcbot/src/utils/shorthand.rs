@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use super::error::CommonError;
 use crate::database::*;
 use crate::utils::error::CommonError::*;
@@ -16,16 +15,15 @@ use futures::{Stream, StreamExt};
 use models::Selectable;
 use poise::{
     serenity_prelude::{
-        self as serenity, ButtonStyle, Channel, ChannelId, ChannelType, Colour,
-        ComponentInteraction, ComponentInteractionCollector,
-        ComponentInteractionDataKind::{ChannelSelect, RoleSelect}, CreateActionRow, 
-        CreateButton, CreateEmbed, CreateEmbedFooter, CreateSelectMenu, 
-        CreateSelectMenuKind, CreateSelectMenuOption, GuildChannel, GuildId, 
-        PartialGuild, Role, RoleId, User, UserId,
+        self as serenity, ButtonStyle, Channel, ChannelType, ComponentInteraction,
+        ComponentInteractionCollector,
+        ComponentInteractionDataKind::{ChannelSelect, RoleSelect},
+        CreateActionRow, CreateButton, CreateEmbed, CreateEmbedFooter, CreateSelectMenu,
+        CreateSelectMenuKind, CreateSelectMenuOption, Role, UserId,
     },
     CreateReply, ReplyHandle,
 };
-
+use std::str::FromStr;
 
 use tokio::time::Duration;
 pub trait BotContextExt<'a> {
@@ -174,24 +172,21 @@ impl<'a> BotContextExt<'a> for BotContext<'a> {
 }
 
 #[derive(Debug, Copy, Clone)]
-pub struct Component<'a>{
-    pub ctx: BotContext<'a>
+pub struct Component<'a> {
+    pub ctx: BotContext<'a>,
 }
 
-pub trait BotComponent<'a>{
+pub trait BotComponent<'a> {
     fn components(&self) -> Component;
 }
 
-
-impl <'a> BotComponent<'a> for BotContext<'a>{
-    fn components(&self) -> Component{
-        Component{
-            ctx: *self
-        }
+impl<'a> BotComponent<'a> for BotContext<'a> {
+    fn components(&self) -> Component {
+        Component { ctx: *self }
     }
 }
 
-impl<'a> Component<'a>{
+impl<'a> Component<'a> {
     const USER_CMD_TIMEOUT: u64 = 120_000;
     async fn create_interaction_collector(
         &self,
@@ -334,13 +329,9 @@ impl<'a> Component<'a>{
                         .collect();
                     let mut chunk: &[FullBrawler] = brawlers[page_number].as_ref();
                     loop {
-                        let selected = match self.select_options(
-                            msg,
-                            embed(chunk),
-                            vec![buttons.clone()],
-                            chunk,
-                        )
-                        .await
+                        let selected = match self
+                            .select_options(msg, embed(chunk), vec![buttons.clone()], chunk)
+                            .await
                         {
                             Ok(s) => s,
                             Err(_) => break,
@@ -544,7 +535,7 @@ impl<'a> Component<'a>{
         }
         Err(NoSelection.into())
     }
-    
+
     pub async fn select_role(
         &self,
         msg: &ReplyHandle<'_>,
@@ -574,7 +565,7 @@ impl<'a> Component<'a>{
         }
         Err(NoSelection.into())
     }
-    
+
     pub async fn select_options<T: Selectable>(
         &self,
         msg: &ReplyHandle<'_>,
@@ -592,7 +583,7 @@ impl<'a> Component<'a>{
                 .disabled(items.is_empty()),
         )];
         component.append(&mut buttons);
-    
+
         let builder = CreateReply::default().embed(embed).components(component);
         msg.edit(self.ctx, builder).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
@@ -615,7 +606,7 @@ impl<'a> Component<'a>{
         }
         Err(NoSelection.into())
     }
-    
+
     pub async fn modal<T: poise::modal::Modal>(
         &self,
         msg: &ReplyHandle<'_>,
@@ -627,26 +618,25 @@ impl<'a> Component<'a>{
                     .label("Continue")
                     .style(poise::serenity_prelude::ButtonStyle::Success),
             ])];
-    
+
             poise::CreateReply::default()
                 .embed(embed)
                 .components(components)
         };
-    
+
         msg.edit(self.ctx, builder).await?;
-    
+
         if let Some(mci) = serenity::ComponentInteractionCollector::new(self.ctx.serenity_context())
             .timeout(std::time::Duration::from_secs(120))
             .filter(move |mci| mci.data.custom_id == "open_modal")
             .await
         {
-            let response = poise::execute_modal_on_component_interaction::<T>(self.ctx, mci, None, None)
-                .await?
-                .ok_or(NoSelection)?;
+            let response =
+                poise::execute_modal_on_component_interaction::<T>(self.ctx, mci, None, None)
+                    .await?
+                    .ok_or(NoSelection)?;
             return Ok(response);
         }
         Err(NoSelection.into())
     }
-    
 }
-

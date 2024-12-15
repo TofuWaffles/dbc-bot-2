@@ -524,7 +524,7 @@ pub trait TournamentDatabase {
         name: &str,
         mode: &Mode,
         tournament_id: impl Into<Option<i32>>,
-        role_id: &RoleId,
+        role_id: &Option<RoleId>,
         announcement_channel_id: &ChannelId,
         notification_channel_id: &ChannelId,
         wins_required: i32,
@@ -634,7 +634,7 @@ impl TournamentDatabase for PgDatabase {
         name: &str,
         mode: &Mode,
         tournament_id: impl Into<Option<i32>>,
-        role_id: &RoleId,
+        role: &Option<RoleId>,
         announcement_channel_id: &ChannelId,
         notification_channel_id: &ChannelId,
         wins_required: i32,
@@ -645,15 +645,14 @@ impl TournamentDatabase for PgDatabase {
             None => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, mode, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)
-            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)
+            INSERT INTO tournaments (guild_id, name, mode, created_at, rounds, current_round, announcement_channel_id, notification_channel_id, wins_required)
+            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7)
             RETURNING tournament_id
             "#,
                     guild_id.to_string(),
                     name,
                     *mode as Mode,
                     timestamp_time,
-                    role_id.to_string(),
                     announcement_channel_id.to_string(),
                     notification_channel_id.to_string(),
                     wins_required
@@ -665,8 +664,8 @@ impl TournamentDatabase for PgDatabase {
             Some(custom_id) => {
                 sqlx::query!(
                     r#"
-            INSERT INTO tournaments (guild_id, name, mode, created_at, tournament_id, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id)
-            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)
+            INSERT INTO tournaments (guild_id, name, mode, created_at, tournament_id, rounds, current_round, announcement_channel_id, notification_channel_id)
+            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7)
             ON CONFLICT (tournament_id) DO NOTHING
             "#,
                     guild_id.to_string(),
@@ -674,7 +673,6 @@ impl TournamentDatabase for PgDatabase {
                     *mode as Mode,
                     timestamp_time,
                     custom_id,
-                    role_id.to_string(),
                     announcement_channel_id.to_string(),
                     notification_channel_id.to_string()
                 )
@@ -683,6 +681,20 @@ impl TournamentDatabase for PgDatabase {
                 custom_id
             }
         };
+
+        if let Some(role_id) = role {
+            sqlx::query!(
+                r#"
+                UPDATE tournaments
+                SET tournament_role_id = $1
+                WHERE tournament_id = $2
+                "#,
+                role_id.get() as i32,
+                tournament_id
+            )
+            .execute(&self.pool)
+            .await?;
+        }
 
         Ok(tournament_id)
     }
@@ -765,7 +777,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         });
@@ -819,7 +831,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -874,7 +886,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -931,7 +943,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1041,7 +1053,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })

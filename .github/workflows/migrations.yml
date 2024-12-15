@@ -1,0 +1,32 @@
+name: Migration Update
+
+on:
+  push:
+    paths:
+      - dbcbot/migrations/**
+
+jobs:
+  migration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Remove old migration files from the remote server
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script: |
+            cd ~/dbcbot/dbcbot/migrations || exit 1
+            rm -f *
+
+      - name: Upload new migration files to the remote server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: dbcbot/migrations/
+          target: /root/dbcbot/dbcbot/migrations/

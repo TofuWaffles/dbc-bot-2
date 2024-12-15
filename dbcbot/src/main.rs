@@ -127,8 +127,19 @@ async fn run() -> Result<(), BotError> {
             on_error: |error| {
                 Box::pin(async move {
                     let error_msg;
+                    error!("Error in command: {:?}", error);
+                    let ctx = match error.ctx() {
+                        Some(ctx) => ctx,
+                        None => {
+                            error!("No context in this error");
+                            return;
+                        },
+                    };
                     match error {
-                        poise::FrameworkError::NotAnOwner { .. } => return,
+                        poise::FrameworkError::NotAnOwner { ctx, .. } => {
+                            ctx.send(CreateReply::default().content("Sorry, only the bot owner can run this command.").ephemeral(true)).await.unwrap();
+                            return;
+                        },
                         poise::FrameworkError::GuildOnly { .. } => return,
                         poise::FrameworkError::DmOnly { .. } => return,
                         poise::FrameworkError::NsfwOnly { .. } => return,
@@ -146,14 +157,6 @@ async fn run() -> Result<(), BotError> {
                         poise::FrameworkError::DynamicPrefix { ref error, .. } => error_msg = format!("{}", error),
                         _ => error_msg = "No cause available for this error type.".to_string(),
                     }
-                    error!("Error in command: {:?}", error);
-                    let ctx = match error.ctx() {
-                        Some(ctx) => ctx,
-                        None => {
-                            error!("No context in this error");
-                            return;
-                        },
-                    };
                     match ctx.send(CreateReply::default().content("Something went wrong. Please let the bot maintainers know if the issue persists.").ephemeral(true)).await {
                         Ok(_) => (),
                         Err(e) => error!("Error sending generic error message to user: {}", e)

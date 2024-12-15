@@ -1,14 +1,8 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO tournaments (guild_id, name, mode, created_at, rounds, current_round, tournament_role_id, announcement_channel_id, notification_channel_id, wins_required)\n            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7, $8)\n            RETURNING tournament_id\n            ",
+  "query": "\n            INSERT INTO tournaments (guild_id, name, mode, created_at, tournament_id, rounds, current_round, announcement_channel_id, notification_channel_id)\n            VALUES ($1, $2, $3, $4, 0, 0, $5, $6, $7)\n            ON CONFLICT (tournament_id) DO NOTHING\n            ",
   "describe": {
-    "columns": [
-      {
-        "ordinal": 0,
-        "name": "tournament_id",
-        "type_info": "Int4"
-      }
-    ],
+    "columns": [],
     "parameters": {
       "Left": [
         "Varchar",
@@ -45,15 +39,12 @@
           }
         },
         "Int8",
+        "Int4",
         "Varchar",
-        "Varchar",
-        "Varchar",
-        "Int4"
+        "Varchar"
       ]
     },
-    "nullable": [
-      false
-    ]
+    "nullable": []
   },
-  "hash": "7bf40ba76fc7f189aa3b68c26d9a504d4b35f656a0e9536a6701e7e39780c9f4"
+  "hash": "4c6cccded1565bb001130b9c6ecdd2301fbe81810e30fd1e06ec50cc467859bd"
 }

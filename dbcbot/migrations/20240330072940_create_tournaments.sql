@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS tournaments (
     current_round INT NOT NULL,
     created_at BIGINT NOT NULL,
     start_time BIGINT,
-    tournament_role_id VARCHAR(255) NOT NULL,
+    tournament_role_id VARCHAR(255),
     status tournament_status NOT NULL DEFAULT 'pending',
     mode mode NOT NULL DEFAULT 'unknown',
     map INT NOT NULL DEFAULT 0,

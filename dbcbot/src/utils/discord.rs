@@ -2,15 +2,14 @@ use std::str::FromStr;
 
 use crate::utils::error::CommonError::*;
 use crate::{
-    database::{self, models::Selectable},
+    database::{self},
     BotContext, BotError,
 };
 use anyhow::anyhow;
 use poise::{
     serenity_prelude::{
-        ChannelId, Colour,
-        CreateEmbed,
-    GuildChannel, GuildId, PartialGuild, Role, RoleId, User, UserId,
+        ChannelId, Colour, CreateEmbed, GuildChannel, GuildId, PartialGuild, Role, RoleId, User,
+        UserId,
     },
     CreateReply, ReplyHandle,
 };
@@ -82,4 +81,3 @@ pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
     msg.edit(*ctx, builder).await?;
     Ok(())
 }
-

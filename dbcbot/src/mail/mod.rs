@@ -166,7 +166,10 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                 .await
             }
             Some(subject) => {
-                let modal = self.components().modal::<ComposeMailWithoutSubject>(msg, embed).await?;
+                let modal = self
+                    .components()
+                    .modal::<ComposeMailWithoutSubject>(msg, embed)
+                    .await?;
                 Mail::new(
                     self.author().id.to_string(),
                     recipient.to_string(),
@@ -346,13 +349,15 @@ async fn inbox_helper(
             .style(ButtonStyle::Primary),
     ]);
     loop {
-        let selected = ctx.components().select_options(
-            msg,
-            detail(ctx, chunked_mail[page_number]).await?,
-            vec![buttons.clone()],
-            chunked_mail[page_number],
-        )
-        .await?;
+        let selected = ctx
+            .components()
+            .select_options(
+                msg,
+                detail(ctx, chunked_mail[page_number]).await?,
+                vec![buttons.clone()],
+                chunked_mail[page_number],
+            )
+            .await?;
         match selected.as_str() {
             "prev" => {
                 page_number = page_number.saturating_sub(1);
