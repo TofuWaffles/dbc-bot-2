@@ -619,8 +619,14 @@ async fn disqualify(
 
     Ok(())
 }
+
 /// List all players in a tournament in csv format.
-#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "is_marshal_or_higher",
+    rename = "list_players"
+)]
 #[instrument]
 async fn list_players_slash(
     ctx: BotContext<'_>,
