@@ -1068,6 +1068,14 @@ Tournament name: {}"#,
                 .database
                 .exit_tournament(&selected_tournament.tournament_id, &discord_id)
                 .await?;
+            if let Some(role_id) = selected_tournament.tournament_role_id.clone() {
+                ctx.guild_id()
+                    .unwrap()
+                    .member(ctx, ctx.author().id)
+                    .await?
+                    .remove_role(ctx, RoleId::from(role_id.parse::<u64>()?))
+                    .await?;
+            }
             ctx.components()
                 .prompt(
                     msg,
