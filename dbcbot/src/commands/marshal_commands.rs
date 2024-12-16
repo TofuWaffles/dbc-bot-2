@@ -657,8 +657,7 @@ async fn list_players_slash(
             return Ok(());
         }
     };
-
-    Ok(())
+    list_players(&ctx, &msg, &tournament, round).await
 }
 
 async fn list_players(
@@ -1367,8 +1366,11 @@ async fn player_page(
             CreateButton::new("disqualify")
                 .label("Disqualify")
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
-            CreateButton::new("search")
-                .label("Search")
+            CreateButton::new("next")
+                .label("Next Round")
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("players")
+                .label("Player List")
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
         ]
     };
@@ -1392,6 +1394,19 @@ async fn player_page(
             }
             "next" => {
                 next_round_helper(ctx, msg, t).await?;
+            },
+            "players" => {
+                #[derive(poise::Modal)]
+                struct RoundModal {
+                    #[name = "Round. Leave blank for current round"]
+                    round: Option<String>,
+                }
+                let res = ctx
+                .components()
+                .modal::<RoundModal>(msg, CreateEmbed::new().title("Disqualify a player"))
+                .await?;
+                let round: Option<i32> = res.round.map(|s| s.parse::<i32>().ok()).flatten();
+                list_players(ctx, msg, t, round).await?;
             }
             _ => {}
         }

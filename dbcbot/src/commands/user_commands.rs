@@ -711,7 +711,7 @@ async fn user_display_registration(
             "player_profile_registration" => {
                 let embed = CreateEmbed::new()
                 .title("Profile Registration")
-                .description("Please enter your in-game player tag (without the #) The tutorial below would help you find your player tag (wait patiently for the gif to load)")
+                .description("Next step: fill your in-game player tag (without the #) in the modal by pressing **Continue**. The following tutorial would help you find your player tag (wait patiently for the gif to load)")
                 .image("https://i.imgur.com/bejTDlO.gif")
                 .color(0x0000FF);
                 let mut player_tag = ctx
