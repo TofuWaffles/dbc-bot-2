@@ -84,7 +84,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
     const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
       const { width, height } = useWindowSize();
       return (
-        <div className="w-screen h-full flex justify-center items-center overflow-x-auto">
+        <div className="w-screen h-full flex justify-center items-center overflow-x-scroll">
           <div className="">
             <SingleEliminationBracket
               matches={matches}
