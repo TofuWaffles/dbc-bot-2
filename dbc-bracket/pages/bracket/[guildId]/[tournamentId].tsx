@@ -1,4 +1,4 @@
-import SSEClient from '@/pages/components/SSEClient';
+import SSEClient from '@/components/SSEClient';
 import { useRouter } from 'next/router';
 import { usePathname } from 'next/navigation';
 

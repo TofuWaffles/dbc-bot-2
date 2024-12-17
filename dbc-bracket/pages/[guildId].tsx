@@ -1,8 +1,9 @@
 import { GetServerSideProps } from 'next';
 import { encode } from 'querystring';
-import Sidebar from "@/pages/components/sidebar";
+import Sidebar from "@/components/sidebar";
 import TournamentService from '@/services/tournament';
 import Link from 'next/link';
+import Custom404 from './404';
 
 interface GuildPageProps {
   items: { id: string, name: string }[];
@@ -13,6 +14,13 @@ interface GuildPageProps {
 const GuildPage: React.FC<GuildPageProps> = ({ items, guildId, error }) => {
   if (error) {
     return <div className="flex justify-center items-center h-screen text-lg text-red-500">{error}</div>;
+  }
+  if (!items.length ){
+    return(
+      <div className='w-full h-full justify-center items-center flex'>
+        <Custom404/>
+      </div>
+    )
   }
 
   return (
