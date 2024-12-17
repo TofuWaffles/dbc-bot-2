@@ -6,7 +6,9 @@ use crate::commands::checks::is_manager;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
-use crate::database::{BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{
+    BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
+};
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{
@@ -1208,7 +1210,12 @@ async fn tournament_property_page(
     while let Some(interactions) = &ic.next().await {
         match interactions.data.custom_id.as_str() {
             "pause" => {
-                interactions.defer(ctx.http()).await?;
+                interactions
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
 
                 let status = if t.is_paused() {
                     TournamentStatus::Started
@@ -1238,11 +1245,23 @@ async fn tournament_property_page(
                     .await?;
             }
             "mode" => {
+                interactions
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
                 let mode = ctx.components().mode_selection(msg).await?;
                 ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
             }
             "map" => {
+                interactions
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
                 let map = ctx.components().map_selection(msg, &t.mode).await?;
                 ctx.data()
                     .database
@@ -1267,7 +1286,22 @@ async fn advance_page(
     t: &Tournament,
 ) -> Result<(), BotError> {
     let mut t = t.clone();
-    async fn build_reply(ctx: &BotContext<'_>, t: &Tournament) -> Result<CreateReply, BotError>{
+    let buttons = vec![
+        CreateButton::new("announcement")
+            .label("Announcement Channel")
+            .emoji(ReactionType::Unicode("🏆".to_string()))
+            .style(poise::serenity_prelude::ButtonStyle::Primary),
+        CreateButton::new("notification")
+            .label("Notification Channel")
+            .emoji(ReactionType::Unicode("🎮".to_string()))
+            .style(poise::serenity_prelude::ButtonStyle::Primary),
+        CreateButton::new("participant")
+            .label("Participant Role")
+            .emoji(ReactionType::Unicode("🗺️".to_string()))
+            .style(poise::serenity_prelude::ButtonStyle::Primary),
+    ];
+
+    async fn embed(ctx: &BotContext<'_>, t: &Tournament) -> Result<CreateEmbed, BotError> {
         let embed = {
             let ac = t.announcement_channel(ctx).await?;
             let nc = t.notification_channel(ctx).await?;
@@ -1293,45 +1327,56 @@ Current configuration:
                     },
                 ])
         };
-        let components = vec![CreateActionRow::SelectMenu(CreateSelectMenu::new(
-            "select",
-            CreateSelectMenuKind::String {
-                options: vec![
-                    CreateSelectMenuOption::new("Announcement Channel", "announcement"),
-                    CreateSelectMenuOption::new("Notification Channel", "notification"),
-                    CreateSelectMenuOption::new("Participant Role", "participant"),
-                ],
-            },
-        ))];
-        Ok(CreateReply::default()
-            .ephemeral(true)
-            .embed(embed)
-            .components(components))
+        Ok(embed)
     }
 
-    msg.edit(*ctx, build_reply(ctx, &t).await?).await?;
+    ctx.components().prompt(msg, embed(ctx, &t).await?, buttons.clone()).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "announcement" => {
-                let embed = CreateEmbed::new().title("Announcement Channel").description("Select the channel where the result will be sent");
+                interaction
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
+                let embed = CreateEmbed::new()
+                    .title("Announcement Channel")
+                    .description("Select the channel where the result will be sent");
                 let channel = ctx.components().select_channel(msg, embed).await?;
                 t.set_announcement_channel(ctx, &channel).await?;
             }
             "notification" => {
-                let embed = CreateEmbed::new().title("Notification Channel").description("Select the channel where the notification will be sent");
+                interaction
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
+                let embed = CreateEmbed::new()
+                    .title("Notification Channel")
+                    .description("Select the channel where the notification will be sent");
                 let channel = ctx.components().select_channel(msg, embed).await?;
                 t.set_notification_channel(ctx, &channel).await?;
             }
-            "participant" => {;
-                let embed = CreateEmbed::new().title("Participant Role").description("Select the role that will be assigned to the participants");
+            "participant" => {
+                interaction
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
+                let embed = CreateEmbed::new()
+                    .title("Participant Role")
+                    .description("Select the role that will be assigned to the participants");
                 let role = ctx.components().select_role(msg, embed).await?;
                 t.set_player_role(ctx, &role).await?;
             }
             _ => continue,
         }
         t.update(ctx).await?;
-        msg.edit(*ctx, build_reply(ctx, &t).await?).await?;
+        ctx.components().prompt(msg, embed(ctx, &t).await?, buttons.clone()).await?;
     }
     Ok(())
 }
@@ -1393,8 +1438,14 @@ async fn player_page(
                 disqualify(ctx, t, player.to_user(ctx).await?).await?;
             }
             "next" => {
+                interaction
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
                 next_round_helper(ctx, msg, t).await?;
-            },
+            }
             "players" => {
                 #[derive(poise::Modal)]
                 struct RoundModal {
@@ -1402,9 +1453,14 @@ async fn player_page(
                     round: Option<String>,
                 }
                 let res = ctx
-                .components()
-                .modal::<RoundModal>(msg, CreateEmbed::new().title("Round selection").description("Press continue to proceed"))
-                .await?;
+                    .components()
+                    .modal::<RoundModal>(
+                        msg,
+                        CreateEmbed::new()
+                            .title("Round selection")
+                            .description("Press continue to proceed"),
+                    )
+                    .await?;
                 let round: Option<i32> = res.round.map(|s| s.parse::<i32>().ok()).flatten();
                 list_players(ctx, msg, t, round).await?;
             }
