@@ -1152,8 +1152,8 @@ async fn submit(
                         .eq(&BattleType::friendly.to_string().to_lowercase())
                     && {
                         let mut log_tags = [
-                            (&log.battle.teams[0][0].tag).to_string(),
-                            (&log.battle.teams[1][0].tag).to_string(),
+                            log.battle.teams[0][0].tag.to_string(),
+                            log.battle.teams[1][0].tag.to_string(),
                         ];
                         log_tags.sort();
                         tags.iter()

@@ -7,7 +7,7 @@ use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
 use crate::database::{
-    BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
+    BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
 };
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
@@ -1461,7 +1461,8 @@ async fn player_page(
                             .description("Press continue to proceed"),
                     )
                     .await?;
-                let round: Option<i32> = res.round.map(|s| s.parse::<i32>().ok()).flatten();
+                let round: Option<i32> = res.round.and_then(|s| s.parse::<i32>().ok());
+
                 list_players(ctx, msg, t, round).await?;
             }
             _ => {}
@@ -1487,11 +1488,8 @@ async fn utilities_page(
     ctx.components().prompt(msg, embed, buttons).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     if let Some(interactions) = &ic.next().await {
-        match interactions.data.custom_id.as_str() {
-            "add_map" => {
-                add_maps(*ctx, msg).await?;
-            }
-            _ => {}
+        if interactions.data.custom_id.as_str() == "add_map" {
+            add_maps(*ctx, msg).await?;
         }
     }
 
@@ -1505,13 +1503,13 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
         .footer(CreateEmbedFooter::new("This may take a while."));
     ctx.components().prompt(msg, embed, None).await?;
     let raw = ctx.data().apis.brawlify.get_maps().await?;
-    let mut maps = match raw.handler(&ctx, &msg).await? {
+    let mut maps = match raw.handler(&ctx, msg).await? {
         Some(maps) => maps,
         None => {
             return ctx
                 .components()
                 .prompt(
-                    &msg,
+                    msg,
                     CreateEmbed::default().description("No maps were added!"),
                     None,
                 )
@@ -1524,7 +1522,7 @@ pub async fn add_maps(ctx: BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), 
     }
     ctx.components()
         .prompt(
-            &msg,
+            msg,
             CreateEmbed::default().description("All maps were added!"),
             None,
         )

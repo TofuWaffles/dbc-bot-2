@@ -221,7 +221,6 @@ pub struct GameMode {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-
 pub struct FullGameMode {
     pub id: Option<i64>,
     pub sc_id: i64,

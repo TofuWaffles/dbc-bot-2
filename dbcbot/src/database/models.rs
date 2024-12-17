@@ -118,7 +118,7 @@ impl Tournament {
     pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Option<Role>, BotError> {
         if let Some(role) = &self.tournament_role_id {
             return Ok(Some(
-                Self::to_role(ctx, &role)
+                Self::to_role(ctx, role)
                     .await
                     .map_err(|_| RoleNotExists(role.to_string()))?,
             ));
@@ -177,7 +177,7 @@ impl Tournament {
     }
 
     pub async fn update(&mut self, ctx: &BotContext<'_>) -> Result<(), BotError> {
-        let guild_id = ctx.guild_id().ok_or_else(|| NotInAGuild)?;
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
         let tournament = ctx.data().database.get_tournament(&guild_id, self.tournament_id).await?.ok_or(TournamentNotExists(self.tournament_id.to_string()))?;
         *self = tournament;
         Ok(())
