@@ -1154,13 +1154,6 @@ async fn tournament_property_page(
     msg: &ReplyHandle<'_>,
     t: &Tournament,
 ) -> Result<(), BotError> {
-    async fn update(ctx: &BotContext<'_>, t: &Tournament) -> Result<Tournament, BotError> {
-        ctx.data()
-            .database
-            .get_tournament(&ctx.guild_id().ok_or(NotInAGuild)?, t.tournament_id)
-            .await?
-            .ok_or(TournamentNotExists(t.tournament_id.to_string()).into())
-    }
     let mut t = t.clone();
     let manager = is_manager(*ctx).await?;
     let buttons = |t: &Tournament| {
@@ -1245,13 +1238,11 @@ async fn tournament_property_page(
                     .await?;
             }
             "mode" => {
-                interactions.defer(ctx.http()).await?;
                 let mode = ctx.components().mode_selection(msg).await?;
                 ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
             }
             "map" => {
-                interactions.defer(ctx.http()).await?;
                 let map = ctx.components().map_selection(msg, &t.mode).await?;
                 ctx.data()
                     .database
@@ -1264,7 +1255,7 @@ async fn tournament_property_page(
             }
             _ => {}
         }
-        t = update(ctx, &t).await?;
+        t.update(ctx).await?;
         ctx.components().prompt(msg, embed(&t), buttons(&t)).await?;
     }
     Ok(())
@@ -1323,20 +1314,17 @@ Current configuration:
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "announcement" => {
-                interaction.defer(ctx.http()).await?;
-                let embed = CreateEmbed::new();
+                let embed = CreateEmbed::new().title("Announcement Channel").description("Select the channel where the result will be sent");
                 let channel = ctx.components().select_channel(msg, embed).await?;
                 t.set_announcement_channel(ctx, &channel).await?;
             }
             "notification" => {
-                interaction.defer(ctx.http()).await?;
-                let embed = CreateEmbed::new();
+                let embed = CreateEmbed::new().title("Notification Channel").description("Select the channel where the notification will be sent");
                 let channel = ctx.components().select_channel(msg, embed).await?;
                 t.set_notification_channel(ctx, &channel).await?;
             }
-            "participant" => {
-                interaction.defer(ctx.http()).await?;
-                let embed = CreateEmbed::new();
+            "participant" => {;
+                let embed = CreateEmbed::new().title("Participant Role").description("Select the role that will be assigned to the participants");
                 let role = ctx.components().select_role(msg, embed).await?;
                 t.set_player_role(ctx, &role).await?;
             }
