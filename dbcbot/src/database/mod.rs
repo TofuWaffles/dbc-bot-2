@@ -512,6 +512,9 @@ impl UserDatabase for PgDatabase {
     }
 }
 pub trait TournamentDatabase {
+    async fn set_player_role(&self, tournament_id: i32, role_id: &RoleId) -> Result<(), Self::Error>;
+    async fn set_notification_channel(&self, tournament_id: i32, channel_id: &ChannelId) -> Result<(), Self::Error>;
+    async fn set_announcement_channel(&self, tournament_id: i32, channel_id: &ChannelId) -> Result<(), Self::Error>;
     async fn set_default_map(&self, tournament_id: i32) -> Result<(), Self::Error>;
     async fn set_mode(&self, tournament_id: i32, mode: impl Into<Mode>) -> Result<(), Self::Error>;
     async fn resume(&self, tournament_id: i32) -> Result<(), Self::Error>;
@@ -777,7 +780,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         });
@@ -831,7 +834,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -886,7 +889,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -943,7 +946,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1053,7 +1056,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: row.tournament_role_id,
+            tournament_role_id: Some(row.tournament_role_id),
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1227,6 +1230,65 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         .await?;
         Ok(())
     }
+
+    async fn set_announcement_channel(
+        &self,
+        tournament_id: i32,
+        channel_id: &ChannelId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET announcement_channel_id = $1
+            WHERE tournament_id = $2
+            "#,
+            channel_id.to_string(),
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_notification_channel(
+        &self,
+        tournament_id: i32,
+        channel_id: &ChannelId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET notification_channel_id = $1
+            WHERE tournament_id = $2
+            "#,
+            channel_id.to_string(),
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn set_player_role(
+        &self,
+        tournament_id: i32,
+        role_id: &RoleId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE tournaments
+            SET tournament_role_id = $1
+            WHERE tournament_id = $2
+            "#,
+            role_id.to_string(),
+            tournament_id
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+
 }
 
 pub trait MatchDatabase {
@@ -1265,7 +1327,7 @@ pub trait MatchDatabase {
 
     /// Retrieves a match by the player's discord id.
     ///
-    /// This will retrive the match with the highest round number that does not yet have a winner.
+    /// This will retrieve the match with the highest round number that does not yet have a winner.
     async fn get_match_by_player(
         &self,
         tournament_id: i32,

@@ -6,7 +6,7 @@ use crate::commands::checks::is_manager;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
-use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{
@@ -247,7 +247,7 @@ async fn set_map(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError
     ctx.send(
         CreateReply::default()
             .content(format!(
-                "Sucessfully set the map of tournament {} to {}",
+                "Successfully set the map of tournament {} to {}",
                 tournament_id, &map.name
             ))
             .ephemeral(true),
@@ -1019,7 +1019,7 @@ async fn get_battle_logs(
     }
     if let Err(e) = inner(&ctx, &msg, match_id).await {
         let embed = CreateEmbed::new()
-            .title("An error encoutered!")
+            .title("An error encountered!")
             .description(format!("{}", e));
         ctx.components().prompt(&msg, embed, None).await?;
     }
@@ -1275,7 +1275,8 @@ async fn advance_page(
     msg: &ReplyHandle<'_>,
     t: &Tournament,
 ) -> Result<(), BotError> {
-    let reply = {
+    let mut t = t.clone();
+    async fn build_reply(ctx: &BotContext<'_>, t: &Tournament) -> Result<CreateReply, BotError>{
         let embed = {
             let ac = t.announcement_channel(ctx).await?;
             let nc = t.notification_channel(ctx).await?;
@@ -1311,33 +1312,38 @@ Current configuration:
                 ],
             },
         ))];
-        CreateReply::default()
+        Ok(CreateReply::default()
             .ephemeral(true)
             .embed(embed)
-            .components(components)
-    };
-    msg.edit(*ctx, reply.clone()).await?;
+            .components(components))
+    }
+
+    msg.edit(*ctx, build_reply(ctx, &t).await?).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "announcement" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                ctx.components().select_channel(msg, embed).await?;
+                let channel = ctx.components().select_channel(msg, embed).await?;
+                t.set_announcement_channel(ctx, &channel).await?;
             }
             "notification" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                ctx.components().select_channel(msg, embed).await?;
+                let channel = ctx.components().select_channel(msg, embed).await?;
+                t.set_notification_channel(ctx, &channel).await?;
             }
             "participant" => {
                 interaction.defer(ctx.http()).await?;
                 let embed = CreateEmbed::new();
-                ctx.components().select_role(msg, embed).await?;
+                let role = ctx.components().select_role(msg, embed).await?;
+                t.set_player_role(ctx, &role).await?;
             }
             _ => continue,
         }
-        msg.edit(*ctx, reply.clone()).await?;
+        t.update(ctx).await?;
+        msg.edit(*ctx, build_reply(ctx, &t).await?).await?;
     }
     Ok(())
 }
@@ -1409,7 +1415,7 @@ async fn player_page(
                 }
                 let res = ctx
                 .components()
-                .modal::<RoundModal>(msg, CreateEmbed::new().title("Disqualify a player"))
+                .modal::<RoundModal>(msg, CreateEmbed::new().title("Round selection").description("Press continue to proceed"))
                 .await?;
                 let round: Option<i32> = res.round.map(|s| s.parse::<i32>().ok()).flatten();
                 list_players(ctx, msg, t, round).await?;
@@ -1427,7 +1433,7 @@ async fn utilities_page(
 ) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
             .title("Utilities")
-            .description("Tourmament utitlies includes\n-Add map: Update the latest map from Brawlify to the database")
+            .description("Tournament utilities includes\n-Add map: Update the latest map from Brawlify to the database")
             .footer(CreateEmbedFooter::new("This may take a while."));
     let buttons = {
         vec![CreateButton::new("add_map")

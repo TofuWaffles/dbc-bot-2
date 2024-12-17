@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tournaments\n            SET tournament_role_id = $1\n            WHERE tournament_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2fe126bd7352faefe9386a2f8ab416864fcabac478c10171ae2cae8f5c17f5f8"
+}

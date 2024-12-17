@@ -260,45 +260,13 @@ impl From<FullGameMode> for GameMode {
 
 impl From<FullGameMode> for Mode {
     fn from(value: FullGameMode) -> Self {
-        match value.name.as_str() {
-            "Bounty" => Mode::bounty,
-            "Brawl Ball" => Mode::brawlBall,
-            "Gem Grab" => Mode::gemGrab,
-            "Heist" => Mode::heist,
-            "Hot Zone" => Mode::hotZone,
-            "Siege" => Mode::siege,
-            "Solo Showdown" => Mode::soloShowdown,
-            "Duo Showdown" => Mode::duoShowdown,
-            "Trio Showdown" => Mode::trioShowdown,
-            "Takedown" => Mode::takedown,
-            "Lone Star" => Mode::loneStar,
-            "Big Game" => Mode::bigGame,
-            "Robo Rumble" => Mode::roboRumble,
-            "Boss Fight" => Mode::bossFight,
-            _ => Mode::unknown,
-        }
+        Self::from_string(value.name)
     }
 }
 
 impl From<GameMode> for database::models::Mode {
     fn from(value: GameMode) -> Self {
-        match value.name.as_str() {
-            "Bounty" => database::models::Mode::bounty,
-            "Brawl Ball" => database::models::Mode::brawlBall,
-            "Gem Grab" => database::models::Mode::gemGrab,
-            "Heist" => database::models::Mode::heist,
-            "Hot Zone" => database::models::Mode::hotZone,
-            "Siege" => database::models::Mode::siege,
-            "Solo Showdown" => database::models::Mode::soloShowdown,
-            "Duo Showdown" => database::models::Mode::duoShowdown,
-            "Trio Showdown" => database::models::Mode::trioShowdown,
-            "Takedown" => database::models::Mode::takedown,
-            "Lone Star" => database::models::Mode::loneStar,
-            "Big Game" => database::models::Mode::bigGame,
-            "Robo Rumble" => database::models::Mode::roboRumble,
-            "Boss Fight" => database::models::Mode::bossFight,
-            _ => database::models::Mode::unknown,
-        }
+        Self::from_string(value.name)
     }
 }
 

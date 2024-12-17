@@ -1,10 +1,10 @@
-use super::{BattleDatabase, Database, MatchDatabase};
+use super::{BattleDatabase, Database, MatchDatabase, TournamentDatabase};
 use crate::api::official_brawl_stars::TeamPlayer;
 use crate::utils::discord::DiscordTrait;
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotContextExt;
 use crate::{api::official_brawl_stars::Brawler, BotContext, BotError};
-use poise::serenity_prelude::{GuildChannel, Role, User, UserId};
+use poise::serenity_prelude::{Channel, GuildChannel, Role, User, UserId};
 use serde::{Deserialize, Serialize};
 use std::vec;
 use strum::{Display, EnumIter, IntoEnumIterator};
@@ -162,6 +162,26 @@ impl Tournament {
             .database
             .count_finished_matches(self.tournament_id, self.rounds)
             .await
+    }
+
+    pub async fn set_announcement_channel(&self, ctx: &BotContext<'_>, channel: &Channel) -> Result<(), BotError>{
+        ctx.data().database.set_announcement_channel(self.tournament_id, &channel.id()).await
+    }
+
+    pub async fn set_notification_channel(&self, ctx: &BotContext<'_>, channel: &Channel) -> Result<(), BotError>{
+        ctx.data().database.set_notification_channel(self.tournament_id, &channel.id()).await
+    }
+
+    pub async fn set_player_role(&self, ctx: &BotContext<'_>, role: &Role) -> Result<(), BotError> {
+        ctx.data().database.set_player_role(self.tournament_id, &role.id).await
+    }
+
+    pub async fn update(&mut self, ctx: &BotContext<'_>) -> Result<(), BotError> {
+        let guild_id = ctx.guild_id().ok_or_else(|| NotInAGuild)?;
+        let tournament = ctx.data().database.get_tournament(&guild_id, self.tournament_id).await?.ok_or(TournamentNotExists(self.tournament_id.to_string()))?;
+        *self = tournament;
+        Ok(())
+
     }
 }
 

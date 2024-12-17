@@ -14,5 +14,5 @@
     "shutdownAction": "none",
     "workspaceFolder": "/workspace/dbcbot",
 	"remoteUser": "root",
-	"postCreateCommand": "./setup.sh"
+	"postCreateCommand": "cargo install sqlx-cli"
 }
