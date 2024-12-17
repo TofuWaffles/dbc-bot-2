@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import Head from 'next/head';
 import Image from 'next/image';
 import ErrorComponent from './error';
+import Loading from './loading';
 
 interface SSEData {
     tournament: Tournament;
@@ -40,7 +41,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
     }
 
     if (!data) {
-        return <div>Loading...</div>;
+        return <Loading />;
     }
 
     const { tournament, matches } = data;
