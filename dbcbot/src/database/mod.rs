@@ -1153,13 +1153,14 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
     }
 
     async fn set_mode(&self, tournament_id: i32, mode: impl Into<Mode>) -> Result<(), Self::Error> {
+        let mode: Mode = mode.into();
         sqlx::query!(
             r#"
             UPDATE tournaments
             SET mode = $1
             WHERE tournament_id = $2
             "#,
-            mode.into() as Mode,
+            mode as Mode,
             tournament_id
         )
         .execute(&self.pool)

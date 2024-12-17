@@ -260,7 +260,7 @@ impl From<FullGameMode> for GameMode {
 
 impl From<FullGameMode> for Mode {
     fn from(value: FullGameMode) -> Self {
-        Self::from_string(value.name)
+        Self::from_string(value.sc_hash)
     }
 }
 

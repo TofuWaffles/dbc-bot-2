@@ -111,7 +111,7 @@ impl Tournament {
         &self,
         ctx: &BotContext<'_>,
     ) -> Result<GuildChannel, BotError> {
-        Ok(Self::to_channel(ctx, &self.announcement_channel_id)
+        Ok(Self::to_channel(ctx, &self.notification_channel_id)
             .await
             .map_err(|_| ChannelNotExists(self.notification_channel_id.clone()))?)
     }
@@ -672,32 +672,38 @@ impl Selectable for Mode {
 impl Mode {
     pub fn from_string(mode: impl Into<String>) -> Self {
         match mode.into().as_str() {
+            "bigGame" | "Big Game" => Self::bigGame,
+            "bounty" | "Bounty" => Self::bounty,
+            "bossFight" | "Boss Fight" => Self::bossFight,
             "brawlBall" | "Brawl Ball" => Self::brawlBall,
-            "gemGrab" => Self::gemGrab,
-            "heist" => Self::heist,
-            "bounty" => Self::bounty,
-            "siege" => Self::siege,
-            "soloShowdown" => Self::soloShowdown,
-            "duoShowdown" => Self::duoShowdown,
-            "hotZone" => Self::hotZone,
-            "knockout" => Self::knockout,
-            "takedown" => Self::takedown,
-            "loneStar" => Self::loneStar,
-            "bigGame" => Self::bigGame,
-            "roboRumble" => Self::roboRumble,
-            "bossFight" => Self::bossFight,
-            "wipeout" => Self::wipeout,
-            "duels" => Self::duels,
-            "paintBrawl" => Self::paintBrawl,
-            "brawlBall5V5" => Self::brawlBall5V5,
-            "gemGrab5V5" => Self::gemGrab5V5,
-            "wipeout5V5" => Self::wipeout5V5,
-            "knockOut5V5" => Self::knockOut5V5,
+            "brawlBall5V5" | "Brawl Ball 5V5" => Self::brawlBall5V5,
+            "duels" | "Duels" => Self::duels,
+            "duoShowdown" | "Duo Showdown" => Self::duoShowdown,
+            "gemGrab" | "Gem Grab" => Self::gemGrab,
+            "gemGrab5V5" | "Gem Grab 5V5" => Self::gemGrab5V5,
+            "heist" | "Heist" => Self::heist,
+            "hotZone" | "Hot Zone" => Self::hotZone,
+            "knockout" | "Knockout" => Self::knockout,
+            "knockOut5V5" | "Knockout 5V5" => Self::knockOut5V5,
+            "loneStar" | "Lone Star" => Self::loneStar,
+            "paintBrawl" | "Paint Brawl" => Self::paintBrawl,
+            "roboRumble" | "Robo Rumble" => Self::roboRumble,
+            "siege" | "Siege" => Self::siege,
+            "soloShowdown" | "Solo Showdown" => Self::soloShowdown,
+            "takedown" | "Take Down" => Self::takedown,
+            "wipeout" | "Wipeout" => Self::wipeout,
+            "wipeout5V5" | "Wipeout 5V5" => Self::wipeout5V5,
             _ => Self::unknown,
         }
+        
     }
     pub fn all() -> Vec<Mode> {
         Mode::iter().collect()
+    }
+
+    #[inline]
+    pub fn is_unknown(&self) -> bool {
+        *self == Mode::unknown
     }
 }
 #[allow(non_camel_case_types)]
