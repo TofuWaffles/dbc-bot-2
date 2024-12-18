@@ -426,7 +426,7 @@ impl<'a> Component<'a> {
         msg.edit(self.ctx, reply(filtered_maps[page_number].to_owned()))
             .await?;
         let mut ic = self.create_interaction_collector(msg).await?;
-        if let Some(interactions) = &ic.next().await {
+        while let Some(interactions) = &ic.next().await {
             match interactions.data.custom_id.as_str() {
                 "prev" => {
                     page_number = page_number.saturating_sub(1);

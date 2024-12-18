@@ -1340,7 +1340,7 @@ async fn submit(
             tournament.current_round
         ))
         .thumbnail(target.icon());
-    let channel = tournament.notification_channel(ctx).await?;
+    let channel = tournament.announcement_channel(ctx).await?;
 
     let result_msg = channel
         .send_message(
@@ -1388,24 +1388,11 @@ async fn submit(
 pub async fn finish_tournament(
     ctx: &BotContext<'_>,
     bracket: &Match,
+    tournament: &Tournament,
     winner: &Player,
     score: &str,
 ) -> Result<(), BotError> {
-    let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-    let announcement_channel_id = ctx
-        .data()
-        .database
-        .get_tournament(&ctx.guild_id().unwrap(), bracket.tournament()?)
-        .await?
-        .ok_or(anyhow!("Config not found for {}", guild_id.to_string()))?
-        .announcement_channel_id;
-    let tournament_id = bracket.tournament()?;
-    let tournament = ctx
-        .data()
-        .database
-        .get_tournament(&guild_id, tournament_id)
-        .await?
-        .ok_or(TournamentNotExists(tournament_id.to_string()))?;
+    let tournament_id = tournament.tournament_id;
     let loser = ctx
         .data()
         .database
@@ -1471,17 +1458,15 @@ pub async fn finish_tournament(
             .embed(embed)
             .add_file(CreateAttachment::bytes(image, "result.png"))
     };
-
-    ChannelId::new(announcement_channel_id.parse::<u64>()?)
-        .send_message(ctx, reply)
-        .await?;
+    tournament.announcement_channel(ctx).await?.send_message(ctx, reply).await?;
+   
 
     ctx.data()
         .database
         .set_tournament_status(tournament_id, TournamentStatus::Inactive)
         .await?;
 
-    if let Some(role_id) = tournament.tournament_role_id {
+    if let Some(role_id) = &tournament.tournament_role_id {
         ctx.guild_id()
             .unwrap()
             .delete_role(ctx, role_id.parse::<u64>()?)
@@ -1583,7 +1568,7 @@ pub async fn finish_match(
 
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, winner, score).await?;
+        finish_tournament(ctx, bracket, tournament, winner, score).await?;
         return Ok(());
     }
 
