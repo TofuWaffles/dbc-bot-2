@@ -550,7 +550,55 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
             return Ok(());
         }
     };
-    disqualify(&ctx, &t, player, None).await
+    let embed = {
+        let players = t.count_players_in_current_round(&ctx).await?;
+        let finished = t.count_finished_matches(&ctx).await?;
+        CreateEmbed::new()
+            .title(format!("Players' insight of {}", t.name))
+            .description("")
+            .fields(vec![
+                ("Round", t.current_round.to_string(), true),
+                ("Participants", format!("{}", players), true),
+                (
+                    "Finished",
+                    format!(
+                        "{}({:.2}%)",
+                        finished,
+                        (finished as f64 * 100.0) / (players as f64 / 2.0)
+                    ),
+                    true,
+                ),
+            ])
+    };
+    let buttons = {
+        vec![CreateButton::new("reason")
+            .label("Specify Reason")
+            .style(poise::serenity_prelude::ButtonStyle::Primary)]
+    };
+    let msg = &ctx.send(CreateReply::default().ephemeral(true)).await?;
+    ctx.components().prompt(msg, embed, buttons).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interaction) = &ic.next().await {
+        match interaction.data.custom_id.as_str() {
+            "disqualify" => {
+                #[derive(poise::Modal)]
+                struct DisqualifyModal {
+                    #[name = "Reason"]
+                    reason: Option<String>,
+                }
+                let res = ctx
+                    .components()
+                    .modal::<DisqualifyModal>(msg, CreateEmbed::new().title("Disqualify a player"))
+                    .await?;
+                let reason = res.reason;
+                disqualify(&ctx, &t, player, reason).await?;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 async fn disqualify(
@@ -1448,15 +1496,18 @@ async fn player_page(
                 #[derive(poise::Modal)]
                 struct DisqualifyModal {
                     #[name = "Player"]
-                    player: Option<String>,
+                    player: String,
+                    #[name = "Reason"]
+                    reason: Option<String>,
                 }
                 let res = ctx
                     .components()
                     .modal::<DisqualifyModal>(msg, CreateEmbed::new().title("Disqualify a player"))
                     .await?;
-                let id = res.player.ok_or(anyhow!("No player was given"))?;
+                let id = res.player;
+                let reason = res.reason;
                 let player = UserId::from_str(&id)?;
-                disqualify(ctx, t, player.to_user(ctx).await?, None).await?;
+                disqualify(ctx, t, player.to_user(ctx).await?, reason).await?;
             }
             "next" => {
                 interaction
