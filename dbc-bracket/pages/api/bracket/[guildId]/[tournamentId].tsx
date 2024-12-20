@@ -1,6 +1,7 @@
 import BracketService from '@/services/bracket';
 import TournamentService from '@/services/tournament';
 import { NextApiRequest, NextApiResponse } from 'next';
+const SSERate: number = 10000;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse): Promise<void> {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -35,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     sendEvent();
-    const intervalId = setInterval(sendEvent, 10000);
+    const intervalId = setInterval(sendEvent, SSERate);
 
     req.on('close', () => {
         clearInterval(intervalId);

@@ -35,7 +35,11 @@ interface Cache{
 export default async function getMatchData(
   tournamentId: number
 ): Promise<Result<MatchType[]>> {
-  const [matchData, error] = await getMatchesByTournamentId(tournamentId);
+  const [tournament, tournamentError] = await getTournamentById(String(tournamentId));
+  if (tournamentError) {
+    return [[], tournamentError];
+  }
+  const [matchData, error] = await getMatchesByTournamentId(tournamentId, tournament.current_round);
   if (error) {
     return [[], error];
   }
@@ -170,12 +174,13 @@ export async function getTournamentByTournamentIdAndGuildId(
 }
 
 export async function getMatchesByTournamentId(
-  tournamentId: number
+  tournamentId: number,
+  roundId?: number
 ): Promise<Result<Match[]>> {
   const [result, err] = await pool
     .query<Match>({
       text: "SELECT * FROM matches WHERE match_id LIKE $1",
-      values: [`${tournamentId}.%`],
+      values: [roundId !== undefined ? `${tournamentId}.${roundId}.%` : `${tournamentId}.%`],
     })
     .wrapper();
   if (err) {
