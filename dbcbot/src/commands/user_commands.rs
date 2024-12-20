@@ -1,5 +1,5 @@
 use crate::api::official_brawl_stars::BattleLogItem;
-use crate::commands::checks::is_tournament_paused;
+use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
 use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
@@ -939,7 +939,11 @@ async fn display_user_profile_helper(
     Ok(())
 }
 
-#[poise::command(context_menu_command = "User Profile", guild_only)]
+#[poise::command(
+    context_menu_command = "User Profile",
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
 async fn user_profile(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
@@ -1445,7 +1449,11 @@ pub async fn finish_tournament(
     Ok(())
 }
 
-#[poise::command(context_menu_command = "Match Context", guild_only)]
+#[poise::command(
+    context_menu_command = "Match Menu",
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
 async fn view_match_context(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,

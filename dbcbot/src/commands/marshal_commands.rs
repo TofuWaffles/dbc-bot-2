@@ -44,6 +44,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
+            disqualify_context(),
             list_matches(),
             list_players_slash(),
             marshal_menu(),
@@ -501,10 +502,9 @@ async fn disqualify_slash(
 }
 
 #[poise::command(
-    slash_command,
     guild_only,
     check = "is_marshal_or_higher",
-    context_menu_command = "Disqualify current round"
+    context_menu_command = "Disqualify Player"
 )]
 async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), BotError> {
     let tournament_id = match ctx
