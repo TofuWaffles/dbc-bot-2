@@ -2,9 +2,12 @@ use crate::database::*;
 use crate::utils::error::CommonError::*;
 use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 use anyhow::anyhow;
-use poise::serenity_prelude::{ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage};
+use poise::serenity_prelude::{
+    ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildChannel,
+};
 use std::{str::FromStr, time::SystemTime};
 use strum::Display;
+use tracing::info;
 #[allow(dead_code)]
 pub enum State {
     SUCCESS = Color::DARK_GREEN.0 as isize,
@@ -121,56 +124,67 @@ impl Log for BotContext<'_> {
 }
 
 /// Creates an info log message in the current guild's designated log channel.
-// pub async fn discord_log_info(
-//     ctx: BotContext<'_>,
-//     title: &str,
-//     mut fields: Vec<(&str, &str, bool)>,
-// ) -> Result<(), BotError> {
-//     let guild_id = ctx
-//         .guild_id()
-//         .ok_or(anyhow!(
-//             "Error sending info log: Attempted to perform an info log outside of a guild"
-//         ))?
-//         .to_string();
+pub async fn discord_log_info(
+    ctx: BotContext<'_>,
+    log_channel: Option<GuildChannel>,
+    title: &str,
+    mut fields: Vec<(&str, &str, bool)>,
+) -> Result<(), BotError> {
+    let guild_id = ctx.guild_id().ok_or(anyhow!(
+        "Error sending info log: Attempted to perform an info log outside of a guild"
+    ))?;
 
-//     let log_channel = ChannelId::from_str(
-//         &ctx.data()
-//             .database
-//             .get_config(&guild_id)
-//             .await?
-//             .ok_or(anyhow!(
-//                 "Error sending info log: config not found for guild {}",
-//                 guild_id
-//             ))?
-//             .log_channel_id,
-//     )?;
+    let log_channel = match log_channel {
+        None => ctx
+            .guild()
+            .unwrap()
+            .channels(ctx)
+            .await?
+            .get(&ChannelId::from_str(
+                &ctx.data()
+                    .database
+                    .get_config(&guild_id)
+                    .await?
+                    .ok_or(anyhow!(
+                        "Error sending info log: config not found for guild {}",
+                        guild_id
+                    ))?
+                    .log_channel_id,
+            )?)
+            .ok_or(anyhow!(
+                "Error sending log: Unable to find log channel for guild {}",
+                ctx.guild_id().unwrap().to_string()
+            ))?
+            .clone(),
+        Some(lc) => lc,
+    };
 
-//     info!("ℹ️ {}\n\n{:#?}", title, fields);
+    info!("ℹ️ {}\n\n{:#?}", title, fields);
 
-//     let now_string = format!(
-//         "<t:{}:F>",
-//         SystemTime::now()
-//             .duration_since(SystemTime::UNIX_EPOCH)
-//             .unwrap_or_default()
-//             .as_secs()
-//     );
+    let now_string = format!(
+        "<t:{}:F>",
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+    );
 
-//     fields.push(("Happened at", &now_string, false));
+    fields.push(("Happened at", &now_string, false));
 
-//     log_channel
-//         .send_message(
-//             ctx,
-//             CreateMessage::default().content("").embed(
-//                 CreateEmbed::new()
-//                     .title(format!("ℹ️ {}", title))
-//                     .fields(fields)
-//                     .color(Color::BLURPLE),
-//             ),
-//         )
-//         .await?;
+    log_channel
+        .send_message(
+            ctx,
+            CreateMessage::default().content("").embed(
+                CreateEmbed::new()
+                    .title(format!("ℹ️ {}", title))
+                    .fields(fields)
+                    .color(Color::BLURPLE),
+            ),
+        )
+        .await?;
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 /// Creates an error log message in the current guild's designated log channel.
 pub async fn discord_log_error(

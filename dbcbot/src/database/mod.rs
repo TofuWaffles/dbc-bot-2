@@ -512,9 +512,21 @@ impl UserDatabase for PgDatabase {
     }
 }
 pub trait TournamentDatabase {
-    async fn set_player_role(&self, tournament_id: i32, role_id: &RoleId) -> Result<(), Self::Error>;
-    async fn set_notification_channel(&self, tournament_id: i32, channel_id: &ChannelId) -> Result<(), Self::Error>;
-    async fn set_announcement_channel(&self, tournament_id: i32, channel_id: &ChannelId) -> Result<(), Self::Error>;
+    async fn set_player_role(
+        &self,
+        tournament_id: i32,
+        role_id: &RoleId,
+    ) -> Result<(), Self::Error>;
+    async fn set_notification_channel(
+        &self,
+        tournament_id: i32,
+        channel_id: &ChannelId,
+    ) -> Result<(), Self::Error>;
+    async fn set_announcement_channel(
+        &self,
+        tournament_id: i32,
+        channel_id: &ChannelId,
+    ) -> Result<(), Self::Error>;
     async fn set_default_map(&self, tournament_id: i32) -> Result<(), Self::Error>;
     async fn set_mode(&self, tournament_id: i32, mode: impl Into<Mode>) -> Result<(), Self::Error>;
     async fn resume(&self, tournament_id: i32) -> Result<(), Self::Error>;
@@ -780,7 +792,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         });
@@ -834,7 +846,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -889,7 +901,7 @@ impl TournamentDatabase for PgDatabase {
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -946,7 +958,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1056,7 +1068,7 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
                 disabled: row.map_disabled,
             },
             wins_required: row.wins_required,
-            tournament_role_id: Some(row.tournament_role_id),
+            tournament_role_id: row.tournament_role_id,
             announcement_channel_id: row.announcement_channel_id,
             notification_channel_id: row.notification_channel_id,
         })
@@ -1288,8 +1300,6 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         .await?;
         Ok(())
     }
-
-
 }
 
 pub trait MatchDatabase {

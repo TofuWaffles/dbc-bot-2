@@ -1458,8 +1458,11 @@ pub async fn finish_tournament(
             .embed(embed)
             .add_file(CreateAttachment::bytes(image, "result.png"))
     };
-    tournament.announcement_channel(ctx).await?.send_message(ctx, reply).await?;
-   
+    tournament
+        .announcement_channel(ctx)
+        .await?
+        .send_message(ctx, reply)
+        .await?;
 
     ctx.data()
         .database

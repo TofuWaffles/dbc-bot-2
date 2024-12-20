@@ -164,24 +164,45 @@ impl Tournament {
             .await
     }
 
-    pub async fn set_announcement_channel(&self, ctx: &BotContext<'_>, channel: &Channel) -> Result<(), BotError>{
-        ctx.data().database.set_announcement_channel(self.tournament_id, &channel.id()).await
+    pub async fn set_announcement_channel(
+        &self,
+        ctx: &BotContext<'_>,
+        channel: &Channel,
+    ) -> Result<(), BotError> {
+        ctx.data()
+            .database
+            .set_announcement_channel(self.tournament_id, &channel.id())
+            .await
     }
 
-    pub async fn set_notification_channel(&self, ctx: &BotContext<'_>, channel: &Channel) -> Result<(), BotError>{
-        ctx.data().database.set_notification_channel(self.tournament_id, &channel.id()).await
+    pub async fn set_notification_channel(
+        &self,
+        ctx: &BotContext<'_>,
+        channel: &Channel,
+    ) -> Result<(), BotError> {
+        ctx.data()
+            .database
+            .set_notification_channel(self.tournament_id, &channel.id())
+            .await
     }
 
     pub async fn set_player_role(&self, ctx: &BotContext<'_>, role: &Role) -> Result<(), BotError> {
-        ctx.data().database.set_player_role(self.tournament_id, &role.id).await
+        ctx.data()
+            .database
+            .set_player_role(self.tournament_id, &role.id)
+            .await
     }
 
     pub async fn update(&mut self, ctx: &BotContext<'_>) -> Result<(), BotError> {
         let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-        let tournament = ctx.data().database.get_tournament(&guild_id, self.tournament_id).await?.ok_or(TournamentNotExists(self.tournament_id.to_string()))?;
+        let tournament = ctx
+            .data()
+            .database
+            .get_tournament(&guild_id, self.tournament_id)
+            .await?
+            .ok_or(TournamentNotExists(self.tournament_id.to_string()))?;
         *self = tournament;
         Ok(())
-
     }
 }
 
@@ -695,7 +716,6 @@ impl Mode {
             "wipeout5V5" | "Wipeout 5V5" => Self::wipeout5V5,
             _ => Self::unknown,
         }
-        
     }
     pub fn all() -> Vec<Mode> {
         Mode::iter().collect()

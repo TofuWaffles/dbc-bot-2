@@ -370,8 +370,13 @@ impl<'a> Component<'a> {
         msg: &ReplyHandle<'_>,
         mode: &Mode,
     ) -> Result<BrawlMap, BotError> {
-        if mode.is_unknown(){
-            self.prompt(msg, CreateEmbed::new().description("No maps detected for Unknown mode"), None).await?;
+        if mode.is_unknown() {
+            self.prompt(
+                msg,
+                CreateEmbed::new().description("No maps detected for Unknown mode"),
+                None,
+            )
+            .await?;
             return Err(NoSelection.into());
         }
         let raw = self.ctx.data().apis.brawlify.get_maps().await?;
@@ -470,10 +475,14 @@ impl<'a> Component<'a> {
                 .fields(vec![
                     ("ID", mode.sc_id.to_string(), true),
                     ("Name", mode.name.clone(), true),
-                    ("Availability", String::from(["Yes", "No"][(mode.disabled) as usize]), true),
+                    (
+                        "Availability",
+                        String::from(["Yes", "No"][(mode.disabled) as usize]),
+                        true,
+                    ),
                     ("Code name", mode.sc_hash.clone(), true),
                 ])
-                .description(format!("Description: {}",mode.description))
+                .description(format!("Description: {}", mode.description))
                 .thumbnail(mode.image_url)
                 .footer(CreateEmbedFooter::new("Provided by Brawlify"));
             let buttons = CreateActionRow::Buttons(vec![

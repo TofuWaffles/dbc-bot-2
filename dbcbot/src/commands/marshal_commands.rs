@@ -6,9 +6,7 @@ use crate::commands::checks::is_manager;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
-use crate::database::{
-    BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
-};
+use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{
@@ -20,8 +18,7 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
 use poise::serenity_prelude::{
-    CreateAttachment, CreateButton, CreateEmbedFooter,
-    Mentionable, ReactionType, UserId,
+    CreateAttachment, CreateButton, CreateEmbedFooter, Mentionable, ReactionType, UserId,
 };
 use poise::ReplyHandle;
 use poise::{
@@ -484,6 +481,7 @@ async fn disqualify_slash(
     ctx: BotContext<'_>,
     tournament_id: i32,
     player: User,
+    reason: Option<String>,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
@@ -498,7 +496,7 @@ async fn disqualify_slash(
             return Ok(());
         }
     };
-    disqualify(&ctx, &tournament, player).await?;
+    disqualify(&ctx, &tournament, player, reason).await?;
     Ok(())
 }
 
@@ -552,18 +550,19 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
             return Ok(());
         }
     };
-    disqualify(&ctx, &t, player).await
+    disqualify(&ctx, &t, player, None).await
 }
 
 async fn disqualify(
     ctx: &BotContext<'_>,
     tournament: &Tournament,
-    player: User,
+    user: User,
+    reason: Option<String>,
 ) -> Result<(), BotError> {
     let bracket = match ctx
         .data()
         .database
-        .get_match_by_player(tournament.tournament_id, &player.id)
+        .get_match_by_player(tournament.tournament_id, &user.id)
         .await?
     {
         Some(bracket) => bracket,
@@ -572,7 +571,7 @@ async fn disqualify(
                 CreateReply::default()
                     .content(format!(
                         "An unfinished match could not be found for <@{}> in tournament {}.",
-                        player.id, tournament.tournament_id
+                        user.id, tournament.tournament_id
                     ))
                     .ephemeral(true),
             )
@@ -581,23 +580,25 @@ async fn disqualify(
         }
     };
 
+    let score = "WON-DISQUALIFIED";
+
     let opponent = ctx
         .data()
         .database
-        .get_player_by_discord_id(&bracket.get_opponent(&player.id.to_string())?.user_id()?)
+        .get_player_by_discord_id(&bracket.get_opponent(&user.id.to_string())?.user_id()?)
         .await?
         .ok_or(anyhow!(
             "Unable to find opponent for player {} in match {}",
             ctx.author().id,
             bracket.match_id
         ))?;
-    finish_match(ctx, tournament, &bracket, &opponent, "WON-DISQUALIFIED").await?;
+    finish_match(ctx, tournament, &bracket, &opponent, score).await?;
 
     ctx.send(
         CreateReply::default()
             .content(format!(
                 "Successfully disqualified <@{}> from match {}",
-                player.id, bracket.match_id
+                user.id, bracket.match_id
             ))
             .ephemeral(true),
     )
@@ -606,8 +607,16 @@ async fn disqualify(
         ("Tournament ID", tournament.tournament_id.to_string(), true),
         ("Tournament name", tournament.name.to_string(), true),
         ("Match ID", bracket.match_id.to_string(), true),
-        ("Disqualified player", player.name.to_string(), true),
+        ("Disqualified player", user.name.to_string(), true),
         ("Disqualified by", ctx.author().name.to_string(), true),
+        (
+            "Reason",
+            match reason {
+                Some(r) => r,
+                None => "None".to_string(),
+            },
+            true,
+        ),
     ];
     let log = ctx
         .build_log(
@@ -618,6 +627,14 @@ async fn disqualify(
         )
         .fields(fields);
     ctx.log(log).await?;
+
+    let player = ctx
+        .data()
+        .database
+        .get_player_by_discord_id(&user.id)
+        .await?
+        .ok_or(anyhow!("Player {} not found!", user.id))?;
+    finish_match(ctx, tournament, &bracket, &player, score).await?;
 
     Ok(())
 }
@@ -1330,7 +1347,9 @@ Current configuration:
         Ok(embed)
     }
 
-    ctx.components().prompt(msg, embed(ctx, &t).await?, buttons.clone()).await?;
+    ctx.components()
+        .prompt(msg, embed(ctx, &t).await?, buttons.clone())
+        .await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
@@ -1376,7 +1395,9 @@ Current configuration:
             _ => continue,
         }
         t.update(ctx).await?;
-        ctx.components().prompt(msg, embed(ctx, &t).await?, buttons.clone()).await?;
+        ctx.components()
+            .prompt(msg, embed(ctx, &t).await?, buttons.clone())
+            .await?;
     }
     Ok(())
 }
@@ -1435,7 +1456,7 @@ async fn player_page(
                     .await?;
                 let id = res.player.ok_or(anyhow!("No player was given"))?;
                 let player = UserId::from_str(&id)?;
-                disqualify(ctx, t, player.to_user(ctx).await?).await?;
+                disqualify(ctx, t, player.to_user(ctx).await?, None).await?;
             }
             "next" => {
                 interaction
