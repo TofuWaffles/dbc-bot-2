@@ -635,6 +635,21 @@ async fn disqualify(
         }
     };
 
+    if bracket.winner.is_some() {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "Unable to disqualify player {}. Their furthest match {} has already ended.",
+                    user.mention(),
+                    bracket.match_id
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
     let score = "WON-DISQUALIFIED";
 
     let opponent = ctx
