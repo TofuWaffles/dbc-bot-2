@@ -582,13 +582,20 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
         match interaction.data.custom_id.as_str() {
             "disqualify" => {
                 #[derive(poise::Modal)]
+                #[name = "Disqualify Player Reason"]
                 struct DisqualifyModal {
                     #[name = "Reason"]
+                    #[placeholder = "Enter reason for disqualification here"]
+                    #[paragraph]
                     reason: Option<String>,
                 }
                 let res = ctx
                     .components()
-                    .modal::<DisqualifyModal>(msg, CreateEmbed::new().title("Disqualify a player"))
+                    .modal::<DisqualifyModal>(
+                        msg,
+                        CreateEmbed::new()
+                            .title(format!("Disqualify player: {}?", player.mention())),
+                    )
                     .await?;
                 let reason = res.reason;
                 disqualify(&ctx, &t, player, reason).await?;
@@ -1494,10 +1501,14 @@ async fn player_page(
         match interaction.data.custom_id.as_str() {
             "disqualify" => {
                 #[derive(poise::Modal)]
+                #[name = "Disqualify Player"]
                 struct DisqualifyModal {
                     #[name = "Player"]
+                    #[placeholder = "Enter the player's Discord ID here"]
                     player: String,
                     #[name = "Reason"]
+                    #[placeholder = "Enter reason for disqualification here"]
+                    #[paragraph]
                     reason: Option<String>,
                 }
                 let res = ctx
