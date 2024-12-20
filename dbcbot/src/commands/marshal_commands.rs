@@ -691,7 +691,10 @@ async fn disqualify(
     let log = ctx
         .build_log(
             "Player disqualified!",
-            "Player <@{player_id}> was disqualified from the tournament",
+            format!(
+                "Player {} was disqualified from the tournament",
+                user.mention()
+            ),
             log::State::SUCCESS,
             log::Model::MARSHAL,
         )
