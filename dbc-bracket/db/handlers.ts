@@ -83,7 +83,6 @@ export default async function getMatchData(
       matches[idx].participants.push(skeletonParticipants)
     }
   }
-  console.log(JSON.stringify(matches, null, 2));
   return Ok(matches);
 }
 
