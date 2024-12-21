@@ -58,7 +58,6 @@ export default async function getMatchData(
     }
     cache[tournamentId].matches[idx] = matches[idx];
   }
-  console.log(JSON.stringify(matches, null, 2));
   return Ok(matches);
 }
 

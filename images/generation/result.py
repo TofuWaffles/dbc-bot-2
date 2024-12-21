@@ -31,6 +31,7 @@ class Result(BaseImage):
         self.pi1, self.error = await self.asset.icon(self.winner.icon)
         self.pi2, self.error = await self.asset.icon(self.loser.icon)
         self.score = score
+        self.score_textbox_pos = ((500, 250), (780, 330))
 
     def preset(self):
         ICON_SIZE = (275, 275)
@@ -58,9 +59,11 @@ class Result(BaseImage):
             align="center",
             color=(255, 255, 255),
         )
+        if "DISQUALIFIED" in self.score:
+            self.score_textbox_pos = ((500, 50), (780, 130))
         self.write(
             text=self.score,
-            textbox_pos=((500, 250), (780, 330)),
+            textbox_pos=self.score_textbox_pos,
             align="center",
             font_size=100,
             color=(255, 255, 255),

@@ -44,6 +44,7 @@ impl CommandsContainer for MarshalCommands {
             get_battle_logs(),
             set_map(),
             disqualify_slash(),
+            disqualify_context(),
             list_matches(),
             list_players_slash(),
             marshal_menu(),
@@ -501,10 +502,9 @@ async fn disqualify_slash(
 }
 
 #[poise::command(
-    slash_command,
     guild_only,
     check = "is_marshal_or_higher",
-    context_menu_command = "Disqualify current round"
+    context_menu_command = "Disqualify Player"
 )]
 async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), BotError> {
     let tournament_id = match ctx
@@ -550,7 +550,62 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
             return Ok(());
         }
     };
-    disqualify(&ctx, &t, player, None).await
+    let embed = {
+        let players = t.count_players_in_current_round(&ctx).await?;
+        let finished = t.count_finished_matches(&ctx).await?;
+        CreateEmbed::new()
+            .title(format!("Players' insight of {}", t.name))
+            .description("")
+            .fields(vec![
+                ("Round", t.current_round.to_string(), true),
+                ("Participants", format!("{}", players), true),
+                (
+                    "Finished",
+                    format!(
+                        "{}({:.2}%)",
+                        finished,
+                        (finished as f64 * 100.0) / (players as f64 / 2.0)
+                    ),
+                    true,
+                ),
+            ])
+    };
+    let buttons = {
+        vec![CreateButton::new("reason")
+            .label("Specify Reason")
+            .style(poise::serenity_prelude::ButtonStyle::Primary)]
+    };
+    let msg = &ctx.send(CreateReply::default().ephemeral(true)).await?;
+    ctx.components().prompt(msg, embed, buttons).await?;
+    let mut ic = ctx.create_interaction_collector(msg).await?;
+    while let Some(interaction) = &ic.next().await {
+        match interaction.data.custom_id.as_str() {
+            "disqualify" => {
+                #[derive(poise::Modal)]
+                #[name = "Disqualify Player Reason"]
+                struct DisqualifyModal {
+                    #[name = "Reason"]
+                    #[placeholder = "Enter reason for disqualification here"]
+                    #[paragraph]
+                    reason: Option<String>,
+                }
+                let res = ctx
+                    .components()
+                    .modal::<DisqualifyModal>(
+                        msg,
+                        CreateEmbed::new()
+                            .title(format!("Disqualify player: {}?", player.mention())),
+                    )
+                    .await?;
+                let reason = res.reason;
+                disqualify(&ctx, &t, player, reason).await?;
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(())
 }
 
 async fn disqualify(
@@ -579,6 +634,21 @@ async fn disqualify(
             return Ok(());
         }
     };
+
+    if bracket.winner.is_some() {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "Unable to disqualify player {}. Their furthest match {} has already ended.",
+                    user.mention(),
+                    bracket.match_id
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
 
     let score = "WON-DISQUALIFIED";
 
@@ -621,7 +691,10 @@ async fn disqualify(
     let log = ctx
         .build_log(
             "Player disqualified!",
-            "Player <@{player_id}> was disqualified from the tournament",
+            format!(
+                "Player {} was disqualified from the tournament",
+                user.mention()
+            ),
             log::State::SUCCESS,
             log::Model::MARSHAL,
         )
@@ -1446,17 +1519,24 @@ async fn player_page(
         match interaction.data.custom_id.as_str() {
             "disqualify" => {
                 #[derive(poise::Modal)]
+                #[name = "Disqualify Player"]
                 struct DisqualifyModal {
                     #[name = "Player"]
-                    player: Option<String>,
+                    #[placeholder = "Enter the player's Discord ID here"]
+                    player: String,
+                    #[name = "Reason"]
+                    #[placeholder = "Enter reason for disqualification here"]
+                    #[paragraph]
+                    reason: Option<String>,
                 }
                 let res = ctx
                     .components()
                     .modal::<DisqualifyModal>(msg, CreateEmbed::new().title("Disqualify a player"))
                     .await?;
-                let id = res.player.ok_or(anyhow!("No player was given"))?;
+                let id = res.player;
+                let reason = res.reason;
                 let player = UserId::from_str(&id)?;
-                disqualify(ctx, t, player.to_user(ctx).await?, None).await?;
+                disqualify(ctx, t, player.to_user(ctx).await?, reason).await?;
             }
             "next" => {
                 interaction

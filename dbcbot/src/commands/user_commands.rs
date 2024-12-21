@@ -1,5 +1,5 @@
 use crate::api::official_brawl_stars::BattleLogItem;
-use crate::commands::checks::is_tournament_paused;
+use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
 use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
@@ -939,7 +939,11 @@ async fn display_user_profile_helper(
     Ok(())
 }
 
-#[poise::command(context_menu_command = "User Profile", guild_only)]
+#[poise::command(
+    context_menu_command = "User Profile",
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
 async fn user_profile(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
@@ -1313,43 +1317,9 @@ async fn submit(
         }
     };
 
-    let (adv, elim) = (
-        &target,
-        ctx.get_player_from_discord_id(
-            current_match
-                .get_opponent(&target.discord_id)?
-                .discord_id
-                .clone(),
-        )
-        .await?
-        .unwrap(),
-    );
     save_record(ctx, &current_match, battles).await?;
-    let (image, user) = join!(
-        ctx.data().apis.images.result_image(adv, &elim, &score),
-        target.user(ctx)
-    );
 
-    finish_match(ctx, tournament, bracket, &target, &score).await?;
-
-    let embed = CreateEmbed::new()
-        .title("Match submission!")
-        .description(format!(
-            "Congratulations! {} passes Round {}",
-            user?.mention(),
-            tournament.current_round
-        ))
-        .thumbnail(target.icon());
-    let channel = tournament.announcement_channel(ctx).await?;
-
-    let result_msg = channel
-        .send_message(
-            ctx.http(),
-            CreateMessage::new()
-                .embed(embed)
-                .add_file(CreateAttachment::bytes(image?, "result.png")),
-        )
-        .await?;
+    let result_msg = finish_match(ctx, tournament, bracket, &target, &score).await?;
 
     let mut bracket_link = BracketURL::get_url();
     bracket_link.push_str(&format!(
@@ -1479,7 +1449,11 @@ pub async fn finish_tournament(
     Ok(())
 }
 
-#[poise::command(context_menu_command = "Match Context", guild_only)]
+#[poise::command(
+    context_menu_command = "Match Menu",
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
 async fn view_match_context(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
@@ -1558,7 +1532,7 @@ pub async fn finish_match(
     bracket: &Match,
     winner: &Player,
     score: &str,
-) -> Result<(), BotError> {
+) -> Result<Message, BotError> {
     ctx.data()
         .database
         .set_winner(&bracket.match_id, &winner.user_id()?, score)
@@ -1569,10 +1543,45 @@ pub async fn finish_match(
         .update_end_time(&bracket.match_id)
         .await?;
 
+    let image = ctx
+        .data()
+        .apis
+        .images
+        .result_image(
+            winner,
+            &ctx.data()
+                .database
+                .get_player_by_discord_id(&bracket.get_opponent(&winner.discord_id)?.user_id()?)
+                .await?
+                .ok_or(anyhow!(
+                    "Unable to find opponent of player {}",
+                    winner.discord_id
+                ))?,
+            score,
+        )
+        .await?;
+
+    let embed = CreateEmbed::new()
+        .title("Match submission!")
+        .description(format!(
+            "Congratulations! <@{}> passes Round {}",
+            winner.discord_id, tournament.current_round
+        ))
+        .thumbnail(winner.icon());
+    let channel = tournament.announcement_channel(ctx).await?;
+
+    let result_msg = channel
+        .send_message(
+            ctx.http(),
+            CreateMessage::new()
+                .embed(embed)
+                .add_file(CreateAttachment::bytes(image, "result.png")),
+        )
+        .await?;
     // Final round. Announce the winner and finish the tournament
     if bracket.round()? == tournament.rounds {
         finish_tournament(ctx, bracket, tournament, winner, score).await?;
-        return Ok(());
+        return Ok(result_msg);
     }
 
     ctx.data()
@@ -1580,5 +1589,5 @@ pub async fn finish_match(
         .advance_player(tournament.tournament_id, &winner.user_id()?)
         .await?;
 
-    Ok(())
+    Ok(result_msg)
 }
