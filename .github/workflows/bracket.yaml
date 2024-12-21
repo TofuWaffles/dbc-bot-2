@@ -2,6 +2,8 @@ name: Bracket Update
 
 on:
   push:
+    branches:
+      - main
     paths:
       - dbc-bracket/**  
     
