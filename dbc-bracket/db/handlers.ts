@@ -49,12 +49,15 @@ export default async function getMatchData(
   }
  
   for (const match of matchData) {
+    const [matchData, error2] = await constructMatch(match);
+    if (error2) {
+      return Err(error2);
+    }
     const matchId = match.match_id;
     const idx = cache[tournamentId].idxCache[matchId];
-
     matches[idx] = {
       ...matches[idx],
-      ...await constructMatch(match),
+      ...matchData
     }
     cache[tournamentId].matches[idx] = matches[idx];
   }
@@ -242,10 +245,14 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
     if (err2) {
       return Err(err2);
     }
+    const [matchData, err3] = await constructMatch(match);
+    if (err3) {
+      return Err(err3);
+    }
     const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
     matches.push({
-      ...await constructMatch(match) as MatchType,
       nextMatchId: nextMatchId,
+      ...matchData
     });
   }
   const idxCache: { [key: string]: number } = {};
@@ -258,7 +265,7 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   return Ok(matches);
 }
 
-async function constructMatch<T>(match: Match): Promise<Result<T> | MatchType> {
+async function constructMatch(match: Match): Promise<Result<MatchType>> {
   const [
     [nextMatchState, error1],
     [playerData, error3],
@@ -289,7 +296,7 @@ async function constructMatch<T>(match: Match): Promise<Result<T> | MatchType> {
   if(matchObj.participants.length == 1){
     matchObj.participants.push(skeletonParticipants)
   }
-  return matchObj;
+  return Ok(matchObj);
 }
 
 async function getPlayersFromTournament(tournamentId: number): Promise<Result<Player[]>>{
