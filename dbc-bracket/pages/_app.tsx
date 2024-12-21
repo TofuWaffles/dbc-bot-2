@@ -6,9 +6,15 @@ import { AppProps } from 'next/app';
 function MyApp({ Component, pageProps }: AppProps) {
     return (
         <div className='w-full h-screen flex flex-col'>
+            <div className='w-full h-[10vh]'>
             <Navbar />
+            </div>
+            <div className='w-full h-[85vh]'>
             <Component {...pageProps} />
+            </div>
+            <div className='w-full h-[5vh]'>
             <Footer />
+            </div>
         </div>
     );
 }
