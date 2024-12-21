@@ -49,39 +49,14 @@ export default async function getMatchData(
   }
  
   for (const match of matchData) {
-    const [
-      [nextMatchState, error1],
-      [playerData, error3],
-    ] = await Promise.all([
-      getNextMatchState(match),
-      getPlayerNamesAndIdsByMatchId(match.match_id),
-    ]);
-    if (error1 || error3) {
-      return Err(error1 || error3);
-    }
-    const [[_, round, sequence], error4] = MatchService.metadata(match);
-    if (error4) {
-      return [[], error4];
-    }
     const matchId = match.match_id;
     const idx = cache[tournamentId].idxCache[matchId];
 
     matches[idx] = {
       ...matches[idx],
-      tournamentRoundText: `${round}`,
-      startTime: match.end?String(match.end):"Not started yet",
-      state: nextMatchState,
-      participants: playerData.map((player) => ({
-        id: player.discord_id,
-        resultText: MatchService.getScore(match, player),
-        isWinner: match.winner === null ? null : match.winner === player.discord_id,
-        name: player.player_name,
-        iconUrl: String(player.icon),
-      })),
+      ...await constructMatch(match),
     }
-    if(matches[idx].participants.length==1){
-      matches[idx].participants.push(skeletonParticipants)
-    }
+    cache[tournamentId].matches[idx] = matches[idx];
   }
   console.log(JSON.stringify(matches, null, 2));
   return Ok(matches);
@@ -270,11 +245,8 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
     }
     const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
     matches.push({
-      id: match.match_id,
+      ...await constructMatch(match) as MatchType,
       nextMatchId: nextMatchId,
-      tournamentRoundText: `Round ${round}`,
-      startTime: String(match.start),
-      participants: [skeletonParticipants, skeletonParticipants]
     });
   }
   const idxCache: { [key: string]: number } = {};
@@ -285,6 +257,40 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
   cache[tournamentId] = { matches, idxCache };
 
   return Ok(matches);
+}
+
+async function constructMatch<T>(match: Match): Promise<Result<T> | MatchType> {
+  const [
+    [nextMatchState, error1],
+    [playerData, error3],
+  ] = await Promise.all([
+    getNextMatchState(match),
+    getPlayerNamesAndIdsByMatchId(match.match_id),
+  ]);
+  if (error1 || error3) {
+    return Err(error1 || error3);
+  }
+  const [[_, round, sequence], err2] = MatchService.metadata(match);
+  if (err2) {
+    return Err(err2);
+  }
+  const matchObj: MatchType = {
+    id: match.match_id,
+    tournamentRoundText: `${round}`,
+    startTime: match.end?String(match.end):"Not started yet",
+    state: nextMatchState,
+    participants: playerData.length ? playerData.map((player) => ({
+      id: player.discord_id,
+      resultText: MatchService.getScore(match, player),
+      isWinner: match.winner === null ? null : match.winner === player.discord_id,
+      name: player.player_name,
+      iconUrl: String(player.icon),
+    })) : [skeletonParticipants, skeletonParticipants],
+  };
+  if(matchObj.participants.length == 1){
+    matchObj.participants.push(skeletonParticipants)
+  }
+  return matchObj;
 }
 
 async function getPlayersFromTournament(tournamentId: number): Promise<Result<Player[]>>{

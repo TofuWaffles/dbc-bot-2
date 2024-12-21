@@ -62,7 +62,7 @@ export type MatchType = {
     id: number | string;
     href?: string;
     name?: string;
-    nextMatchId: number | string | null;
+    nextMatchId?: number | string | null;
     nextLooserMatchId?: number | string;
     tournamentRoundText?: string;
     startTime: string;
