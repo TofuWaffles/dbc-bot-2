@@ -81,7 +81,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
     )
   }
 
-  const TournmanentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
+  const TournamentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
     const { width, height } = useWindowSize();
     return (
       <div className="w-full flex justify-center items-center">
@@ -212,7 +212,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
         </div>
       </div>
       <div className='w-full max-h-full justify-center items-center overflow-y-auto'>
-        {matches.length > 0 ? <TournmanentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
+        {matches.length > 0 ? <TournamentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
         <div className='h-[20vh]'></div>
       </div>
 
