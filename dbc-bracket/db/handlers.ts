@@ -35,26 +35,25 @@ interface Cache{
 export default async function getMatchData(
   tournamentId: number
 ): Promise<Result<MatchType[]>> {
-  const [tournament, tournamentError] = await getTournamentById(String(tournamentId));
-  if (tournamentError) {
-    return [[], tournamentError];
-  }
-  const [matchData, error] = await getMatchesByTournamentId(tournamentId, tournament.current_round);
+  const [tournament, error] = await getTournamentById(String(tournamentId));
   if (error) {
-    return [[], error];
+    return Err(error);
   }
-  const [matches, error1] = await getAllPreMatches(tournamentId);
+  const [matchData, error1] = await getMatchesByTournamentId(tournamentId, tournament.current_round);
   if (error1) {
-    return [[], error1];
+    return Err(error1);
   }
- 
+  const [matches, error2] = await getAllPreMatches(tournamentId);
+  if (error2) {
+    return Err(error2);
+  }
+
   for (const match of matchData) {
-    const [matchObj, error2] = await constructMatch(match);
-    if (error2) {
-      return Err(error2);
+    const [matchObj, error3] = await constructMatch(match);
+    if (error3) {
+      return Err(error3);
     }
-    const matchId = match.match_id;
-    const idx = cache[tournamentId].idxCache[matchId];
+    const idx = cache[tournamentId].idxCache[match.match_id];
     matches[idx] = {
       ...matches[idx],
       ...matchObj
@@ -245,11 +244,11 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
     if (err2) {
       return Err(err2);
     }
+    const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
     const [matchObj, err3] = await constructMatch(match);
     if (err3) {
       return Err(err3);
     }
-    const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
     matches.push({
       nextMatchId: nextMatchId,
       ...matchObj
