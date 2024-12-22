@@ -49,7 +49,7 @@ export default async function getMatchData(
   }
  
   for (const match of matchData) {
-    const [matchData, error2] = await constructMatch(match);
+    const [matchObj, error2] = await constructMatch(match);
     if (error2) {
       return Err(error2);
     }
@@ -57,7 +57,7 @@ export default async function getMatchData(
     const idx = cache[tournamentId].idxCache[matchId];
     matches[idx] = {
       ...matches[idx],
-      ...matchData
+      ...matchObj
     }
     cache[tournamentId].matches[idx] = matches[idx];
   }
@@ -245,14 +245,14 @@ export async function getAllPreMatches(tournamentId: number): Promise<Result<Mat
     if (err2) {
       return Err(err2);
     }
-    const [matchData, err3] = await constructMatch(match);
+    const [matchObj, err3] = await constructMatch(match);
     if (err3) {
       return Err(err3);
     }
     const nextMatchId = round < totalRounds ? `${tournament_id}.${round + 1}.${Math.ceil(sequence / 2)}` : null;
     matches.push({
       nextMatchId: nextMatchId,
-      ...matchData
+      ...matchObj
     });
   }
   const idxCache: { [key: string]: number } = {};
