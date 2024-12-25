@@ -62,14 +62,16 @@ mod checks {
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        if Member::from(*ctx.author().member.clone().unwrap())
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+
+        if guild_id
+            .member(ctx, ctx.author().id)
+            .await?
             .permissions(&ctx.data().cache)?
             .administrator()
         {
             return Ok(true);
         }
-
-        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
 
@@ -105,14 +107,16 @@ mod checks {
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        if Member::from(*ctx.author().member.clone().unwrap())
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+
+        if guild_id
+            .member(ctx, ctx.author().id)
+            .await?
             .permissions(&ctx.data().cache)?
             .administrator()
         {
             return Ok(true);
         }
-
-        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role = ctx.data().database.get_manager_role(&guild_id).await?;
 
