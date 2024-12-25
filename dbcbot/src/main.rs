@@ -39,7 +39,6 @@ mod mail;
 pub struct Data<DB> {
     database: DB,
     apis: APIsContainer,
-    cache: Cache,
 }
 
 impl<DB> Data<DB>
@@ -51,7 +50,6 @@ where
         Self {
             database,
             apis: game_api,
-            cache: Cache::new(),
         }
     }
 }

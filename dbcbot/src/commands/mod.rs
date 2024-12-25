@@ -64,10 +64,12 @@ mod checks {
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
-        if guild_id
-            .member(ctx, ctx.author().id)
-            .await?
-            .permissions(&ctx.data().cache)?
+        let member = guild_id.member(ctx, ctx.author().id).await?;
+
+        if ctx
+            .guild()
+            .ok_or(NotInAGuild)?
+            .member_permissions(&member)
             .administrator()
         {
             return Ok(true);
@@ -109,10 +111,12 @@ mod checks {
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
         let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
-        if guild_id
-            .member(ctx, ctx.author().id)
-            .await?
-            .permissions(&ctx.data().cache)?
+        let member = guild_id.member(ctx, ctx.author().id).await?;
+
+        if ctx
+            .guild()
+            .ok_or(NotInAGuild)?
+            .member_permissions(&member)
             .administrator()
         {
             return Ok(true);
