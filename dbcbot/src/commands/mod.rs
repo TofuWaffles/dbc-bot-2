@@ -52,7 +52,7 @@ mod checks {
 
     use anyhow::anyhow;
     use poise::{
-        serenity_prelude::{Cache, RoleId},
+        serenity_prelude::{Cache, Member, RoleId},
         CreateReply,
     };
 
@@ -63,16 +63,7 @@ mod checks {
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        if ctx
-            .guild()
-            .unwrap()
-            .members
-            .get(&ctx.author().id)
-            .ok_or(anyhow!(
-                "Unable to find user {} in guild {}",
-                ctx.author().id.to_string(),
-                ctx.guild_id().unwrap().to_string()
-            ))?
+        if Member::from(*ctx.author().member.clone().unwrap())
             .permissions(Cache::new())?
             .administrator()
         {
@@ -115,16 +106,7 @@ mod checks {
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
-        if ctx
-            .guild()
-            .unwrap()
-            .members
-            .get(&ctx.author().id)
-            .ok_or(anyhow!(
-                "Unable to find user {} in guild {}",
-                ctx.author().id.to_string(),
-                ctx.guild_id().unwrap().to_string()
-            ))?
+        if Member::from(*ctx.author().member.clone().unwrap())
             .permissions(Cache::new())?
             .administrator()
         {
