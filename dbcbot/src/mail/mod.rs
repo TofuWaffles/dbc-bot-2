@@ -7,7 +7,7 @@ use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::Mail;
+use model::{Mail, MailType};
 use poise::serenity_prelude::{
     AutoArchiveDuration, ButtonStyle, ChannelType, Colour, CreateActionRow, CreateButton,
     CreateEmbed, CreateMessage, CreateThread, Mentionable, RoleId,
