@@ -31,7 +31,9 @@ jobs:
         with:
           path: |
             ~/dbcbot/.cargo
-            dbcbot/target/
+            ~/dbcbot/.cargo/registry/index/
+            ~/dbcbot/.cargo/registry/cache/
+            ~/dbcbot.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/dbcbot/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
