@@ -3,13 +3,17 @@ name: Migration Update
 on:
   push:
     paths:
-      - dbcbot/migrations/**
+      - "dbcbot/migrations/**"
+  workflow_dispatch:
 
 jobs:
   migration:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Remove old migration files from the remote server
         uses: appleboy/ssh-action@v1.1.0
         with:
