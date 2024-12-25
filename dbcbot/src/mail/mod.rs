@@ -2,7 +2,6 @@ pub mod model;
 
 use crate::database::ConfigDatabase;
 use crate::log::Log;
-use crate::mail::model::MailType;
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};

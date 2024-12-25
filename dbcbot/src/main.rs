@@ -4,7 +4,10 @@ use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use database::{Database, PgDatabase, TournamentDatabase};
-use poise::{serenity_prelude as serenity, CreateReply};
+use poise::{
+    serenity_prelude::{self as serenity, Cache},
+    CreateReply,
+};
 
 use crate::log::discord_log_error;
 use commands::{
@@ -36,6 +39,7 @@ mod mail;
 pub struct Data<DB> {
     database: DB,
     apis: APIsContainer,
+    cache: Cache,
 }
 
 impl<DB> Data<DB>
@@ -47,6 +51,7 @@ where
         Self {
             database,
             apis: game_api,
+            cache: Cache::new(),
         }
     }
 }

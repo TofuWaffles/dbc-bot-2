@@ -50,9 +50,8 @@ mod checks {
     use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
-    use anyhow::anyhow;
     use poise::{
-        serenity_prelude::{Cache, Member, RoleId},
+        serenity_prelude::{Member, RoleId},
         CreateReply,
     };
 
@@ -64,7 +63,7 @@ mod checks {
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
         if Member::from(*ctx.author().member.clone().unwrap())
-            .permissions(Cache::new())?
+            .permissions(&ctx.data().cache)?
             .administrator()
         {
             return Ok(true);
@@ -107,7 +106,7 @@ mod checks {
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
         if Member::from(*ctx.author().member.clone().unwrap())
-            .permissions(Cache::new())?
+            .permissions(&ctx.data().cache)?
             .administrator()
         {
             return Ok(true);
