@@ -50,7 +50,11 @@ mod checks {
     use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
-    use poise::{serenity_prelude::RoleId, CreateReply};
+    use anyhow::anyhow;
+    use poise::{
+        serenity_prelude::{Cache, RoleId},
+        CreateReply,
+    };
 
     use crate::{
         database::{models::TournamentStatus, ConfigDatabase, TournamentDatabase},
@@ -59,6 +63,22 @@ mod checks {
 
     /// Checks if the user has a manager role.
     pub async fn is_manager(ctx: BotContext<'_>) -> Result<bool, BotError> {
+        if ctx
+            .guild()
+            .unwrap()
+            .members
+            .get(&ctx.author().id)
+            .ok_or(anyhow!(
+                "Unable to find user {} in guild {}",
+                ctx.author().id.to_string(),
+                ctx.guild_id().unwrap().to_string()
+            ))?
+            .permissions(Cache::new())?
+            .administrator()
+        {
+            return Ok(true);
+        }
+
         let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role_option = ctx.data().database.get_manager_role(&guild_id).await?;
@@ -95,6 +115,22 @@ mod checks {
 
     /// Checks if the user is a marshal or higher (usually means manager or marshal role)
     pub async fn is_marshal_or_higher(ctx: BotContext<'_>) -> Result<bool, BotError> {
+        if ctx
+            .guild()
+            .unwrap()
+            .members
+            .get(&ctx.author().id)
+            .ok_or(anyhow!(
+                "Unable to find user {} in guild {}",
+                ctx.author().id.to_string(),
+                ctx.guild_id().unwrap().to_string()
+            ))?
+            .permissions(Cache::new())?
+            .administrator()
+        {
+            return Ok(true);
+        }
+
         let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
         let manager_role = ctx.data().database.get_manager_role(&guild_id).await?;
