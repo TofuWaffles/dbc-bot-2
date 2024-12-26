@@ -5,7 +5,7 @@ use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
 use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
-use crate::log::{self, Log};
+use crate::log::{self, discord_log_error, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt, ComponentInteractionExt};
@@ -781,12 +781,24 @@ async fn user_display_registration(
         .await?;
     match api_result {
         APIResult::Ok(player) => {
-            if player.tag != user.player_tag{
-                let embed = CreateEmbed::default()
-                    .title("Something went wrong!")
-                    .description("Please try again later!");
-                ctx.components().prompt(msg, embed, None).await?;
-                return Ok(())
+            // There's a bug where where async calls to the BS API might lead to mismatching player
+            // tags, this block deals with that.
+            if player.tag != user.player_tag {
+                discord_log_error(
+                    *ctx,
+                    "Player tags from Brawl Stars API mismatched",
+                    vec![
+                        ("User-input player tag", &user.player_tag, true),
+                        ("API response player tag", &player.tag, true),
+                    ],
+                )
+                .await?;
+
+                return Err(anyhow!(
+                    "Player tags from Brawl Stars API mismatched: {} vs {}",
+                    user.player_tag,
+                    player.tag
+                ));
             }
             let embed = {
                 CreateEmbed::new()
