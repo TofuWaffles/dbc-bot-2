@@ -771,6 +771,8 @@ async fn user_display_registration(
         .await?;
     match api_result {
         APIResult::Ok(player) => {
+            // There's a bug where where async calls to the BS API might lead to mismatching player
+            // tags, this block deals with that.
             if player.tag != user.player_tag {
                 discord_log_error(
                     *ctx,
