@@ -8,7 +8,7 @@ use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDat
 use crate::log::{self, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::{BotComponent, BotContextExt};
+use crate::utils::shorthand::{BotComponent, BotContextExt, ComponentInteractionExt};
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError, BracketURL};
 use anyhow::anyhow;
@@ -30,7 +30,13 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![menu(), credit(), user_profile(), view_match_context()]
+        vec![
+            menu(),
+            credit(),
+            user_profile(),
+            view_match_context(),
+            contact_marshal(),
+        ]
     }
 }
 
@@ -167,7 +173,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
     if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 ctx.components()
                     .prompt(
                         msg,
@@ -181,15 +187,15 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 return user_display_tournaments(ctx, msg).await;
             }
             "deregister" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 return deregister(ctx, msg).await;
             }
             "profile" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 return display_user_profile(ctx, msg).await;
             }
             "menu_match" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 ctx.components()
                     .prompt(
                         msg,
@@ -205,11 +211,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     .await;
             }
             "leave_tournament" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 return leave_tournament(ctx, msg).await;
             }
             "mail" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 if ctx.inbox(msg).await.is_err() {
                     msg.delete(*ctx).await?;
                 }
@@ -406,7 +412,7 @@ async fn user_display_match(
     if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_ready" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -450,20 +456,24 @@ Both players are ready to battle. Please complete your matches and press the "Su
                     .await?;
             }
             "mail" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
+                let embed = CreateEmbed::new().title("Send a mail to your opponent")
+                    .description("You can send a mail to your opponent to discuss the match details. Press continue to do it.")
+                    .color(Color::BLUE);
                 ctx.compose(
                     msg,
+                    embed,
                     p2.user(ctx).await?.id,
                     current_match.clone().match_id.clone(),
                 )
                 .await?;
             }
             "match_menu_forfeit" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 user_forfeit(ctx, msg, &tournament, &current_match).await?;
             }
             "submit" => {
-                interaction.defer(ctx.http()).await?;
+                interaction.acknowledge(ctx).await?;
                 return submit(ctx, msg, &tournament, &current_match).await;
             }
             _ => {}
@@ -771,6 +781,13 @@ async fn user_display_registration(
         .await?;
     match api_result {
         APIResult::Ok(player) => {
+            if player.tag != user.player_tag{
+                let embed = CreateEmbed::default()
+                    .title("Something went wrong!")
+                    .description("Please try again later!");
+                ctx.components().prompt(msg, embed, None).await?;
+                return Ok(())
+            }
             let embed = {
                 CreateEmbed::new()
                     .title(format!("**{} ({})**", player.name, player.tag))
@@ -803,7 +820,12 @@ async fn user_display_registration(
                     user.trophies = player.trophies;
                     user.discord_name = ctx.author().name.clone();
                     user.discord_id = user_id.clone();
-                    ctx.data().database.create_user(&user).await?;
+                    if let Err(_) = ctx.data().database.create_user(&user).await {
+                        let embed = CreateEmbed::default()
+                            .title("Something went wrong!")
+                            .description("Please try again later!");
+                        ctx.components().prompt(msg, embed, None).await?;
+                    }
                     ctx.components().prompt(msg,
                             CreateEmbed::new()
                                 .title("Registration Success!")
@@ -1590,4 +1612,22 @@ pub async fn finish_match(
         .await?;
 
     Ok(result_msg)
+}
+
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_config_set",
+    rename = "contact_marshal"
+)]
+pub async fn contact_marshal(ctx: BotContext<'_>) -> Result<(), BotError> {
+    let comp = ctx.components();
+    let msg = comp.get_msg().await?;
+    let embed = CreateEmbed::new()
+    .title("Contact marshals")
+    .description("Please press at the button below to send a mail to marshal")
+    .footer(CreateEmbedFooter::new("Only use this feature when you have an emergency. Abuse to this feature will affect your status in the event!"));
+    ctx.send_to_marshal(&msg, embed).await?;
+    Ok(())
 }

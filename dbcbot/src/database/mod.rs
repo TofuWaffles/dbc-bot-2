@@ -241,6 +241,9 @@ pub trait UserDatabase {
 impl UserDatabase for PgDatabase {
     type Error = BotError;
     async fn create_user(&self, user: &Player) -> Result<(), Self::Error> {
+        if user.player_tag.is_empty() {
+            return Err(BotError::msg("Player tag is empty"));
+        }
         sqlx::query!(
             r#"
             INSERT INTO users (discord_id, discord_name, player_tag, player_name, icon, trophies, brawlers)

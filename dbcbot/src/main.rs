@@ -5,10 +5,9 @@ use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use database::{Database, PgDatabase, TournamentDatabase};
 use poise::{
-    serenity_prelude::{self as serenity, Cache},
+    serenity_prelude::{self as serenity},
     CreateReply,
 };
-
 use crate::log::discord_log_error;
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,
@@ -32,9 +31,16 @@ mod utils;
 
 // Mail feature
 mod mail;
+
+// Global event handler
+mod event_handler;
+
+use event_handler::event_handler;
+
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
+/// 
 #[derive(Debug)]
 pub struct Data<DB> {
     database: DB,
@@ -72,6 +78,7 @@ impl BracketURL {
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
+/// 
 pub type BotContext<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]
@@ -195,6 +202,9 @@ async fn run() -> Result<(), BotError> {
                         fields
                         ).await.unwrap_or_else(|e|error!("Error sending error message to log channel: {:?}", e));
                 })
+            },
+            event_handler: |ctx, event,framework, data|{
+                Box::pin(event_handler(ctx, event, framework, data))
             },
             ..Default::default()
         })

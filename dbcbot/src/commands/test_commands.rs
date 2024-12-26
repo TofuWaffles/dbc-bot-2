@@ -18,16 +18,16 @@ impl CommandsContainer for TestCommands {
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![
-            battle_log(),
-            match_image(),
-            result_image(),
-            profile_image(),
-            choose_brawler_command(),
-            choose_map_command(),
-            choose_gamemode_command(),
-            send_mail(),
-            add_maps(),
-            csv(),
+            // battle_log(),
+            // match_image(),
+            // result_image(),
+            // profile_image(),
+            // choose_brawler_command(),
+            // choose_map_command(),
+            // choose_gamemode_command(),
+            // send_mail(),
+            // add_maps(),
+            // csv(),
         ]
     }
 }
@@ -351,7 +351,11 @@ pub async fn send_mail(
     recipient: serenity_prelude::User,
 ) -> Result<(), BotError> {
     let msg = ctx.reply("Test sending a mail").await?;
-    ctx.compose(&msg, recipient.id, None).await?;
+    let embed = CreateEmbed::default()
+        .title("Mail")
+        .description("This is a test mail.")
+        .footer(CreateEmbedFooter::new("This is a test mail."));
+    ctx.compose(&msg, embed, recipient.id, None).await?;
     Ok(())
 }
 

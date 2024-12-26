@@ -30,3 +30,6 @@ strum = { version = "0.26.3", features = ["derive"] }
 cached = { version = "0.52.0", features = ["async"] }
 base64 = "0.22.1"
 async-recursion = "1.1.1"
+
+[profile.dev]
+incremental = true

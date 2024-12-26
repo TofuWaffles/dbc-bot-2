@@ -13,6 +13,7 @@ use crate::{
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
 use models::Selectable;
+use poise::serenity_prelude::{CacheHttp, CreateInteractionResponse};
 use poise::{
     serenity_prelude::{
         self as serenity, ButtonStyle, Channel, ChannelType, ComponentInteraction,
@@ -223,7 +224,7 @@ impl<'a> Component<'a> {
         msg.edit(self.ctx, reply).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(interactions) = &ic.next().await {
-            interactions.defer(self.ctx.http()).await?;
+            interactions.acknowledge(&self.ctx).await?;
             match interactions.data.custom_id.as_str() {
                 "confirm" => {
                     return Ok(true);
@@ -318,7 +319,7 @@ impl<'a> Component<'a> {
         let mut ic = self.create_interaction_collector(msg).await?;
 
         while let Some(interactions) = &ic.next().await {
-            interactions.defer(self.ctx.http()).await?;
+            interactions.acknowledge(&self.ctx).await?;
             match interactions.data.custom_id.as_str() {
                 "0" => {
                     let brawlers: Vec<Vec<FullBrawler>> = brawlers
@@ -437,11 +438,11 @@ impl<'a> Component<'a> {
                     page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
-                    interactions.defer(self.ctx.http()).await?;
+                    interactions.acknowledge(&self.ctx).await?;
                     return Ok(filtered_maps[page_number].clone());
                 }
                 "any" => {
-                    interactions.defer(self.ctx.http()).await?;
+                    interactions.acknowledge(&self.ctx).await?;
                     let selected = BrawlMap::default();
                     return Ok(selected);
                 }
@@ -450,7 +451,7 @@ impl<'a> Component<'a> {
                 }
                 _ => unreachable!(),
             }
-            interactions.defer(self.ctx.http()).await?;
+            interactions.acknowledge(&self.ctx).await?;
             msg.edit(self.ctx, reply(filtered_maps[page_number].to_owned()))
                 .await?;
         }
@@ -511,7 +512,7 @@ impl<'a> Component<'a> {
                     page_number = page_number.saturating_sub(1);
                 }
                 "select" => {
-                    interactions.defer(self.ctx.http()).await?;
+                    interactions.acknowledge(&self.ctx).await?;
                     return Ok(selected.clone());
                 }
                 "next" => {
@@ -519,7 +520,7 @@ impl<'a> Component<'a> {
                 }
                 _ => unreachable!(),
             }
-            interactions.defer(self.ctx.http()).await?;
+            interactions.acknowledge(&self.ctx).await?;
             selected = modes.list[page_number].to_owned();
             msg.edit(self.ctx, reply(selected.to_owned())).await?;
         }
@@ -542,7 +543,7 @@ impl<'a> Component<'a> {
         msg.edit(self.ctx, builder).await?;
         let mut ic = self.create_interaction_collector(msg).await?;
         while let Some(mci) = ic.next().await {
-            mci.defer(self.ctx.http()).await?;
+            mci.acknowledge(&self.ctx).await?;
             if let ChannelSelect { values } = mci.data.kind {
                 let channel = values[0].to_channel(self.ctx.http()).await?;
                 return Ok(channel);
@@ -653,5 +654,25 @@ impl<'a> Component<'a> {
             return Ok(response);
         }
         Err(NoSelection.into())
+    }
+
+    pub async fn get_msg(&self) -> Result<ReplyHandle, BotError> {
+        let embed = CreateEmbed::default()
+            .title("Loading command...")
+            .description("Please wait while we load the this command.");
+        let reply = CreateReply::default().embed(embed).ephemeral(true);
+        let msg = self.ctx.send(reply).await?;
+        Ok(msg)
+    }
+}
+
+pub trait ComponentInteractionExt{
+    /// Shorthand for Acknowledge the interaction
+    async fn acknowledge(&self, ctx: impl CacheHttp) -> Result<(), BotError>;
+}
+
+impl ComponentInteractionExt for ComponentInteraction {
+    async fn acknowledge(&self, cache: impl CacheHttp) -> Result<(), BotError>{
+        Ok(self.create_response(cache, CreateInteractionResponse::Acknowledge).await?)
     }
 }
