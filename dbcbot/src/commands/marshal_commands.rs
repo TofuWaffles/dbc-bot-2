@@ -1808,6 +1808,8 @@ pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Res
                 .ephemeral(true),
         )
         .await?;
+
+        return Ok(());
     }
 
     ctx.data()
