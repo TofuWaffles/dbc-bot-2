@@ -1702,6 +1702,12 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
 
     let mut ic = ctx.create_interaction_collector(&msg).await?;
     if let Some(interactions) = &ic.next().await {
+        interactions
+            .create_response(
+                ctx,
+                poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+            )
+            .await?;
         match interactions.data.custom_id.as_str() {
             "ban_discord_id_yes" => ban_discord_id = true,
             "ban_discord_id_no" => ban_discord_id = false,
@@ -1728,6 +1734,12 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
     let mut ban_player_tag = false;
     let mut ic = ctx.create_interaction_collector(&msg).await?;
     if let Some(interactions) = &ic.next().await {
+        interactions
+            .create_response(
+                ctx,
+                poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+            )
+            .await?;
         match interactions.data.custom_id.as_str() {
             "ban_player_tag_yes" => ban_player_tag = true,
             "ban_player_tag_no" => ban_player_tag = false,
@@ -1760,7 +1772,10 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
 
     msg.edit(
         ctx,
-        CreateReply::default().content(success_msg).ephemeral(true),
+        CreateReply::default()
+            .content(success_msg)
+            .ephemeral(true)
+            .components(vec![]),
     )
     .await?;
 
