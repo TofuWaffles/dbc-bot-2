@@ -1793,6 +1793,23 @@ pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Res
     }
     .to_uppercase();
 
+    if !ctx
+        .data()
+        .database
+        .is_user_banned(&discord_id_or_player_tag)
+        .await?
+    {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "User with Discord ID or player tag {} is not currently banned.",
+                    discord_id_or_player_tag
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+    }
+
     ctx.data()
         .database
         .unban_user(&discord_id_or_player_tag)
