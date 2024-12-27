@@ -235,7 +235,22 @@ pub trait UserDatabase {
         discord_id: &UserId,
     ) -> Result<Option<Match>, Self::Error>;
 
+    /// Get all matches that the user is in.BotError
+    ///
+    /// This includes all matches from all tournaments, even inactive ones.
     async fn get_all_user_matches(&self, discord_id: &UserId) -> Result<Vec<Match>, Self::Error>;
+
+    /// Bans a user from using the bot.
+    ///
+    /// This function accepts either a Discord ID or a player tag.
+    /// Both are kept in the same column.
+    async fn ban_user(&self, discord_id_or_player_tag: &str) -> Result<(), Self::Error>;
+
+    /// Checks if a Discord ID or player tag is banned.
+    async fn is_user_banned(&self, discord_id_or_player_tag: &str) -> Result<bool, Self::Error>;
+
+    /// Removes a Discord ID or player tag from the ban list.
+    async fn unban_user(&self, discord_id_or_player_tag: &str) -> Result<(), Self::Error>;
 }
 
 impl UserDatabase for PgDatabase {
@@ -509,6 +524,54 @@ impl UserDatabase for PgDatabase {
             m.match_players.append(&mut players);
         }
         Ok(matches)
+    }
+
+    async fn ban_user(&self, discord_id_or_player_tag: &str) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+                INSERT INTO ban_list
+                VALUES ($1)
+            "#,
+            discord_id_or_player_tag
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn is_user_banned(&self, discord_id_or_player_tag: &str) -> Result<bool, Self::Error> {
+        match sqlx::query!(
+            r#"
+                SELECT EXISTS(
+                    SELECT 1 FROM ban_list
+                    WHERE discord_id_or_player_tag = $1
+                )
+                AS exists
+            "#,
+            discord_id_or_player_tag
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .exists
+        {
+            Some(e) => return Ok(e),
+            None => return Ok(false),
+        }
+    }
+
+    async fn unban_user(&self, discord_id_or_player_tag: &str) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+                DELETE FROM ban_list
+                WHERE discord_id_or_player_tag = $1
+            "#,
+            discord_id_or_player_tag
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
 pub trait TournamentDatabase {
