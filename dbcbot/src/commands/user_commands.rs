@@ -681,6 +681,19 @@ async fn user_display_registration(
     msg: &ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
+    if ctx
+        .data()
+        .database
+        .is_user_banned(&ctx.author().to_string())
+        .await?
+    {
+        msg.edit(*ctx, CreateReply::default()
+            .content("Sorry but you have been banned from DBC.\n\nPlease contact a Marshal if you feel that this was a mistake.")
+            .ephemeral(true))
+            .await?;
+
+        return Ok(());
+    }
     let mut user = Player::default();
     let buttons = vec![CreateButton::new("player_profile_registration")
         .label("Register")
@@ -732,6 +745,15 @@ async fn user_display_registration(
                 ))
             }
         }
+    }
+
+    if ctx.data().database.is_user_banned(&user.player_tag).await? {
+        msg.edit(*ctx, CreateReply::default()
+            .content("Sorry but the account game account you're trying to register with has been banned.\n\nPlease contact a Marshal if you feel that this was a mistake.")
+            .ephemeral(true))
+            .await?;
+
+        return Ok(());
     }
 
     let user_id = ctx.author().id.to_string();
