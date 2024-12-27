@@ -1787,6 +1787,12 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
 /// This command can be used with either a Discord ID or in-game player tag.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Result<(), BotError> {
+    let discord_id_or_player_tag = match discord_id_or_player_tag.strip_prefix('#') {
+        Some(s) => s.to_string(),
+        None => discord_id_or_player_tag,
+    }
+    .to_uppercase();
+
     ctx.data()
         .database
         .unban_user(&discord_id_or_player_tag)

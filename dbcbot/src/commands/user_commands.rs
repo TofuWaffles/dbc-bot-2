@@ -684,7 +684,7 @@ async fn user_display_registration(
     if ctx
         .data()
         .database
-        .is_user_banned(&ctx.author().to_string())
+        .is_user_banned(&ctx.author().id.to_string())
         .await?
     {
         msg.edit(*ctx, CreateReply::default()
@@ -750,7 +750,8 @@ async fn user_display_registration(
     if ctx.data().database.is_user_banned(&user.player_tag).await? {
         msg.edit(*ctx, CreateReply::default()
             .content("Sorry but the account game account you're trying to register with has been banned.\n\nPlease contact a Marshal if you feel that this was a mistake.")
-            .ephemeral(true))
+            .ephemeral(true)
+            .components(vec![]))
             .await?;
 
         return Ok(());
