@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
 use crate::database::models::Tournament;
@@ -8,7 +10,7 @@ use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDat
 use crate::log::{self, discord_log_error, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::{BotComponent, BotContextExt, ComponentInteractionExt};
+use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError, BracketURL};
 use anyhow::anyhow;
@@ -1485,7 +1487,7 @@ async fn view_match_context(
         .send(
             CreateReply::default()
                 .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading")),
+                .embed(CreateEmbed::new().title("Loading...")),
         )
         .await?;
     let tournament = match ctx
@@ -1512,7 +1514,58 @@ async fn view_match_context(
             return Ok(());
         }
     };
-    user_display_match(&ctx, &msg, tournament, false).await?;
+
+    let current_match = match ctx
+        .data()
+        .database
+        .get_current_match(tournament.tournament_id, &ctx.author().id)
+        .await?
+    {
+        Some(m) => m,
+        None => {
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("Match Not Found")
+                        .description("This player is not currently in a match."),
+                    None,
+                )
+                .await?;
+            return Ok(());
+        }
+    };
+
+    let embed = CreateEmbed::default()
+        .title(format!("Match {}", current_match.match_id))
+        .fields(vec![
+            ("Match ID", current_match.match_id, true),
+            ("Winner", format!("{:#?}", current_match.winner), true),
+            ("Score", current_match.score, true),
+            (
+                "Player 1",
+                format!("{:#?}", current_match.match_players.get(0)),
+                false,
+            ),
+            (
+                "Player 2",
+                format!("{:#?}", current_match.match_players.get(1)),
+                false,
+            ),
+        ]);
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(format!(
+                "Here are the details for {}'s match.",
+                user.mention()
+            ))
+            .embed(embed)
+            .ephemeral(true),
+    )
+    .await?;
+
     Ok(())
 }
 
