@@ -1984,7 +1984,7 @@ async fn view_match_context(
         .title(format!("Match {}", current_match.match_id))
         .fields(vec![
             ("Match ID", current_match.match_id, true),
-            ("Winner", format!("{:#?}", current_match.winner), true),
+            ("Winner", format!("{}", current_match.winner.clone().unwrap_or("No winner yet".to_string()), true),
             ("Score", current_match.score, true),
             ("Player 1", p1, false),
             ("Player 2",p2,false),
