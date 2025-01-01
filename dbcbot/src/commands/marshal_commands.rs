@@ -1778,7 +1778,14 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
         .get_player_active_tournaments(&ctx.guild_id().unwrap(), &user.id)
         .await?;
     for t in tournaments {
-        disqualify(&ctx, &t, &user, None).await?;
+        if t.status == TournamentStatus::Started || t.status == TournamentStatus::Paused {
+            disqualify(&ctx, &t, &user, None).await?;
+        } else if t.status == TournamentStatus::Pending {
+            ctx.data()
+                .database
+                .tournament_remove_player(t.tournament_id, &user.id)
+                .await?;
+        }
     }
 
     ctx.data().database.delete_user(&user.id).await?;
