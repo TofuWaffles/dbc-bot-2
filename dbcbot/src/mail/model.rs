@@ -91,8 +91,8 @@ impl Actor {
         }
     }
 
-    pub fn avatar_url(&self) -> String{
-        match self{
+    pub fn avatar_url(&self) -> String {
+        match self {
             Actor::User(user) => user.avatar_url().unwrap_or_default(),
             Actor::Marshal(_) => String::default(),
         }

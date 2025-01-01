@@ -205,8 +205,11 @@ impl Tournament {
         Ok(())
     }
 
-    pub async fn count_registers(self, ctx: &BotContext<'_>) -> Result<i64, BotError>{
-        ctx.data().database.count_registers(self.tournament_id).await
+    pub async fn count_registers(self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
+        ctx.data()
+            .database
+            .count_registers(self.tournament_id)
+            .await
     }
 }
 

@@ -666,13 +666,15 @@ impl<'a> Component<'a> {
     }
 }
 
-pub trait ComponentInteractionExt{
+pub trait ComponentInteractionExt {
     /// Shorthand for Acknowledge the interaction
     async fn acknowledge(&self, ctx: impl CacheHttp) -> Result<(), BotError>;
 }
 
 impl ComponentInteractionExt for ComponentInteraction {
-    async fn acknowledge(&self, cache: impl CacheHttp) -> Result<(), BotError>{
-        Ok(self.create_response(cache, CreateInteractionResponse::Acknowledge).await?)
+    async fn acknowledge(&self, cache: impl CacheHttp) -> Result<(), BotError> {
+        Ok(self
+            .create_response(cache, CreateInteractionResponse::Acknowledge)
+            .await?)
     }
 }

@@ -86,7 +86,6 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 /// Display the main menu to the registered user.
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-    
     info!("User {} has entered the menu home", ctx.author().name);
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     ctx.mail_notification().await?;
@@ -214,13 +213,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             "leave_tournament" => {
                 interaction.defer(ctx).await?;
                 return leave_tournament(ctx, msg).await;
-                
             }
             "mail" => {
                 info!("User {} is viewing their mail", ctx.author().name);
                 interaction.defer(ctx).await?;
                 ctx.inbox(msg).await?;
-                
             }
             _ => {}
         }
@@ -736,13 +733,15 @@ async fn user_display_registration(
         match interaction.data.custom_id.as_str() {
             "player_profile_registration" => {
                 let embed = CreateEmbed::new()
-                .title("Profile Registration")
-                .description(r#"Please follow the instructions below to register your in-game profile.
+                    .title("Profile Registration")
+                    .description(
+                        r#"Please follow the instructions below to register your in-game profile.
 1) Obtain your in-game player tag using the below image as a guide.
 2) Press the Continue button once you have the tag ready.
-3) On the next screen, write your tag and press Done."#)
-                .image("https://i.imgur.com/bejTDlO.gif")
-                .color(0x0000FF);
+3) On the next screen, write your tag and press Done."#,
+                    )
+                    .image("https://i.imgur.com/bejTDlO.gif")
+                    .color(0x0000FF);
                 let mut player_tag = ctx
                     .components()
                     .modal::<ProfileRegistrationModal>(msg, embed)
