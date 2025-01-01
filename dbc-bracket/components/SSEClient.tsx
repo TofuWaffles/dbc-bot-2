@@ -193,7 +193,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   };
 
   return (
-    <div className='w-full h-full overflow-hidden'>
+    <div className='w-full h-full'>
       <Head>
         <meta property="og:title" content="Discord Brawl Cup" />
         <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}`} />
@@ -211,11 +211,9 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
           <p className='w-1/2 text-center'>Status: {tournament.status}</p>
         </div>
       </div>
-      <div className='w-full max-h-full justify-center items-center overflow-y-auto'>
+      <div className='w-full justify-center items-center'>
         {matches.length > 0 ? <TournamentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
-        <div className='h-[20vh]'></div>
       </div>
-
     </div>
   );
 };

@@ -59,7 +59,7 @@ class Result(BaseImage):
             align="center",
             color=(255, 255, 255),
         )
-        if "DISQUALIFIED" in self.score:
+        if any(keyword in self.score for keyword in ("DISQUALIFIED", "FORFEITED")):
             self.score_textbox_pos = ((500, 50), (780, 130))
         self.write(
             text=self.score,

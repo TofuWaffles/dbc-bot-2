@@ -10,14 +10,12 @@ use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::{ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour,
-    CreateActionRow, CreateButton, CreateEmbed,
-    CreateInteractionResponse, CreateMessage, CreateThread, GuildChannel,
-    Mentionable,
+    AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
+    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread,
+    GuildChannel, Mentionable,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
-use tracing::info;
 const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
 pub trait MailDatabase {
     async fn get_mail_by_id(&self, mail_id: i64) -> Result<Mail, Self::Error>;
