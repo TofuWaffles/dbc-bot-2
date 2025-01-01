@@ -3,6 +3,7 @@ use std::str::FromStr;
 use super::user_commands::finish_match;
 use super::{checks::is_marshal_or_higher, CommandsContainer};
 use crate::commands::checks::is_manager;
+use crate::commands::user_commands::display_user_profile_helper;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
@@ -52,6 +53,7 @@ impl CommandsContainer for MarshalCommands {
             add_map_slash(),
             remove_user(),
             unban(),
+            user_profile(),
         ]
     }
 }
@@ -1869,5 +1871,50 @@ pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Res
     )
     .await?;
 
+    Ok(())
+}
+
+#[poise::command(
+    context_menu_command = "User Profile",
+    slash_command,
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
+async fn user_profile(
+    ctx: BotContext<'_>,
+    user: poise::serenity_prelude::User,
+) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Loading")),
+        )
+        .await?;
+    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
+        Ok(Some(player)) => player,
+        Ok(None) => {
+            ctx.components().prompt(
+                &msg,
+                CreateEmbed::new()
+                    .title("Profile Not Found")
+                    .description("The user has not registered their profile yet. Please run the /menu command to register their profile."),
+                None
+            ).await?;
+            return Ok(());
+        }
+        Err(e) => {
+            ctx.components().prompt(
+                &msg,
+                CreateEmbed::new().title("Error").description(
+                    "An error occurred while fetching the user profile. Please try again later.",
+                ),
+                None,
+            )
+            .await?;
+            return Err(e);
+        }
+    };
+    display_user_profile_helper(&ctx, &msg, player).await?;
     Ok(())
 }

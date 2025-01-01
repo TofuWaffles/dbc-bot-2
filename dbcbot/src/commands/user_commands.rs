@@ -30,13 +30,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![
-            menu(),
-            credit(),
-            user_profile(),
-            view_match_context(),
-            contact_marshal(),
-        ]
+        vec![menu(), credit(), view_match_context(), contact_marshal()]
     }
 }
 
@@ -956,7 +950,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
     Ok(())
 }
 
-async fn display_user_profile_helper(
+pub async fn display_user_profile_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     user: Player,
@@ -998,50 +992,6 @@ async fn display_user_profile_helper(
     };
     ctx.send(reply).await?;
     msg.delete(*ctx).await?;
-    Ok(())
-}
-
-#[poise::command(
-    context_menu_command = "User Profile",
-    guild_only,
-    check = "is_marshal_or_higher"
-)]
-async fn user_profile(
-    ctx: BotContext<'_>,
-    user: poise::serenity_prelude::User,
-) -> Result<(), BotError> {
-    let msg = ctx
-        .send(
-            CreateReply::default()
-                .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading")),
-        )
-        .await?;
-    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
-        Ok(Some(player)) => player,
-        Ok(None) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("Profile Not Found")
-                    .description("The user has not registered their profile yet. Please run the /menu command to register their profile."),
-                None
-            ).await?;
-            return Ok(());
-        }
-        Err(e) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new().title("Error").description(
-                    "An error occurred while fetching the user profile. Please try again later.",
-                ),
-                None,
-            )
-            .await?;
-            return Err(e);
-        }
-    };
-    display_user_profile_helper(&ctx, &msg, player).await?;
     Ok(())
 }
 
