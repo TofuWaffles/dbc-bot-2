@@ -3,6 +3,7 @@ pub mod images;
 pub mod official_brawl_stars;
 use crate::{utils::shorthand::BotComponent, BotContext};
 use poise::ReplyHandle;
+use serde_json::Value;
 
 use crate::BotError;
 use anyhow::anyhow;
@@ -32,6 +33,7 @@ impl APIsContainer {
 
 /// Wrapper for the result of an API call.
 #[derive(Debug)]
+#[derive(serde::Deserialize)]
 pub enum APIResult<M> {
     Ok(M),
     NotFound,
@@ -51,7 +53,18 @@ where
     /// documentation or is not something that can be appropriately dealt with by the bot.
     pub async fn from_response(response: Response) -> Result<Self, BotError> {
         match response.status() {
-            StatusCode::OK => Ok(APIResult::Ok(response.json().await?)),
+            StatusCode::OK => {
+                match response.json::<Value>().await {
+                    Ok(json) => {
+                        match serde_json::from_value(json.clone()){
+                            Ok(data) => Ok(APIResult::Ok(data)),
+                            Err(e) => Err(anyhow!("Error deserializing json: {} with error: {}", json, e)),
+                        }
+                    }
+                    Err(_) => Err(anyhow!("Failed to deserialize response in APIResult::from_response()").into()),
+                }
+                
+            },
             StatusCode::NOT_FOUND => Ok(APIResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(APIResult::Maintenance),
             _ => Err(anyhow!(

@@ -494,8 +494,8 @@ Reported by: {recipient}.
         }
     };
     let log = ctx.get_log_channel().await?;
-    let id = ctx.author().id;
-    let thread = CreateThread::new(id.to_string())
+    let reporter_name= ctx.author().name.clone();
+    let thread = CreateThread::new(reporter_name)
         .kind(ChannelType::PublicThread)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);  
     let channel = log.create_thread(ctx.http(), thread).await?;
