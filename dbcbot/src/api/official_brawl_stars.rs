@@ -263,6 +263,8 @@ pub struct TeamPlayer {
     pub tag: String,
     pub name: String,
     pub brawler: Brawler,
+    #[serde(default)]
+    pub brawlers: Vec<Brawler>,
 }
 
 fn deserialize_tag<'de, D>(deserializer: D) -> Result<String, D::Error>

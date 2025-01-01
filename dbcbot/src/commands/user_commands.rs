@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
 use crate::database::models::Tournament;

@@ -6,6 +6,7 @@ use poise::serenity_prelude::ChannelId;
 use poise::serenity_prelude::GuildId;
 use poise::serenity_prelude::RoleId;
 use poise::serenity_prelude::UserId;
+use regex::Regex;
 use sqlx::PgPool;
 use tokio::try_join;
 /// Models for the database.
@@ -1549,6 +1550,10 @@ impl MatchDatabase for PgDatabase {
     }
 
     async fn get_match_by_id(&self, match_id: &str) -> Result<Option<Match>, Self::Error> {
+        let pattern = Regex::new(r"^\d+\.\d+\.\d+$").unwrap();
+        if !pattern.is_match(match_id) {
+            return Ok(None);
+        }
         let players = self.get_match_players(match_id).await?;
         let bracket = match sqlx::query!(
             r#"

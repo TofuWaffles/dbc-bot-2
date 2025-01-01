@@ -58,7 +58,7 @@ where
                     Ok(json) => {
                         match serde_json::from_value(json.clone()){
                             Ok(data) => Ok(APIResult::Ok(data)),
-                            Err(e) => Err(anyhow!("Error deserializing json: {} with error: {}", json, e)),
+                            Err(e) => Err(anyhow!("Error deserializing json {} with error: {}", json, e)),
                         }
                     }
                     Err(_) => Err(anyhow!("Failed to deserialize response in APIResult::from_response()").into()),

@@ -1918,3 +1918,4 @@ async fn user_profile(
     display_user_profile_helper(&ctx, &msg, player).await?;
     Ok(())
 }
+

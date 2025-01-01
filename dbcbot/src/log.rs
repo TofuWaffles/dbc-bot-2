@@ -3,7 +3,7 @@ use crate::utils::error::CommonError::*;
 use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    ChannelId, Color, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildChannel,
+    ChannelId, Color, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildChannel
 };
 use std::{str::FromStr, time::SystemTime};
 use strum::Display;
@@ -215,8 +215,13 @@ pub async fn discord_log_error(
     );
 
     fields.push(("Seen at", &now_string, false));
-
-    log_channel
+    if title.len() > 1000{
+        log_channel
+            .send_message(ctx, CreateMessage::default()
+                .add_file(CreateAttachment::bytes(title, "error.txt")))
+            .await?;
+    } else{
+        log_channel
         .send_message(
             ctx,
             CreateMessage::default()
@@ -230,6 +235,8 @@ pub async fn discord_log_error(
                 ),
         )
         .await?;
+    }
+   
 
     Ok(())
 }

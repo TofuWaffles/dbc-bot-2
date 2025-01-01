@@ -193,7 +193,7 @@ async fn run() -> Result<(), BotError> {
                         ("User", user_field, false),
                         ("Tournaments", tournaments_field, false),
                     ];
-
+                    
                     discord_log_error(
                         ctx,
                         &error.to_string(),
