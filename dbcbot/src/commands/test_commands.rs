@@ -18,7 +18,7 @@ impl CommandsContainer for TestCommands {
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
         vec![
-            // battle_log(),
+            battle_log(),
             // match_image(),
             // result_image(),
             // profile_image(),

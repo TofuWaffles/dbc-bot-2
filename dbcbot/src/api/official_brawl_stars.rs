@@ -262,6 +262,7 @@ pub struct TeamPlayer {
     #[serde(deserialize_with = "deserialize_tag")]
     pub tag: String,
     pub name: String,
+    #[serde(default)]
     pub brawler: Brawler,
     #[serde(default)]
     pub brawlers: Vec<Brawler>,
