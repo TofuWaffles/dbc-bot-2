@@ -147,7 +147,7 @@ pub struct Icon {
 #[serde(rename_all = "camelCase")]
 pub struct MapEvent {
     pub id: i32,
-    pub map: String,
+    pub map: Option<String>,
     #[serde(default)]
     pub mode: Mode,
 }
@@ -158,7 +158,7 @@ impl MapEvent {
             id: 0,
             map: database::models::BrawlMap {
                 id: self.id,
-                name: self.map,
+                name: self.map.unwrap_or(String::new()),
                 disabled: false,
             },
             mode: self.mode,
