@@ -35,6 +35,7 @@ impl BrawlifyAPI {
     pub async fn get_maps(&self) -> Result<APIResult<Wrapper<BrawlMap>>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path("maps"))
             .send()
             .await?;
@@ -45,6 +46,7 @@ impl BrawlifyAPI {
     pub async fn get_modes(&self) -> Result<APIResult<Wrapper<FullGameMode>>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path("gamemodes"))
             .send()
             .await?;
@@ -55,6 +57,7 @@ impl BrawlifyAPI {
     pub async fn get_brawlers(&self) -> Result<APIResult<Wrapper<FullBrawler>>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path("brawlers"))
             .send()
             .await?;
@@ -65,6 +68,7 @@ impl BrawlifyAPI {
     pub async fn get_map(&self, id: i32) -> Result<APIResult<BrawlMap>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path(&format!("maps/{}", id)))
             .send()
             .await?;
@@ -75,6 +79,7 @@ impl BrawlifyAPI {
     pub async fn get_brawler(&self, id: i32) -> Result<APIResult<FullBrawler>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path(&format!("brawlers/{}", id)))
             .send()
             .await?;
@@ -84,6 +89,7 @@ impl BrawlifyAPI {
     pub async fn get_mode(&self, id: i32) -> Result<APIResult<GameMode>, BotError> {
         let response = self
             .client
+            .clone()
             .get(self.endpoint.append_path(&format!("gamemodes/{}", id)))
             .send()
             .await?;

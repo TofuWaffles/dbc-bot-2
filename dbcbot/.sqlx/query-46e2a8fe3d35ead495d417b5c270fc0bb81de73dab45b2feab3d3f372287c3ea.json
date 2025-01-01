@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM ban_list\n                WHERE discord_id_or_player_tag = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "46e2a8fe3d35ead495d417b5c270fc0bb81de73dab45b2feab3d3f372287c3ea"
+}

@@ -50,10 +50,7 @@ mod checks {
     use crate::utils::error::CommonError::*;
     use std::str::FromStr;
 
-    use poise::{
-        serenity_prelude::{Member, RoleId},
-        CreateReply,
-    };
+    use poise::{serenity_prelude::RoleId, CreateReply};
 
     use crate::{
         database::{models::TournamentStatus, ConfigDatabase, TournamentDatabase},

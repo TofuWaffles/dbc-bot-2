@@ -8,12 +8,13 @@ use crate::utils::shorthand::{BotComponent, ComponentInteractionExt};
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::{Mail, MailType, RecipientId};
+use model::{Mail, MailType, ActorId};
 use poise::serenity_prelude::{
     AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, ComponentInteractionCollector, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, EditMessage, Guild, GuildChannel, Mentionable
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
+use tracing::info;
 const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
 pub trait MailDatabase {
     async fn get_mail_by_id(&self, mail_id: i64) -> Result<Mail, Self::Error>;
@@ -144,8 +145,9 @@ pub trait MailBotCtx<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
-        recipient_id: impl Into<RecipientId>,
+        recipient_id: impl Into<ActorId>,
         auto_subject: impl Into<Option<String>>,
+        to_marshals: bool
     ) -> Result<i64, BotError>;
     async fn inbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
     async fn mail_notification(&self) -> Result<(), BotError>;
@@ -164,10 +166,11 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
-        recipient_id: impl Into<RecipientId>,
+        recipient_id: impl Into<ActorId>,
         auto_subject: impl Into<Option<String>>,
+        to_marshals: bool
     ) -> Result<i64, BotError> {
-        let recipient_id = recipient_id.into();
+        let recipient_id: ActorId = recipient_id.into();
         let mut mail = match auto_subject.into() {
             None => {
                 let modal = self.components().modal::<ComposeMail>(msg, embed).await?;
@@ -177,6 +180,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     modal.subject,
                     modal.body,
                     None,
+                    to_marshals,
                 )
             }
             Some(subject) => {
@@ -190,6 +194,8 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     subject,
                     modal.body,
                     None,
+                    to_marshals,
+                    
                 )
             }
         };
@@ -231,6 +237,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
     }
 
     async fn inbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+        self.components().prompt(msg, CreateEmbed::new().description("Getting inbox"), None).await?;
         const CHUNK: usize = 10;
         let mails = self.data().database.get_all_mails(self.author().id).await?;
         if mails.is_empty() {
@@ -264,7 +271,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             .get_marshal_role(&guild_id)
             .await?
             .ok_or(RoleNotExists("Marshal".to_string()))?;
-        let id = self.compose(msg, embed, role, None).await?;
+        let id = self.compose(msg, embed, role, None, true).await?;
         let embed = CreateEmbed::new().title("Mail sent!").description( "Your mail has been sent to the marshal team successfully!\n You can safely dismiss this message!");
         self.components().prompt(msg, embed, None).await?;
         let mail = self.data().database.get_mail_by_id(id).await?;
@@ -331,7 +338,7 @@ async fn mail_page(
             &mail.body,
             mail.id
         ))
-        .thumbnail(mail.sender(ctx).await?.avatar_url().unwrap_or_default());
+        .thumbnail(mail.sender(ctx).await?.avatar_url());
     ctx.data().database.mark_read(mail.id).await?;
     let buttons = CreateActionRow::Buttons(vec![
         CreateButton::new("reply")
@@ -366,12 +373,12 @@ async fn mail_page(
                         return ctx.send_to_marshal(msg, embed).await;
                     }
                     _ => {
-                        ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone()).await?;
+                        ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false).await?;
                     }
                 }                
             }
             "report" => {
-                interactions.acknowledge(ctx).await?;
+                interactions.defer(ctx.http()).await?;
                 let mut mail = mail.clone();
                 report(ctx, msg, &mut mail).await?;
             }
@@ -384,7 +391,10 @@ async fn mail_page(
 async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, BotError> {
     let mut inbox = Vec::with_capacity(mails.len());
     for mail in mails {
-        let sender = mail.sender(ctx).await?.mention();
+        let sender = match mail.sender(ctx).await{
+            Ok(sender) => sender.mention().to_string(),
+            Err(_) => format!("Unknown user with id {}", mail.sender),
+        };
         inbox.push(format!(
             r#"{read_status} | From {sender} 
 **{subject}**
@@ -395,7 +405,7 @@ async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, Bot
         ))
     }
     Ok(CreateEmbed::default()
-        .title(format!("{}'s inbox", ctx.author().mention()))
+        .title(format!("{}'s inbox", ctx.author().name))
         .description(format!(
             "There are {} mail(s) in this page!\nSelect a mail to read it\n{}",
             mails.len(),
@@ -472,7 +482,7 @@ Reported by: {recipient}.
                     timestamp = mail.id,
                 ))
                 .fields(vec![
-                    ("From", format!("{}`{}`", sender.mention(), sender.id), true),
+                    ("From", format!("{}`{}`", sender.mention(), sender.id()), true),
                     (
                         "To",
                         format!("{}`{}`", recipient.mention(), recipient),
@@ -503,7 +513,7 @@ Reported by: {recipient}.
 async fn open_thread(
     ctx: &BotContext<'_>,
     embed: CreateEmbed,
-    _id: impl Into<RecipientId> + Send + 'async_recursion,
+    _id: impl Into<ActorId> + Send + 'async_recursion,
     thread: GuildChannel,
     mail_id: i64,
 ) -> Result<(), BotError> {

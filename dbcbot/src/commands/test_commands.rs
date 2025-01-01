@@ -355,7 +355,7 @@ pub async fn send_mail(
         .title("Mail")
         .description("This is a test mail.")
         .footer(CreateEmbedFooter::new("This is a test mail."));
-    ctx.compose(&msg, embed, recipient.id, None).await?;
+    ctx.compose(&msg, embed, recipient.id, None, false).await?;
     Ok(())
 }
 

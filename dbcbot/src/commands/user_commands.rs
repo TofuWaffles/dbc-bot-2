@@ -5,7 +5,7 @@ use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
 use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDatabase};
-use crate::log::{self, Log};
+use crate::log::{self, discord_log_error, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt, ComponentInteractionExt};
@@ -86,6 +86,7 @@ async fn menu(ctx: BotContext<'_>) -> Result<(), BotError> {
 /// Display the main menu to the registered user.
 #[instrument(skip(msg))]
 async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+    
     info!("User {} has entered the menu home", ctx.author().name);
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     ctx.mail_notification().await?;
@@ -173,7 +174,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
     if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "menu_tournaments" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 ctx.components()
                     .prompt(
                         msg,
@@ -187,15 +188,15 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 return user_display_tournaments(ctx, msg).await;
             }
             "deregister" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 return deregister(ctx, msg).await;
             }
             "profile" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 return display_user_profile(ctx, msg).await;
             }
             "menu_match" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 ctx.components()
                     .prompt(
                         msg,
@@ -211,14 +212,15 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     .await;
             }
             "leave_tournament" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 return leave_tournament(ctx, msg).await;
+                
             }
             "mail" => {
-                interaction.acknowledge(ctx).await?;
-                if ctx.inbox(msg).await.is_err() {
-                    msg.delete(*ctx).await?;
-                }
+                info!("User {} is viewing their mail", ctx.author().name);
+                interaction.defer(ctx).await?;
+                ctx.inbox(msg).await?;
+                
             }
             _ => {}
         }
@@ -412,7 +414,7 @@ async fn user_display_match(
     if let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
             "match_menu_ready" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -456,7 +458,7 @@ Both players are ready to battle. Please complete your matches and press the "Su
                     .await?;
             }
             "mail" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 let embed = CreateEmbed::new().title("Send a mail to your opponent")
                     .description("You can send a mail to your opponent to discuss the match details. Press continue to do it.")
                     .color(Color::BLUE);
@@ -465,15 +467,16 @@ Both players are ready to battle. Please complete your matches and press the "Su
                     embed,
                     p2.user(ctx).await?.id,
                     current_match.clone().match_id.clone(),
+                    false,
                 )
                 .await?;
             }
             "match_menu_forfeit" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 user_forfeit(ctx, msg, &tournament, &current_match).await?;
             }
             "submit" => {
-                interaction.acknowledge(ctx).await?;
+                interaction.defer(ctx).await?;
                 return submit(ctx, msg, &tournament, &current_match).await;
             }
             _ => {}
@@ -691,6 +694,19 @@ async fn user_display_registration(
     msg: &ReplyHandle<'_>,
     mut interaction_collector: impl Stream<Item = ComponentInteraction> + Unpin,
 ) -> Result<(), BotError> {
+    if ctx
+        .data()
+        .database
+        .is_user_banned(&ctx.author().id.to_string())
+        .await?
+    {
+        msg.edit(*ctx, CreateReply::default()
+            .content("Sorry but you have been banned from DBC.\n\nPlease contact a Marshal if you feel that this was a mistake.")
+            .ephemeral(true))
+            .await?;
+
+        return Ok(());
+    }
     let mut user = Player::default();
     let buttons = vec![CreateButton::new("player_profile_registration")
         .label("Register")
@@ -721,7 +737,10 @@ async fn user_display_registration(
             "player_profile_registration" => {
                 let embed = CreateEmbed::new()
                 .title("Profile Registration")
-                .description("Next step: fill your in-game player tag (without the #) in the modal by pressing **Continue**. The following tutorial would help you find your player tag (wait patiently for the gif to load)")
+                .description(r#"Please follow the instructions below to register your in-game profile.
+1) Obtain your in-game player tag using the below image as a guide.
+2) Press the Continue button once you have the tag ready.
+3) On the next screen, write your tag and press Done."#)
                 .image("https://i.imgur.com/bejTDlO.gif")
                 .color(0x0000FF);
                 let mut player_tag = ctx
@@ -742,6 +761,16 @@ async fn user_display_registration(
                 ))
             }
         }
+    }
+
+    if ctx.data().database.is_user_banned(&user.player_tag).await? {
+        msg.edit(*ctx, CreateReply::default()
+            .content("Sorry but the account game account you're trying to register with has been banned.\n\nPlease contact a Marshal if you feel that this was a mistake.")
+            .ephemeral(true)
+            .components(vec![]))
+            .await?;
+
+        return Ok(());
     }
 
     let user_id = ctx.author().id.to_string();
@@ -781,12 +810,24 @@ async fn user_display_registration(
         .await?;
     match api_result {
         APIResult::Ok(player) => {
-            if player.tag != user.player_tag{
-                let embed = CreateEmbed::default()
-                    .title("Something went wrong!")
-                    .description("Please try again later!");
-                ctx.components().prompt(msg, embed, None).await?;
-                return Ok(())
+            // There's a bug where where async calls to the BS API might lead to mismatching player
+            // tags, this block deals with that.
+            if player.tag != user.player_tag {
+                discord_log_error(
+                    *ctx,
+                    "Player tags from Brawl Stars API mismatched",
+                    vec![
+                        ("User-input player tag", &user.player_tag, true),
+                        ("API response player tag", &player.tag, true),
+                    ],
+                )
+                .await?;
+
+                return Err(anyhow!(
+                    "Player tags from Brawl Stars API mismatched: {} vs {}",
+                    user.player_tag,
+                    player.tag
+                ));
             }
             let embed = {
                 CreateEmbed::new()
@@ -1111,6 +1152,17 @@ Tournament name: {}"#,
                     None,
                 )
                 .await?;
+            let log = ctx.build_log(
+                "Tournament leave",
+                format!(
+                    "User {} has left tournament {}",
+                    ctx.author().name,
+                    selected_tournament.name
+                ),
+                log::State::SUCCESS,
+                log::Model::TOURNAMENT,
+            );
+            ctx.log(log).await?;
         }
         false => {
             ctx.components().prompt(

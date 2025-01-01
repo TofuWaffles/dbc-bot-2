@@ -4,10 +4,8 @@ use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
 use database::{Database, PgDatabase, TournamentDatabase};
-use poise::{
-    serenity_prelude::{self as serenity},
-    CreateReply,
-};
+use poise::{serenity_prelude as serenity, CreateReply};
+
 use crate::log::discord_log_error;
 use commands::{
     manager_commands::ManagerCommands, marshal_commands::MarshalCommands,

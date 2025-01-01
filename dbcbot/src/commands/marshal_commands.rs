@@ -18,7 +18,8 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
 use poise::serenity_prelude::{
-    CreateAttachment, CreateButton, CreateEmbedFooter, Mentionable, ReactionType, UserId,
+    ButtonStyle, CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter, Mentionable,
+    ReactionType, UserId,
 };
 use poise::ReplyHandle;
 use poise::{
@@ -49,6 +50,8 @@ impl CommandsContainer for MarshalCommands {
             list_players_slash(),
             marshal_menu(),
             add_map_slash(),
+            remove_user(),
+            unban(),
         ]
     }
 }
@@ -497,7 +500,7 @@ async fn disqualify_slash(
             return Ok(());
         }
     };
-    disqualify(&ctx, &tournament, player, reason).await?;
+    disqualify(&ctx, &tournament, &player, reason).await?;
     Ok(())
 }
 
@@ -551,23 +554,56 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
         }
     };
     let embed = {
-        let players = t.count_players_in_current_round(&ctx).await?;
-        let finished = t.count_finished_matches(&ctx).await?;
+        struct DisplayData{
+            name: String,
+            current_round: String,
+            count: String,
+            finished: String,
+            rounds: String,
+            status: String,
+        }
+        
+        let data = match t.status.clone(){
+            TournamentStatus::Paused | TournamentStatus::Started => {
+                DisplayData{
+                    name: t.name.clone(),
+                    current_round: t.current_round.to_string(),
+                    count: format!("There are {} players in this current round", t.count_players_in_current_round(&ctx).await?),
+                    finished: format!("{}", t.count_finished_matches(&ctx).await?),
+                    rounds: t.rounds.to_string(),
+                    status: format!("{}", if t.is_paused() {"Paused"} else {"Started"}),
+                }
+            },
+            TournamentStatus::Pending => {
+                DisplayData{
+                    name: t.name.clone(),
+                    current_round: "Not available.".to_string(),
+                    count: format!("There are {} players in this tournament", t.clone().count_registers(&ctx).await?),
+                    finished: format!("Not available."),
+                    rounds: "Not available.".to_string(),
+                    status: t.status.to_string(),
+                }
+            }
+            TournamentStatus::Inactive => {
+                DisplayData{
+                    name: t.name.clone(),
+                    current_round: "The game is finished!".to_string(),
+                    count: format!("There are {} players in this tournament", t.clone().count_registers(&ctx).await?),
+                    finished: format!("What do you think?"),
+                    rounds: t.rounds.to_string(),
+                    status: t.status.to_string(),
+                }
+            }
+        };
+        let DisplayData{name, current_round, count, finished, rounds, status} = data;
         CreateEmbed::new()
-            .title(format!("Players' insight of {}", t.name))
+            .title(format!("Players' insight of {}", name))
             .description("")
             .fields(vec![
-                ("Round", t.current_round.to_string(), true),
-                ("Participants", format!("{}", players), true),
-                (
-                    "Finished",
-                    format!(
-                        "{}({:.2}%)",
-                        finished,
-                        (finished as f64 * 100.0) / (players as f64 / 2.0)
-                    ),
-                    true,
-                ),
+                ("Status", status, true),
+                ("Round", format!("{}/{}",current_round, rounds), true),
+                ("Participants", format!("{}", count), true),
+                ("Finished matches", format!("{}", finished), true),
             ])
     };
     let buttons = {
@@ -598,7 +634,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
                     )
                     .await?;
                 let reason = res.reason;
-                disqualify(&ctx, &t, player, reason).await?;
+                disqualify(&ctx, &t, &player, reason).await?;
                 break;
             }
             _ => {}
@@ -611,7 +647,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
 async fn disqualify(
     ctx: &BotContext<'_>,
     tournament: &Tournament,
-    user: User,
+    user: &User,
     reason: Option<String>,
 ) -> Result<(), BotError> {
     let bracket = match ctx
@@ -1536,7 +1572,7 @@ async fn player_page(
                 let id = res.player;
                 let reason = res.reason;
                 let player = UserId::from_str(&id)?;
-                disqualify(ctx, t, player.to_user(ctx).await?, reason).await?;
+                disqualify(ctx, t, &player.to_user(ctx).await?, reason).await?;
             }
             "next" => {
                 interaction
@@ -1648,5 +1684,181 @@ pub async fn add_map_slash(ctx: BotContext<'_>) -> Result<(), BotError> {
     };
     let msg = ctx.send(reply).await?;
     add_maps(ctx, &msg).await?;
+    Ok(())
+}
+
+/// Remove a user from registration with options provided to ban the user's Discord ID or Player
+/// Tag.
+///
+/// This command will automatically disqualify the user from any active tournament they are currently in.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError> {
+    let player = match ctx
+        .data()
+        .database
+        .get_player_by_discord_id(&user.id)
+        .await?
+    {
+        Some(p) => p,
+        None => {
+            ctx.send(
+                CreateReply::default()
+                    .content(format!(
+                        "User {} has not been registered and can thus not be removed.",
+                        user.mention()
+                    ))
+                    .ephemeral(true),
+            )
+            .await?;
+
+            return Ok(());
+        }
+    };
+    let buttons = {
+        vec![
+            CreateButton::new("ban_discord_id_yes")
+                .label("Yes")
+                .style(ButtonStyle::Success),
+            CreateButton::new("ban_discord_id_no")
+                .label("No")
+                .style(ButtonStyle::Danger),
+        ]
+    };
+    let msg = ctx.send(
+        CreateReply::default()
+        .content(format!("You are about to remove {}. This will also disqualify them from any tournament they're in.\n\nWould you also like to add this user to the ban list?", user.mention()))
+        .components(vec![CreateActionRow::Buttons(buttons)])
+        .ephemeral(true)
+        ).await?;
+
+    let mut ban_discord_id = false;
+
+    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    if let Some(interactions) = &ic.next().await {
+        interactions
+            .create_response(
+                ctx,
+                poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+            )
+            .await?;
+        match interactions.data.custom_id.as_str() {
+            "ban_discord_id_yes" => ban_discord_id = true,
+            "ban_discord_id_no" => ban_discord_id = false,
+            _ => {}
+        }
+    }
+
+    let buttons = {
+        vec![
+            CreateButton::new("ban_player_tag_yes")
+                .label("Yes")
+                .style(ButtonStyle::Success),
+            CreateButton::new("ban_player_tag_no")
+                .label("No")
+                .style(ButtonStyle::Danger),
+        ]
+    };
+    msg.edit(ctx, CreateReply::default()
+        .content(format!("Would you like to ban the in-game player tag ({}) associated with this user as well?", player.player_tag))
+        .components(vec![CreateActionRow::Buttons(buttons)])
+        .ephemeral(true)
+        ).await?;
+
+    let mut ban_player_tag = false;
+    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    if let Some(interactions) = &ic.next().await {
+        interactions
+            .create_response(
+                ctx,
+                poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+            )
+            .await?;
+        match interactions.data.custom_id.as_str() {
+            "ban_player_tag_yes" => ban_player_tag = true,
+            "ban_player_tag_no" => ban_player_tag = false,
+            _ => {}
+        }
+    }
+
+    let tournaments = ctx
+        .data()
+        .database
+        .get_player_active_tournaments(&ctx.guild_id().unwrap(), &user.id)
+        .await?;
+    for t in tournaments {
+        disqualify(&ctx, &t, &user, None).await?;
+    }
+
+    ctx.data().database.delete_user(&user.id).await?;
+
+    let mut success_msg = format!("Successfully removed {}.", user.mention());
+
+    if ban_discord_id {
+        ctx.data().database.ban_user(&user.id.to_string()).await?;
+        success_msg.push_str(&format!("\n\nBanned Discord ID: {}", user.id.to_string()));
+    }
+
+    if ban_player_tag {
+        ctx.data().database.ban_user(&player.player_tag).await?;
+        success_msg.push_str(&format!("\nBanned Player Tag: {}", player.player_tag));
+    }
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(success_msg)
+            .ephemeral(true)
+            .components(vec![]),
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Unban a user from using the bot.
+///
+/// This command can be used with either a Discord ID or in-game player tag.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Result<(), BotError> {
+    let discord_id_or_player_tag = match discord_id_or_player_tag.strip_prefix('#') {
+        Some(s) => s.to_string(),
+        None => discord_id_or_player_tag,
+    }
+    .to_uppercase();
+
+    if !ctx
+        .data()
+        .database
+        .is_user_banned(&discord_id_or_player_tag)
+        .await?
+    {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "User with Discord ID or player tag {} is not currently banned.",
+                    discord_id_or_player_tag
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
+    ctx.data()
+        .database
+        .unban_user(&discord_id_or_player_tag)
+        .await?;
+
+    ctx.send(
+        CreateReply::default()
+            .content(format!(
+                "Successfully unbanned {}!",
+                discord_id_or_player_tag
+            ))
+            .ephemeral(true),
+    )
+    .await?;
+
     Ok(())
 }
