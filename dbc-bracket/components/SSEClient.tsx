@@ -120,7 +120,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
                 startTime = new Date(parseInt(match.startTime) * 1000).toLocaleString();
               }
               return (
-                <div className='relative w-full h-full'>
+                <div className='relative w-full'>
                   <p>{startTime || <>&nbsp;</>}</p>
                   <div className="flex flex-col">
                     {topParticipant && topParticipant?.id !== "0" ? (
@@ -193,7 +193,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   };
 
   return (
-    <div className='w-full h-full'>
+    <div className='w-full'>
       <Head>
         <meta property="og:title" content="Discord Brawl Cup" />
         <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}`} />
