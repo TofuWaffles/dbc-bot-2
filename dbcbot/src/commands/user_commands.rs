@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
 use crate::database::models::Tournament;
@@ -8,7 +10,7 @@ use crate::database::{ConfigDatabase, MatchDatabase, TournamentDatabase, UserDat
 use crate::log::{self, discord_log_error, Log};
 use crate::mail::MailBotCtx;
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::{BotComponent, BotContextExt, ComponentInteractionExt};
+use crate::utils::shorthand::{BotComponent, BotContextExt};
 use crate::{api::APIResult, commands::checks::is_config_set};
 use crate::{BotContext, BotData, BotError, BracketURL};
 use anyhow::anyhow;
@@ -30,13 +32,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![
-            menu(),
-            credit(),
-            user_profile(),
-            view_match_context(),
-            contact_marshal(),
-        ]
+        vec![menu(), credit(), view_match_context(), contact_marshal()]
     }
 }
 
@@ -956,7 +952,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
     Ok(())
 }
 
-async fn display_user_profile_helper(
+pub async fn display_user_profile_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     user: Player,
@@ -998,50 +994,6 @@ async fn display_user_profile_helper(
     };
     ctx.send(reply).await?;
     msg.delete(*ctx).await?;
-    Ok(())
-}
-
-#[poise::command(
-    context_menu_command = "User Profile",
-    guild_only,
-    check = "is_marshal_or_higher"
-)]
-async fn user_profile(
-    ctx: BotContext<'_>,
-    user: poise::serenity_prelude::User,
-) -> Result<(), BotError> {
-    let msg = ctx
-        .send(
-            CreateReply::default()
-                .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading")),
-        )
-        .await?;
-    let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
-        Ok(Some(player)) => player,
-        Ok(None) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new()
-                    .title("Profile Not Found")
-                    .description("The user has not registered their profile yet. Please run the /menu command to register their profile."),
-                None
-            ).await?;
-            return Ok(());
-        }
-        Err(e) => {
-            ctx.components().prompt(
-                &msg,
-                CreateEmbed::new().title("Error").description(
-                    "An error occurred while fetching the user profile. Please try again later.",
-                ),
-                None,
-            )
-            .await?;
-            return Err(e);
-        }
-    };
-    display_user_profile_helper(&ctx, &msg, player).await?;
     Ok(())
 }
 
@@ -1535,7 +1487,7 @@ async fn view_match_context(
         .send(
             CreateReply::default()
                 .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading")),
+                .embed(CreateEmbed::new().title("Loading...")),
         )
         .await?;
     let tournament = match ctx
@@ -1562,7 +1514,58 @@ async fn view_match_context(
             return Ok(());
         }
     };
-    user_display_match(&ctx, &msg, tournament, false).await?;
+
+    let current_match = match ctx
+        .data()
+        .database
+        .get_current_match(tournament.tournament_id, &ctx.author().id)
+        .await?
+    {
+        Some(m) => m,
+        None => {
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("Match Not Found")
+                        .description("This player is not currently in a match."),
+                    None,
+                )
+                .await?;
+            return Ok(());
+        }
+    };
+
+    let embed = CreateEmbed::default()
+        .title(format!("Match {}", current_match.match_id))
+        .fields(vec![
+            ("Match ID", current_match.match_id, true),
+            ("Winner", format!("{:#?}", current_match.winner), true),
+            ("Score", current_match.score, true),
+            (
+                "Player 1",
+                format!("{:#?}", current_match.match_players.get(0)),
+                false,
+            ),
+            (
+                "Player 2",
+                format!("{:#?}", current_match.match_players.get(1)),
+                false,
+            ),
+        ]);
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(format!(
+                "Here are the details for {}'s match.",
+                user.mention()
+            ))
+            .embed(embed)
+            .ephemeral(true),
+    )
+    .await?;
+
     Ok(())
 }
 
