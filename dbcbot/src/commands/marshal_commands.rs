@@ -737,14 +737,6 @@ async fn disqualify(
         .fields(fields);
     ctx.log(log).await?;
 
-    let player = ctx
-        .data()
-        .database
-        .get_player_by_discord_id(&user.id)
-        .await?
-        .ok_or(anyhow!("Player {} not found!", user.id))?;
-    finish_match(ctx, tournament, &bracket, &player, score).await?;
-
     Ok(())
 }
 
