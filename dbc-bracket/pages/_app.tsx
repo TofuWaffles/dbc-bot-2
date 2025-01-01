@@ -10,7 +10,7 @@ function MyApp({ Component, pageProps }: AppProps) {
             <Navbar />
             <Header />
             </div>
-            <div className='w-full h-[85vh]'>
+            <div className='w-full'>
             <Component {...pageProps} />
             </div>
         </div>

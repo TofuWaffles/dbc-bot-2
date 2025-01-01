@@ -1,10 +1,10 @@
 use api::APIsContainer;
-use std::io;
+use std::{io, str::FromStr};
 use tracing::{error, info, info_span, level_filters::LevelFilter, warn};
 use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
 
-use database::{Database, PgDatabase, TournamentDatabase};
-use poise::{serenity_prelude as serenity, CreateReply};
+use database::{ConfigDatabase, Database, PgDatabase, TournamentDatabase};
+use poise::{serenity_prelude::{self as serenity, ChannelId, CreateAttachment, CreateMessage}, CreateReply};
 
 use crate::log::discord_log_error;
 use commands::{
@@ -194,11 +194,20 @@ async fn run() -> Result<(), BotError> {
                         ("Tournaments", tournaments_field, false),
                     ];
                     
-                    discord_log_error(
+                    if let Err(_) = discord_log_error(
                         ctx,
                         &error.to_string(),
                         fields
-                        ).await.unwrap_or_else(|e|error!("Error sending error message to log channel: {:?}", e));
+                        ).await{
+                            let guild_id = ctx.guild_id().unwrap();
+                            let config = ctx.data().database.get_config(&guild_id).await.unwrap().unwrap();
+                            let log_channel_id = ChannelId::from_str(&config.log_channel_id).unwrap();
+                            log_channel_id.send_message(ctx, 
+                                CreateMessage::default()
+                                    .content("Error sending the normal log. Detail is written in the following file")
+                                    .add_file(CreateAttachment::bytes(error_msg, "error.txt")))
+                                .await.unwrap();
+                        }
                 })
             },
             event_handler: |ctx, event,framework, data|{
