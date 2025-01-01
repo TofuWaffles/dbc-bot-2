@@ -277,8 +277,6 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             .await?
             .ok_or(RoleNotExists("Marshal".to_string()))?;
         let id = self.compose(msg, embed, role, None, true).await?;
-        let embed = CreateEmbed::new().title("Mail sent!").description( "Your mail has been sent to the marshal team successfully!\n You can safely dismiss this message!");
-        self.components().prompt(msg, embed, None).await?;
         let mail = self.data().database.get_mail_by_id(id).await?;
         let thread_name = self.author().name.clone();
         let embed = {
@@ -293,8 +291,9 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         match channel_id{
             Some(id) => {
                 let guild_id = self.guild_id().ok_or(CommonError::NotInAGuild)?;
-                let channels = guild_id.channels(self.http()).await?;
-                match channels.get(&ChannelId::from_str(&id).unwrap()) {
+                let guild = self.http().get_guild(guild_id).await?;
+                let thread_data = guild.get_active_threads(self).await?;
+                match thread_data.threads.iter().find(|thread| thread.id == ChannelId::from_str(&id).unwrap()) {
                     Some(thread) => {
                         return open_thread(self, embed, role, thread.clone(), mail.id).await;
                     }
@@ -380,6 +379,7 @@ async fn mail_page(
                 interactions
                     .create_response(ctx, CreateInteractionResponse::Acknowledge)
                     .await?;
+                ctx.inbox(msg).await?;
             }
             "reply" => {
                 interactions.defer(ctx.http()).await?;
@@ -387,7 +387,7 @@ async fn mail_page(
                     .title("Compose a reply mail to the sender")
                     .description("Press the button below to compose a reply mail to the sender!");
                 let channel_id = if mail.match_id.is_empty() { None } else { Some(mail.match_id.clone()) };
-                info!("Channel id: {:?}", channel_id);
+                println!("Channel id: {:?}", channel_id);
                 match mail.mode {
                     MailType::Marshal => {
                         return ctx.send_to_marshal(msg, embed, channel_id ).await;

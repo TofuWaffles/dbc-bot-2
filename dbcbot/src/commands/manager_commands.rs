@@ -195,7 +195,7 @@ async fn set_config(
                 log::State::FAILURE,
                 log::Model::MARSHAL,
             );
-            ctx.log(log).await?;
+            ctx.log(log, None).await?;
             error!("Invalid announcement channel entered by {}", ctx.author());
             return Err(ChannelNotExists(id).into());
         }
@@ -220,7 +220,7 @@ async fn set_config(
                 log::State::FAILURE,
                 log::Model::MARSHAL,
             );
-            ctx.log(log).await?;
+            ctx.log(log, None).await?;
             error!("Invalid log channel entered by {}", ctx.author());
             return Err(ChannelNotExists(id).into());
         }
@@ -258,7 +258,7 @@ async fn set_config(
         log::State::SUCCESS,
         log::Model::GUILD,
     );
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
 
     Ok(())
 }
@@ -323,7 +323,7 @@ async fn create_tournament(
             log::Model::TOURNAMENT,
         )
         .fields(fields);
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
     info!(
         "Created tournament {} for guild {}",
         new_tournament_id, guild_id
@@ -440,7 +440,7 @@ async fn start_tournament(
             log::Model::TOURNAMENT,
         )
         .fields(fields);
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
 
     Ok(())
 }

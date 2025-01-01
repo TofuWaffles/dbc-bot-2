@@ -19,8 +19,7 @@ use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
 use poise::serenity_prelude::{
-    ButtonStyle, CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter, Mentionable,
-    ReactionType, UserId,
+    ButtonStyle, Color, CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter, Mentionable, ReactionType, UserId
 };
 use poise::ReplyHandle;
 use poise::{
@@ -54,6 +53,7 @@ impl CommandsContainer for MarshalCommands {
             remove_user(),
             unban(),
             user_profile(),
+            view_match_context()
         ]
     }
 }
@@ -277,7 +277,7 @@ Set by {}."#,
         log::State::SUCCESS,
         log::Model::TOURNAMENT,
     );
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
     Ok(())
 }
 
@@ -555,69 +555,13 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
             return Ok(());
         }
     };
-    let embed = {
-        struct DisplayData {
-            name: String,
-            current_round: String,
-            count: String,
-            finished: String,
-            rounds: String,
-            status: String,
-        }
-
-        let data = match t.status.clone() {
-            TournamentStatus::Paused | TournamentStatus::Started => DisplayData {
-                name: t.name.clone(),
-                current_round: t.current_round.to_string(),
-                count: format!(
-                    "There are {} players in this current round",
-                    t.count_players_in_current_round(&ctx).await?
-                ),
-                finished: format!("{}", t.count_finished_matches(&ctx).await?),
-                rounds: t.rounds.to_string(),
-                status: format!("{}", if t.is_paused() { "Paused" } else { "Started" }),
-            },
-            TournamentStatus::Pending => DisplayData {
-                name: t.name.clone(),
-                current_round: "Not available.".to_string(),
-                count: format!(
-                    "There are {} players in this tournament",
-                    t.clone().count_registers(&ctx).await?
-                ),
-                finished: format!("Not available."),
-                rounds: "Not available.".to_string(),
-                status: t.status.to_string(),
-            },
-            TournamentStatus::Inactive => DisplayData {
-                name: t.name.clone(),
-                current_round: "The game is finished!".to_string(),
-                count: format!(
-                    "There are {} players in this tournament",
-                    t.clone().count_registers(&ctx).await?
-                ),
-                finished: format!("What do you think?"),
-                rounds: t.rounds.to_string(),
-                status: t.status.to_string(),
-            },
-        };
-        let DisplayData {
-            name,
-            current_round,
-            count,
-            finished,
-            rounds,
-            status,
-        } = data;
-        CreateEmbed::new()
-            .title(format!("Players' insight of {}", name))
-            .description("")
-            .fields(vec![
-                ("Status", status, true),
-                ("Round", format!("{}/{}", current_round, rounds), true),
-                ("Participants", format!("{}", count), true),
-                ("Finished matches", format!("{}", finished), true),
-            ])
-    };
+    let embed = CreateEmbed::new()
+        .title(format!("Disqualify player: {}?", player.mention()))
+        .description(format!(
+            "Are you sure you want to disqualify <@{}> from the tournament? Provide a reason (leave blank for none).",
+            player.id
+        ))
+        .color(Color::RED);
     let buttons = {
         vec![CreateButton::new("reason")
             .label("Specify Reason")
@@ -747,7 +691,8 @@ async fn disqualify(
             log::Model::MARSHAL,
         )
         .fields(fields);
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
+    
 
     Ok(())
 }
@@ -1093,7 +1038,7 @@ async fn next_round_helper(
             log::Model::MARSHAL,
         )
         .fields(fields);
-    ctx.log(log).await?;
+    ctx.log(log, None).await?;
     Ok(())
 }
 
@@ -1521,23 +1466,66 @@ async fn player_page(
     t: &Tournament,
 ) -> Result<(), BotError> {
     let embed = {
-        let players = t.count_players_in_current_round(ctx).await?;
-        let finished = t.count_finished_matches(ctx).await?;
+        struct DisplayData {
+            name: String,
+            current_round: String,
+            count: String,
+            finished: String,
+            rounds: String,
+            status: String,
+        }
+
+        let data = match t.status.clone() {
+            TournamentStatus::Paused | TournamentStatus::Started => DisplayData {
+                name: t.name.clone(),
+                current_round: t.current_round.to_string(),
+                count: format!(
+                    "There are {} players in this current round",
+                    t.count_players_in_current_round(&ctx).await?
+                ),
+                finished: format!("{}", t.count_finished_matches(&ctx).await?),
+                rounds: t.rounds.to_string(),
+                status: format!("{}", if t.is_paused() { "Paused" } else { "Started" }),
+            },
+            TournamentStatus::Pending => DisplayData {
+                name: t.name.clone(),
+                current_round: "Not available.".to_string(),
+                count: format!(
+                    "There are {} players in this tournament",
+                    t.clone().count_registers(&ctx).await?
+                ),
+                finished: format!("Not available."),
+                rounds: "Not available.".to_string(),
+                status: t.status.to_string(),
+            },
+            TournamentStatus::Inactive => DisplayData {
+                name: t.name.clone(),
+                current_round: "The game is finished!".to_string(),
+                count: format!(
+                    "There are {} players in this tournament",
+                    t.clone().count_registers(&ctx).await?
+                ),
+                finished: format!("What do you think?"),
+                rounds: t.rounds.to_string(),
+                status: t.status.to_string(),
+            },
+        };
+        let DisplayData {
+            name,
+            current_round,
+            count,
+            finished,
+            rounds,
+            status,
+        } = data;
         CreateEmbed::new()
-            .title(format!("Players' insight of {}", t.name))
+            .title(format!("Players' insight of {}", name))
             .description("")
             .fields(vec![
-                ("Round", t.current_round.to_string(), true),
-                ("Participants", format!("{}", players), true),
-                (
-                    "Finished",
-                    format!(
-                        "{}({:.2}%)",
-                        finished,
-                        (finished as f64 * 100.0) / (players as f64 / 2.0)
-                    ),
-                    true,
-                ),
+                ("Status", status, true),
+                ("Round", format!("{}/{}", current_round, rounds), true),
+                ("Participants", format!("{}", count), true),
+                ("Finished matches", format!("{}", finished), true),
             ])
     };
     let buttons = {
@@ -1615,7 +1603,7 @@ async fn player_page(
 async fn utilities_page(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
-    tournament: &Tournament,
+    _tournament: &Tournament,
 ) -> Result<(), BotError> {
     let embed = CreateEmbed::default()
             .title("Utilities")
@@ -1919,3 +1907,100 @@ async fn user_profile(
     Ok(())
 }
 
+#[poise::command(
+    context_menu_command = "Match Menu",
+    guild_only,
+    check = "is_marshal_or_higher"
+)]
+async fn view_match_context(
+    ctx: BotContext<'_>,
+    user: poise::serenity_prelude::User,
+) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Loading...")),
+        )
+        .await?;
+    let tournament = match ctx
+        .data()
+        .database
+        .get_active_tournaments_from_player(&user.id)
+        .await?
+        .first()
+        .cloned()
+    {
+        Some(t) => t,
+        None => {
+            let reply = {
+                let embed = CreateEmbed::new()
+                    .title("Match Context")
+                    .description(format!("{} is not in any tournament.", user.mention()))
+                    .color(Color::RED);
+                CreateReply::default()
+                    .reply(true)
+                    .ephemeral(true)
+                    .embed(embed)
+            };
+            msg.edit(ctx, reply).await?;
+            return Ok(());
+        }
+    };
+
+    let current_match = match ctx
+        .data()
+        .database
+        .get_current_match(tournament.tournament_id, &user.id)
+        .await?
+    {
+        Some(m) => m,
+        None => {
+            ctx.components()
+                .prompt(
+                    &msg,
+                    CreateEmbed::new()
+                        .title("Match Not Found")
+                        .description("This player is not currently in a match."),
+                    None,
+                )
+                .await?;
+            return Ok(());
+        }
+    };
+    async fn display_mp(ctx: &BotContext<'_>, mp: &Option<&MatchPlayer>) -> Result<String, BotError>{
+        match mp{
+            Some(p) => {
+                let user = p.to_user(ctx).await?;
+                Ok(format!("{}", user.mention()))
+            },
+            None => Ok("No player found. Either this is not yet determined or there is an error.".to_string())
+        }
+    }
+    let p1 = display_mp(&ctx, &current_match.match_players.get(0)).await?;
+    let p2 = display_mp(&ctx, &current_match.match_players.get(1)).await?;
+    
+    let embed = CreateEmbed::default()
+        .title(format!("Match {}", current_match.match_id))
+        .fields(vec![
+            ("Match ID", current_match.match_id, true),
+            ("Winner", format!("{:#?}", current_match.winner), true),
+            ("Score", current_match.score, true),
+            ("Player 1", p1, false),
+            ("Player 2",p2,false),
+        ]);
+
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .content(format!(
+                "Here are the details for {}'s match.",
+                user.mention()
+            ))
+            .embed(embed)
+            .ephemeral(true),
+    )
+    .await?;
+
+    Ok(())
+}

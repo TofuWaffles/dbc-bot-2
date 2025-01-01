@@ -1,6 +1,6 @@
 use crate::api::official_brawl_stars::BattleLogItem;
-use crate::commands::checks::{is_marshal_or_higher, is_tournament_paused};
-use crate::database::models::Tournament;
+use crate::commands::checks::is_tournament_paused;
+use crate::database::models:: Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
@@ -30,7 +30,7 @@ impl CommandsContainer for UserCommands {
     type Error = BotError;
 
     fn get_all() -> Vec<poise::Command<Self::Data, Self::Error>> {
-        vec![menu(), credit(), view_match_context(), contact_marshal()]
+        vec![menu(), credit(), contact_marshal()]
     }
 }
 
@@ -639,7 +639,7 @@ async fn user_display_tournaments(
                 log::State::SUCCESS,
                 log::Model::TOURNAMENT,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
             ctx.components()
                 .prompt(
                     msg,
@@ -663,7 +663,7 @@ async fn user_display_tournaments(
                 log::State::FAILURE,
                 log::Model::TOURNAMENT,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
             ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -781,7 +781,7 @@ async fn user_display_registration(
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
         );
-        ctx.log(log).await?;
+         ctx.log(log, None).await?;
         return Ok(());
     }
 
@@ -871,7 +871,7 @@ async fn user_display_registration(
                         crate::log::State::SUCCESS,
                         crate::log::Model::PLAYER,
                     );
-                    ctx.log(log).await?;
+                     ctx.log(log, None).await?;
                 }
                 false => {
                     ctx.components().prompt(
@@ -901,7 +901,7 @@ async fn user_display_registration(
                 crate::log::State::FAILURE,
                 crate::log::Model::PLAYER,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
         }
         APIResult::Maintenance => {
             ctx.components().prompt(
@@ -918,7 +918,7 @@ async fn user_display_registration(
                 crate::log::State::FAILURE,
                 crate::log::Model::API,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
         }
     }
     Ok(())
@@ -942,7 +942,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
                 log::State::FAILURE,
                 log::Model::PLAYER,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
             return Ok(());
         }
     };
@@ -958,31 +958,41 @@ pub async fn display_user_profile_helper(
     let tournament = ctx
         .data()
         .database
-        .get_active_tournaments_from_player(&ctx.author().id)
+        .get_active_tournaments_from_player(&user.user(ctx).await?.id)
         .await?
         .first()
         .cloned();
     let tournament_id = tournament
         .as_ref()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
-
     let image = ctx
         .data()
         .apis
         .images
         .profile_image(&user, tournament_id.to_string())
         .await?;
+    let current_match = ctx
+        .data()
+        .database
+        .get_current_match(tournament_id.parse::<i32>()?, &user.user(ctx).await?.id)
+        .await?;
+    let match_id = current_match.as_ref().map_or_else(||"Currently not in a match".to_string(), |m| m.match_id.clone());
+    let state= match current_match.map(|m| m.winner).flatten(){
+        Some(w) if w == user.discord_id => "Advance to the next round".to_string(),
+        Some(_) => "Cannot continue in the tournament".to_string(),
+        None => "Hasn't finished the current match".to_string()
+    };
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
             .author(ctx.get_author_img(&log::Model::PLAYER))
-            .description("Here is some of your data")
+            .description("Here is your additional information of the profile.")
             .color(Color::DARK_GOLD)
-            .fields(vec![(
-                "Tournament",
-                tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
-                true,
-            )]);
+            .fields(vec![
+                ("Tournament", tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),true),
+                ("Match", match_id, true),
+                ("Status", state,true)
+                ]);
         CreateReply::default()
             .reply(true)
             .ephemeral(true)
@@ -1010,7 +1020,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
                 log::State::SUCCESS,
                 log::Model::PLAYER,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
             ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -1111,7 +1121,7 @@ Tournament name: {}"#,
                 log::State::SUCCESS,
                 log::Model::TOURNAMENT,
             );
-            ctx.log(log).await?;
+             ctx.log(log, None).await?;
         }
         false => {
             ctx.components().prompt(
@@ -1239,7 +1249,7 @@ async fn submit(
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
         );
-        ctx.log(log).await?;
+         ctx.log(log, None).await?;
         Ok(())
     }
 
@@ -1372,7 +1382,7 @@ async fn submit(
         log::State::SUCCESS,
         log::Model::PLAYER,
     );
-    ctx.log(log).await?;
+     ctx.log(log, None).await?;
     Ok(())
 }
 
@@ -1472,100 +1482,6 @@ pub async fn finish_tournament(
     Ok(())
 }
 
-#[poise::command(
-    context_menu_command = "Match Menu",
-    guild_only,
-    check = "is_marshal_or_higher"
-)]
-async fn view_match_context(
-    ctx: BotContext<'_>,
-    user: poise::serenity_prelude::User,
-) -> Result<(), BotError> {
-    let msg = ctx
-        .send(
-            CreateReply::default()
-                .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading...")),
-        )
-        .await?;
-    let tournament = match ctx
-        .data()
-        .database
-        .get_active_tournaments_from_player(&user.id)
-        .await?
-        .first()
-        .cloned()
-    {
-        Some(t) => t,
-        None => {
-            let reply = {
-                let embed = CreateEmbed::new()
-                    .title("Match Context")
-                    .description(format!("{} is not in any tournament.", user.mention()))
-                    .color(Color::RED);
-                CreateReply::default()
-                    .reply(true)
-                    .ephemeral(true)
-                    .embed(embed)
-            };
-            msg.edit(ctx, reply).await?;
-            return Ok(());
-        }
-    };
-
-    let current_match = match ctx
-        .data()
-        .database
-        .get_current_match(tournament.tournament_id, &ctx.author().id)
-        .await?
-    {
-        Some(m) => m,
-        None => {
-            ctx.components()
-                .prompt(
-                    &msg,
-                    CreateEmbed::new()
-                        .title("Match Not Found")
-                        .description("This player is not currently in a match."),
-                    None,
-                )
-                .await?;
-            return Ok(());
-        }
-    };
-
-    let embed = CreateEmbed::default()
-        .title(format!("Match {}", current_match.match_id))
-        .fields(vec![
-            ("Match ID", current_match.match_id, true),
-            ("Winner", format!("{:#?}", current_match.winner), true),
-            ("Score", current_match.score, true),
-            (
-                "Player 1",
-                format!("{:#?}", current_match.match_players.get(0)),
-                false,
-            ),
-            (
-                "Player 2",
-                format!("{:#?}", current_match.match_players.get(1)),
-                false,
-            ),
-        ]);
-
-    msg.edit(
-        ctx,
-        CreateReply::default()
-            .content(format!(
-                "Here are the details for {}'s match.",
-                user.mention()
-            ))
-            .embed(embed)
-            .ephemeral(true),
-    )
-    .await?;
-
-    Ok(())
-}
 
 #[poise::command(
     slash_command,

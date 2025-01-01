@@ -3,7 +3,7 @@ use crate::utils::error::CommonError::*;
 use crate::{utils::shorthand::BotContextExt, BotContext, BotError};
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    ChannelId, Color, CreateAttachment, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildChannel
+    ChannelId, Color, CreateAttachment, CreateButton, CreateEmbed, CreateEmbedAuthor, CreateMessage, GuildChannel
 };
 use std::{str::FromStr, time::SystemTime};
 use strum::Display;
@@ -39,7 +39,7 @@ pub enum Model {
 }
 
 pub trait Log {
-    async fn log(&self, log: CreateEmbed) -> Result<(), BotError>;
+    async fn log(&self, log: CreateEmbed, button: impl Into<Option<CreateButton>>) -> Result<(), BotError>;
     async fn get_log_channel(&self) -> Result<ChannelId, BotError>;
     fn get_author_img(&self, model: &Model) -> CreateEmbedAuthor;
     fn thumbnail(&self, state: &State) -> String;
@@ -115,8 +115,17 @@ impl Log for BotContext<'_> {
             .colour(state as u32)
     }
 
-    async fn log(&self, log: CreateEmbed) -> Result<(), BotError> {
-        let builder = CreateMessage::default().embed(log);
+    async fn log(&self, log: CreateEmbed, button: impl Into<Option<CreateButton>>) -> Result<(), BotError> {
+        let builder = match button.into(){
+            Some(btn) => {
+                CreateMessage::default()
+                    .embed(log)
+                    .button(btn)
+            }
+            None => {
+                CreateMessage::default().embed(log)
+            }
+        };
         let channel = self.get_log_channel().await?;
         channel.send_message(self, builder).await?;
         Ok(())
