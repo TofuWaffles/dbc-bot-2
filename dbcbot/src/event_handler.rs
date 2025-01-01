@@ -6,8 +6,8 @@ use crate::{
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction,
-    CreateEmbed, CreateInteractionResponseFollowup, CreateQuickModal, Mentionable,
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponseFollowup,
+    CreateQuickModal, Mentionable,
 };
 use tracing::info;
 pub async fn event_handler(
@@ -62,8 +62,8 @@ async fn handle_mail(
             current_mail.sender,
             subject.clone(),
             body.clone(),
-            None,
-            true
+            mci.channel_id.to_string(),
+            true,
         );
 
         let embed = {

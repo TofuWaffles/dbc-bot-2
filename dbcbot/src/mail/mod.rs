@@ -4,13 +4,16 @@ use std::str::FromStr;
 use crate::database::ConfigDatabase;
 use crate::log::Log;
 use crate::utils::error::CommonError::{self, *};
-use crate::utils::shorthand::{BotComponent, ComponentInteractionExt};
+use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::{Mail, MailType, ActorId};
+use model::{ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, ComponentInteractionCollector, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, EditMessage, Guild, GuildChannel, Mentionable
+    AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour,
+    CreateActionRow, CreateButton, CreateEmbed,
+    CreateInteractionResponse, CreateMessage, CreateThread, GuildChannel,
+    Mentionable,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -147,7 +150,7 @@ pub trait MailBotCtx<'a> {
         embed: CreateEmbed,
         recipient_id: impl Into<ActorId>,
         auto_subject: impl Into<Option<String>>,
-        to_marshals: bool
+        to_marshals: bool,
     ) -> Result<i64, BotError>;
     async fn inbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
     async fn mail_notification(&self) -> Result<(), BotError>;
@@ -157,6 +160,7 @@ pub trait MailBotCtx<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
+        channel_id: Option<String>,
     ) -> Result<(), Self::Error>;
 }
 
@@ -168,7 +172,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         embed: CreateEmbed,
         recipient_id: impl Into<ActorId>,
         auto_subject: impl Into<Option<String>>,
-        to_marshals: bool
+        to_marshals: bool,
     ) -> Result<i64, BotError> {
         let recipient_id: ActorId = recipient_id.into();
         let mut mail = match auto_subject.into() {
@@ -195,7 +199,6 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     modal.body,
                     None,
                     to_marshals,
-                    
                 )
             }
         };
@@ -237,7 +240,9 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
     }
 
     async fn inbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
-        self.components().prompt(msg, CreateEmbed::new().description("Getting inbox"), None).await?;
+        self.components()
+            .prompt(msg, CreateEmbed::new().description("Getting inbox"), None)
+            .await?;
         const CHUNK: usize = 10;
         let mails = self.data().database.get_all_mails(self.author().id).await?;
         if mails.is_empty() {
@@ -263,6 +268,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
+        channel_id: Option<String>,
     ) -> Result<(), Self::Error> {
         let guild_id = self.guild_id().ok_or(NotInAGuild)?;
         let role = self
@@ -275,31 +281,43 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         let embed = CreateEmbed::new().title("Mail sent!").description( "Your mail has been sent to the marshal team successfully!\n You can safely dismiss this message!");
         self.components().prompt(msg, embed, None).await?;
         let mail = self.data().database.get_mail_by_id(id).await?;
-        let thread_id = self.author().id.to_string();
+        let thread_name = self.author().name.clone();
         let embed = {
             CreateEmbed::default()
                 .title(mail.subject.clone())
                 .description(mail.body.clone())
                 .fields(vec![
-                    ("Sender", format!("<@{}>",mail.sender.to_string()), true),
+                    ("Sender", format!("<@{}>", mail.sender.to_string()), true),
                     ("At", format!("<t:{}:F>", mail.id), true),
                 ])
         };
-        let guild_id = self.guild_id().ok_or(CommonError::NotInAGuild)?;
-        let channels = guild_id.channels(self.http()).await?;
-        match channels.get(&ChannelId::from_str(&thread_id).unwrap()) {
-            Some(thread) => {
-                return open_thread(self, embed, role, thread.clone(), mail.id).await;
+        match channel_id{
+            Some(id) => {
+                let guild_id = self.guild_id().ok_or(CommonError::NotInAGuild)?;
+                let channels = guild_id.channels(self.http()).await?;
+                match channels.get(&ChannelId::from_str(&id).unwrap()) {
+                    Some(thread) => {
+                        return open_thread(self, embed, role, thread.clone(), mail.id).await;
+                    }
+                    None => {
+                        let thread = create_thread(self, thread_name).await?;
+                        return open_thread(self, embed, role, thread, mail.id).await;
+                    }
+                };
             }
             None => {
-                let log_channel = self.get_log_channel().await?;
-                let thread = CreateThread::new(thread_id)
-                    .kind(ChannelType::PublicThread)
-                    .auto_archive_duration(AUTO_ARCHIVE_DURATION);
-                let thread = log_channel.create_thread(self.http(), thread).await?;
+                let thread = create_thread(self, thread_name).await?;
                 return open_thread(self, embed, role, thread, mail.id).await;
             }
         };
+        
+        async fn create_thread(ctx: &BotContext<'_>, thread_name: String) -> Result<GuildChannel, BotError>{
+            let log_channel = ctx.get_log_channel().await?;
+            let thread = CreateThread::new(thread_name)
+                .kind(ChannelType::PublicThread)
+                .auto_archive_duration(AUTO_ARCHIVE_DURATION);
+            Ok(log_channel.create_thread(ctx.http(), thread).await?)
+        }
     }
 }
 #[derive(Debug, Modal)]
@@ -330,6 +348,7 @@ async fn mail_page(
     msg: &ReplyHandle<'_>,
     mail: &Mail,
 ) -> Result<(), BotError> {
+    info!("Mail: {:?}", mail);
     let embed = CreateEmbed::new()
         .title(&mail.subject)
         .description(format!(
@@ -368,14 +387,17 @@ async fn mail_page(
                 let embed = CreateEmbed::default()
                     .title("Compose a reply mail to the sender")
                     .description("Press the button below to compose a reply mail to the sender!");
-                match mail.mode{
+                let channel_id = if mail.match_id.is_empty() { None } else { Some(mail.match_id.clone()) };
+                info!("Channel id: {:?}", channel_id);
+                match mail.mode {
                     MailType::Marshal => {
-                        return ctx.send_to_marshal(msg, embed).await;
+                        return ctx.send_to_marshal(msg, embed, channel_id ).await;
                     }
                     _ => {
-                        ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false).await?;
+                        ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false)
+                            .await?;
                     }
-                }                
+                }
             }
             "report" => {
                 interactions.defer(ctx.http()).await?;
@@ -391,7 +413,7 @@ async fn mail_page(
 async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, BotError> {
     let mut inbox = Vec::with_capacity(mails.len());
     for mail in mails {
-        let sender = match mail.sender(ctx).await{
+        let sender = match mail.sender(ctx).await {
             Ok(sender) => sender.mention().to_string(),
             Err(_) => format!("Unknown user with id {}", mail.sender),
         };
@@ -460,7 +482,11 @@ async fn inbox_helper(
     }
 }
 
-async fn report(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, mail: &mut Mail) -> Result<(), BotError> {
+async fn report(
+    ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
+    mail: &mut Mail,
+) -> Result<(), BotError> {
     let embed = {
         let sender = mail.sender(ctx).await?;
         let recipient = mail.recipient(ctx).await?.mention();
@@ -482,7 +508,11 @@ Reported by: {recipient}.
                     timestamp = mail.id,
                 ))
                 .fields(vec![
-                    ("From", format!("{}`{}`", sender.mention(), sender.id()), true),
+                    (
+                        "From",
+                        format!("{}`{}`", sender.mention(), sender.id()),
+                        true,
+                    ),
                     (
                         "To",
                         format!("{}`{}`", recipient.mention(), recipient),
@@ -497,9 +527,9 @@ Reported by: {recipient}.
     let reporter_name= ctx.author().name.clone();
     let thread = CreateThread::new(reporter_name)
         .kind(ChannelType::PublicThread)
-        .auto_archive_duration(AUTO_ARCHIVE_DURATION);  
+        .auto_archive_duration(AUTO_ARCHIVE_DURATION);
     let channel = log.create_thread(ctx.http(), thread).await?;
-    open_thread(ctx, embed, mail.recipient_id()?, channel, mail.id ).await?;
+    open_thread(ctx, embed, mail.recipient_id()?, channel, mail.id).await?;
     ctx.components().prompt(msg,
         CreateEmbed::new()
             .title("This mail has been reported!")

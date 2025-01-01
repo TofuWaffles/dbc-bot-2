@@ -38,7 +38,7 @@ use event_handler::event_handler;
 /// Stores data used by the bot.
 ///
 /// Accessible by all bot commands through Context.
-/// 
+///
 #[derive(Debug)]
 pub struct Data<DB> {
     database: DB,
@@ -76,7 +76,7 @@ impl BracketURL {
 ///
 /// It also includes other useful data that the bot uses such as the database.
 /// You can access the data in commands by using ``ctx.data()``.
-/// 
+///
 pub type BotContext<'a> = poise::Context<'a, BotData, BotError>;
 
 #[tokio::main]

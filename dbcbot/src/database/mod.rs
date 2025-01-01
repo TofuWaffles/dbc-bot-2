@@ -706,6 +706,14 @@ pub trait TournamentDatabase {
 
     /// Pauses a tournament
     async fn pause(&self, tournament_id: i32) -> Result<(), Self::Error>;
+
+    /// Removes a player from a tournament. This does not affect tournaments that are already
+    /// in-progress or have ended; It will only affect pending tournaments.
+    async fn tournament_remove_player(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+    ) -> Result<(), Self::Error>;
 }
 
 impl TournamentDatabase for PgDatabase {
@@ -1379,10 +1387,28 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
         )
         .fetch_one(&self.pool)
         .await?;
-    
+
         Ok(count.unwrap_or(0))
     }
-    
+
+    async fn tournament_remove_player(
+        &self,
+        tournament_id: i32,
+        discord_id: &UserId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM tournament_players
+            WHERE tournament_id = $1 AND discord_id = $2
+            "#,
+            tournament_id,
+            discord_id.to_string()
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
 }
 
 pub trait MatchDatabase {

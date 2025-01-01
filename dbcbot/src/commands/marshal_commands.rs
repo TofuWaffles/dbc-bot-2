@@ -554,7 +554,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
         }
     };
     let embed = {
-        struct DisplayData{
+        struct DisplayData {
             name: String,
             current_round: String,
             count: String,
@@ -562,46 +562,56 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
             rounds: String,
             status: String,
         }
-        
-        let data = match t.status.clone(){
-            TournamentStatus::Paused | TournamentStatus::Started => {
-                DisplayData{
-                    name: t.name.clone(),
-                    current_round: t.current_round.to_string(),
-                    count: format!("There are {} players in this current round", t.count_players_in_current_round(&ctx).await?),
-                    finished: format!("{}", t.count_finished_matches(&ctx).await?),
-                    rounds: t.rounds.to_string(),
-                    status: format!("{}", if t.is_paused() {"Paused"} else {"Started"}),
-                }
+
+        let data = match t.status.clone() {
+            TournamentStatus::Paused | TournamentStatus::Started => DisplayData {
+                name: t.name.clone(),
+                current_round: t.current_round.to_string(),
+                count: format!(
+                    "There are {} players in this current round",
+                    t.count_players_in_current_round(&ctx).await?
+                ),
+                finished: format!("{}", t.count_finished_matches(&ctx).await?),
+                rounds: t.rounds.to_string(),
+                status: format!("{}", if t.is_paused() { "Paused" } else { "Started" }),
             },
-            TournamentStatus::Pending => {
-                DisplayData{
-                    name: t.name.clone(),
-                    current_round: "Not available.".to_string(),
-                    count: format!("There are {} players in this tournament", t.clone().count_registers(&ctx).await?),
-                    finished: format!("Not available."),
-                    rounds: "Not available.".to_string(),
-                    status: t.status.to_string(),
-                }
-            }
-            TournamentStatus::Inactive => {
-                DisplayData{
-                    name: t.name.clone(),
-                    current_round: "The game is finished!".to_string(),
-                    count: format!("There are {} players in this tournament", t.clone().count_registers(&ctx).await?),
-                    finished: format!("What do you think?"),
-                    rounds: t.rounds.to_string(),
-                    status: t.status.to_string(),
-                }
-            }
+            TournamentStatus::Pending => DisplayData {
+                name: t.name.clone(),
+                current_round: "Not available.".to_string(),
+                count: format!(
+                    "There are {} players in this tournament",
+                    t.clone().count_registers(&ctx).await?
+                ),
+                finished: format!("Not available."),
+                rounds: "Not available.".to_string(),
+                status: t.status.to_string(),
+            },
+            TournamentStatus::Inactive => DisplayData {
+                name: t.name.clone(),
+                current_round: "The game is finished!".to_string(),
+                count: format!(
+                    "There are {} players in this tournament",
+                    t.clone().count_registers(&ctx).await?
+                ),
+                finished: format!("What do you think?"),
+                rounds: t.rounds.to_string(),
+                status: t.status.to_string(),
+            },
         };
-        let DisplayData{name, current_round, count, finished, rounds, status} = data;
+        let DisplayData {
+            name,
+            current_round,
+            count,
+            finished,
+            rounds,
+            status,
+        } = data;
         CreateEmbed::new()
             .title(format!("Players' insight of {}", name))
             .description("")
             .fields(vec![
                 ("Status", status, true),
-                ("Round", format!("{}/{}",current_round, rounds), true),
+                ("Round", format!("{}/{}", current_round, rounds), true),
                 ("Participants", format!("{}", count), true),
                 ("Finished matches", format!("{}", finished), true),
             ])
@@ -1778,7 +1788,14 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
         .get_player_active_tournaments(&ctx.guild_id().unwrap(), &user.id)
         .await?;
     for t in tournaments {
-        disqualify(&ctx, &t, &user, None).await?;
+        if t.status == TournamentStatus::Started || t.status == TournamentStatus::Paused {
+            disqualify(&ctx, &t, &user, None).await?;
+        } else if t.status == TournamentStatus::Pending {
+            ctx.data()
+                .database
+                .tournament_remove_player(t.tournament_id, &user.id)
+                .await?;
+        }
     }
 
     ctx.data().database.delete_user(&user.id).await?;
