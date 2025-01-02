@@ -1287,6 +1287,23 @@ async fn submit(
         }
     };
 
+    async fn build_log(ctx: &BotContext<'_>, battles: &[BattleLogItem]) -> Result<(), BotError>{
+        let log_channel = ctx.get_log_channel().await?;
+        let builder = {
+            let data = serde_json::to_string_pretty(&battles).unwrap();
+            let embed = CreateEmbed::new()
+                .title("Insufficient Matches")
+                .description(format!("{} fails to submit. Check the attachment for the filtered log!", ctx.author().mention()))
+                .color(Color::RED);
+            let file = CreateAttachment::bytes(data, format!("filtered_log_{}.json",ctx.author().id.to_string()));
+            CreateMessage::new()
+                .embed(embed)
+                .add_file(file)
+        };
+        log_channel.send_message(ctx, builder).await?;
+        Ok(())
+    }
+
     let caller_tag = ctx
         .get_player_from_discord_id(caller.get().to_string())
         .await?
@@ -1323,12 +1340,18 @@ async fn submit(
         .await?;
     let battles = filter(ctx, &logs.items, &current_match, tournament).await?;
     if battles.len() < tournament.wins_required as usize {
+        println!("Not enough matches");
+        build_log(ctx, &battles).await?;
         return handle_not_enough_matches(ctx, msg).await;
     }
     let winner = analyze(tournament, &battles).await;
     let score = winner.clone().map(|(_, s)| s).unwrap_or("0-0".to_string());
     let target = match winner {
-        None => return handle_not_enough_matches(ctx, msg).await,
+        None => {
+            println!("No winner found in all logs");
+            build_log(ctx, &battles).await?;
+            return handle_not_enough_matches(ctx, msg).await
+        },
         Some((true, score)) => join!(
             ctx.data()
                 .database

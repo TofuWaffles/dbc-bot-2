@@ -2103,6 +2103,7 @@ async fn extract_convo_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, first
     let reply = CreateReply::default()
         .ephemeral(true)
         .attachment(attachment)
+        .components(vec![])
         .embed(embed);
     msg.edit(*ctx, reply).await?;
     Ok(())
