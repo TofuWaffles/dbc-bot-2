@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SingleEliminationBracket, SVGViewer } from '@g-loot/react-tournament-brackets';
-import { useWindowSize } from '@uidotdev/usehooks';
+import { SingleEliminationBracket} from '@g-loot/react-tournament-brackets';
 import { MatchType, ParticipantType, Tournament } from '@/db/models';
 import dynamic from 'next/dynamic';
 import Head from 'next/head';
@@ -82,7 +81,6 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   }
 
   const TournamentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
-    const { width, height } = useWindowSize();
     return (
       <SingleEliminationBracket
             matches={matches}
@@ -95,7 +93,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
                 connectorColor: '#FFD700',
               },
             }}
-            svgWrapper={({ children, ...props }) => (
+            svgWrapper={({ children }) => (
               children
             )}
             matchComponent={({ match }: { match: MatchType }) => {
