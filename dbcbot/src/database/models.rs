@@ -153,14 +153,14 @@ impl Tournament {
     ) -> Result<i64, BotError> {
         ctx.data()
             .database
-            .participants(self.tournament_id, self.rounds)
+            .participants(self.tournament_id, self.current_round)
             .await
     }
 
     pub async fn count_finished_matches(&self, ctx: &BotContext<'_>) -> Result<i64, BotError> {
         ctx.data()
             .database
-            .count_finished_matches(self.tournament_id, self.rounds)
+            .count_finished_matches(self.tournament_id, self.current_round)
             .await
     }
 

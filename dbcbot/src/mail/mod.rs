@@ -131,6 +131,7 @@ impl MailDatabase for PgDatabase {
             FROM mail
             WHERE (sender = $1  AND recipient = $2)
                 OR (recipient = $1 AND sender = $2 )
+            ORDER BY id ASC
         "#,
             sender.to_string(),
             recipient.to_string()

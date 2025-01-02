@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT \n                id, sender, recipient, subject, match_id, body, read, mode as \"mode: MailType\"\n            FROM mail\n            WHERE (sender = $1  AND recipient = $2)\n                OR (recipient = $1 AND sender = $2 )\n        ",
+  "query": "\n            SELECT \n                id, sender, recipient, subject, match_id, body, read, mode as \"mode: MailType\"\n            FROM mail\n            WHERE (sender = $1  AND recipient = $2)\n                OR (recipient = $1 AND sender = $2 )\n            ORDER BY id ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -71,5 +71,5 @@
       false
     ]
   },
-  "hash": "b70ffc91165c3b0fdd7f8aa9723f7c4132d65cee002bda084f69417482f7c75e"
+  "hash": "eef8a2b17110f211fdcbbaeb176ae987c2490bf55719d899e2a82c4d00d92765"
 }

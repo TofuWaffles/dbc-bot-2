@@ -18,6 +18,19 @@ impl BattleDateTime {
     }
 
     #[inline]
+    /// Converts the stored timestamp to a string in RFC 2822 format.
+    ///
+    /// # Examples
+    ///
+    /// Basic usage:
+    /// ```
+    /// let timestamp = YourStruct { datetime: 1057054957 };
+    /// assert_eq!(timestamp.to_rfc2822(), "Tue, 1 Jul 2003 10:52:37 +0000");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if the timestamp is invalid or cannot be converted to a `DateTime`.
     pub fn to_rfc2822(&self) -> String {
         DateTime::from_timestamp(self.datetime, 0)
             .unwrap()

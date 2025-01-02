@@ -1,3 +1,4 @@
+use core::time;
 use std::str::FromStr;
 
 use super::user_commands::finish_match;
@@ -8,8 +9,10 @@ use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::mail::MailDatabase;
 use crate::utils::error::CommonError::*;
 use crate::utils::shorthand::BotComponent;
+use crate::utils::time::BattleDateTime;
 use crate::{
     log::{self, Log},
     utils::shorthand::BotContextExt,
@@ -53,7 +56,8 @@ impl CommandsContainer for MarshalCommands {
             remove_user(),
             unban(),
             user_profile(),
-            view_match_context()
+            view_match_context(),
+            extract_conversation(),
         ]
     }
 }
@@ -1536,6 +1540,10 @@ async fn player_page(
             CreateButton::new("next")
                 .label("Next Round")
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
+            CreateButton::new("mail")
+                .label("Extract Mail")
+                .emoji(ReactionType::Unicode("👀".to_string()))
+                .style(poise::serenity_prelude::ButtonStyle::Primary),
             CreateButton::new("players")
                 .label("Player List")
                 .style(poise::serenity_prelude::ButtonStyle::Primary),
@@ -1593,6 +1601,57 @@ async fn player_page(
                 let round: Option<i32> = res.round.and_then(|s| s.parse::<i32>().ok());
 
                 list_players(ctx, msg, t, round).await?;
+            }
+            "mail" => {
+                #[derive(poise::Modal)]
+                struct GetPlayer{
+                    #[name = "First Player"]
+                    #[placeholder = "Enter the player's Discord ID here"]
+                    first: String,
+                    #[name = "Second Player"]
+                    #[placeholder = "Enter the player's Discord ID here"]
+                    second: String,
+                }
+                let res = ctx
+                    .components()
+                    .modal::<GetPlayer>(
+                        msg,
+                        CreateEmbed::new()
+                            .title("Player selection")
+                            .description("Please prepare Discord Id of 2 players to extract their conversation"),
+                    )
+                    .await?;
+
+                
+
+                let first = match UserId::from_str(&res.first){
+                    Ok(u ) => match u.to_user(ctx).await{
+                        Ok(u) => u,
+                        Err(_) => {
+                            ctx.components().prompt(msg, CreateEmbed::new().description("Invalid Discord ID"), None).await?;
+                            return Ok(());
+                        }
+                    }
+                    Err(_) => {
+                        ctx.components().prompt(msg, CreateEmbed::new().description("Invalid Discord ID"), None).await?;
+                        return Ok(());
+                    }
+                };
+                let second = match UserId::from_str(&res.second){
+                    Ok(u ) => match u.to_user(ctx).await{
+                        Ok(u) => u,
+                        Err(_) => {
+                            ctx.components().prompt(msg, CreateEmbed::new().description("Invalid Discord ID"), None).await?;
+                            return Ok(());
+                        }
+                    }
+                    Err(_) => {
+                        ctx.components().prompt(msg, CreateEmbed::new().description("Invalid Discord ID"), None).await?;
+                        return Ok(());
+                    }
+                };
+                return extract_convo_helper(ctx, msg, &first, &second).await
+
             }
             _ => {}
         }
@@ -2002,5 +2061,49 @@ async fn view_match_context(
     )
     .await?;
 
+    Ok(())
+}
+
+
+/// Extracts the conversation between 2 players in a match.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn extract_conversation(
+    ctx: BotContext<'_>,
+    first: User,
+    second: User,
+) -> Result<(), BotError>{
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Extracting conversation...")),
+        )
+        .await?;
+    extract_convo_helper(&ctx, &msg, &first, &second).await?;
+    Ok(())
+}
+
+async fn extract_convo_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, first: &User, second: &User) -> Result<(), BotError> {
+    let mails = ctx.data().database.get_conversation(first.id, second.id).await?;
+    let mut content = String::new();
+    for mail in mails{
+        let timestamp = BattleDateTime::new(mail.id).to_rfc2822();
+        let sender = if mail.sender == first.id.to_string(){
+            format!("{} {} at {}", first.name, first.id, timestamp)
+        } else {
+            format!("{} {} at {}", second.name, second.id, timestamp)
+        };
+        content.push_str(&format!("{}\n", sender));
+        content.push_str(&format!("{}\n\n", mail.body));
+    }
+    let embed = CreateEmbed::new()
+        .title("Conversation extraction")
+        .description(format!("Conversation between {} and {}", first.mention(), second.mention()));
+    let attachment = CreateAttachment::bytes(content.as_bytes(), format!("{}-{}.txt", first.id, second.id));
+    let reply = CreateReply::default()
+        .ephemeral(true)
+        .attachment(attachment)
+        .embed(embed);
+    msg.edit(*ctx, reply).await?;
     Ok(())
 }

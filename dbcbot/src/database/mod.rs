@@ -2048,7 +2048,7 @@ impl Database for PgDatabase {
             FROM match_players
             INNER JOIN matches
             ON match_players.match_id = matches.match_id
-            WHERE SPLIT_PART(matches.match_id, '.', 1)::int = $1 AND SPLIT_PART(matches.match_id, '.', 2)::int = $2
+            WHERE SPLIT_PART(matches.match_id, '.', 1)::int = $1 AND SPLIT_PART(matches.match_id, '.', 2)::int = $2;
             "#,
             tournament_id,
             round
