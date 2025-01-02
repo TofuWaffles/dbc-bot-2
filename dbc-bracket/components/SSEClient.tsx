@@ -84,9 +84,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   const TournamentSection: React.FC<{ matches: MatchType[] }> = ({ matches }) => {
     const { width, height } = useWindowSize();
     return (
-      <div className="w-full flex justify-center items-center">
-        <div className="">
-          <SingleEliminationBracket
+      <SingleEliminationBracket
             matches={matches}
             options={{
               style: {
@@ -98,15 +96,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
               },
             }}
             svgWrapper={({ children, ...props }) => (
-              <SVGViewer
-                // background="#000"
-                // SVGBackground="#000"
-                width={width}
-                height={height}
-                {...props}
-              >
-                {children}
-              </SVGViewer>
+              children
             )}
             matchComponent={({ match }: { match: MatchType }) => {
               const { topParticipant, bottomParticipant } = getParticipants(match.participants);
@@ -164,8 +154,6 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
               );
             }}
           />
-        </div>
-      </div>
     )
   };
 
@@ -193,12 +181,12 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   };
 
   return (
-    <div className='w-full'>
+    <div className='w-full h-full flex flex-col'>
       <Head>
         <meta property="og:title" content="Discord Brawl Cup" />
         <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}`} />
       </Head>
-      <div className='w-full '>
+      <div className='w-full flex-none'>
         <p className='w-full text-center pt-3 text-4xl'>{tournament.name}</p>
         <div className='w-full flex'>
           <p className='w-1/2 text-center'>ID: {tournament.tournament_id}</p>
@@ -211,7 +199,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
           <p className='w-1/2 text-center'>Status: {tournament.status}</p>
         </div>
       </div>
-      <div className='w-full justify-center items-center'>
+      <div className='w-full grow overflow-y-auto overflow-x-auto'>
         {matches.length > 0 ? <TournamentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
       </div>
     </div>
