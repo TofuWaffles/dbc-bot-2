@@ -962,6 +962,9 @@ pub async fn display_user_profile_helper(
         .await?
         .first()
         .cloned();
+    let tournament_name = tournament
+        .as_ref()
+        .map_or_else(|| "None".to_string(), |t| t.name.to_string());
     let tournament_id = tournament
         .as_ref()
         .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
@@ -969,7 +972,7 @@ pub async fn display_user_profile_helper(
         .data()
         .apis
         .images
-        .profile_image(&user, tournament_id.to_string())
+        .profile_image(&user,  tournament_name)
         .await?;
     let current_match = ctx
         .data()

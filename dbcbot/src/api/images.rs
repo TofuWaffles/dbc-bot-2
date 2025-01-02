@@ -85,7 +85,7 @@ impl ImagesAPI {
     pub async fn profile_image(
         &self,
         user: &database::models::Player,
-        tournament_id: String,
+        tournament_name: String,
     ) -> Result<Vec<u8>, BotError> {
         let url = format!("{}/image/profile", self.base_url);
         let payload = serde_json::json!({
@@ -97,7 +97,7 @@ impl ImagesAPI {
                 "icon": user.icon,
                 "trophies": user.trophies,
                 "brawler_count": user.brawlers().len(),
-                "tournament_id": tournament_id
+                "tournament_id": tournament_name
             }
         });
         let bytes = get_image(url, payload).await?;
