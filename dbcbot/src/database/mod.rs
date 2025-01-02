@@ -559,8 +559,8 @@ impl UserDatabase for PgDatabase {
         .await?
         .exists
         {
-            Some(e) => return Ok(e),
-            None => return Ok(false),
+            Some(e) => Ok(e),
+            None => Ok(false),
         }
     }
 
