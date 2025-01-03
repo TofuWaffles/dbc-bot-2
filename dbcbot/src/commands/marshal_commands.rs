@@ -1624,7 +1624,7 @@ async fn player_page(
 
                 
 
-                let first = match UserId::from_str(&res.first){
+                let first = match UserId::from_str(&res.first.trim()){
                     Ok(u ) => match u.to_user(ctx).await{
                         Ok(u) => u,
                         Err(_) => {
@@ -1637,7 +1637,7 @@ async fn player_page(
                         return Ok(());
                     }
                 };
-                let second = match UserId::from_str(&res.second){
+                let second = match UserId::from_str(&res.second.trim()){
                     Ok(u ) => match u.to_user(ctx).await{
                         Ok(u) => u,
                         Err(_) => {
@@ -2066,7 +2066,7 @@ async fn view_match_context(
 
 
 /// Extracts the conversation between 2 players in a match.
-#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher", rename = "stalk_mail")]
 async fn extract_conversation(
     ctx: BotContext<'_>,
     first: User,
@@ -2079,8 +2079,7 @@ async fn extract_conversation(
                 .embed(CreateEmbed::new().title("Extracting conversation...")),
         )
         .await?;
-    extract_convo_helper(&ctx, &msg, &first, &second).await?;
-    Ok(())
+    return extract_convo_helper(&ctx, &msg, &first, &second).await
 }
 
 async fn extract_convo_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, first: &User, second: &User) -> Result<(), BotError> {
@@ -2096,15 +2095,18 @@ async fn extract_convo_helper(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, first
         content.push_str(&format!("{}\n", sender));
         content.push_str(&format!("{}\n\n", mail.body));
     }
+    
     let embed = CreateEmbed::new()
         .title("Conversation extraction")
         .description(format!("Conversation between {} and {}", first.mention(), second.mention()));
     let attachment = CreateAttachment::bytes(content.as_bytes(), format!("{}-{}.txt", first.id, second.id));
+    
     let reply = CreateReply::default()
         .ephemeral(true)
         .attachment(attachment)
         .components(vec![])
         .embed(embed);
-    msg.edit(*ctx, reply).await?;
+    ctx.send(reply).await?;
+    msg.delete(*ctx).await?;
     Ok(())
 }
