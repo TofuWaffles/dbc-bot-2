@@ -644,7 +644,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interaction) = &ic.next().await {
         match interaction.data.custom_id.as_str() {
-            "disqualify" => {
+            "reason" => {
                 #[derive(poise::Modal)]
                 #[name = "Disqualify Player Reason"]
                 struct DisqualifyModal {
@@ -661,7 +661,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
                             .title(format!("Disqualify player: {}?", player.mention())),
                     )
                     .await?;
-                let reason = res.reason;
+                let reason = res.reason.map(|r| r.trim().to_string());
                 disqualify(&ctx, &msg, &t, &player, reason).await?;
                 break;
             }
