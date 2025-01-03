@@ -340,7 +340,14 @@ async fn get_match(
             let mut fields = vec![
                 ("Tournament ID", bracket.tournament()?.to_string(), true),
                 ("Round", bracket.round()?.to_string(), true),
-                ("Winner", format!("<@{:#?}>", bracket.winner), true),
+                (
+                    "Winner",
+                    match bracket.winner {
+                        Some(w) => format!("<@{}>", w),
+                        None => "None".to_string(),
+                    },
+                    true,
+                ),
             ];
             let player_1 = match player_1 {
                 Some(p) => {
@@ -352,7 +359,7 @@ async fn get_match(
                         } else {
                             "Not ready yet!".to_string()
                         },
-                        true,
+                        false,
                     ));
                     ctx.data()
                         .database
@@ -381,7 +388,7 @@ async fn get_match(
                         } else {
                             "Not ready yet!".to_string()
                         },
-                        true,
+                        false,
                     ));
                     ctx.data()
                         .database
