@@ -32,8 +32,7 @@ impl APIsContainer {
 }
 
 /// Wrapper for the result of an API call.
-#[derive(Debug)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub enum APIResult<M> {
     Ok(M),
     NotFound,
@@ -53,17 +52,19 @@ where
     /// documentation or is not something that can be appropriately dealt with by the bot.
     pub async fn from_response(response: Response) -> Result<Self, BotError> {
         match response.status() {
-            StatusCode::OK => {
-                match response.json::<Value>().await {
-                    Ok(json) => {
-                        match serde_json::from_value(json.clone()){
-                            Ok(data) => Ok(APIResult::Ok(data)),
-                            Err(e) => Err(anyhow!("Error deserializing json {} with error: {}", json, e)),
-                        }
-                    }
-                    Err(_) => Err(anyhow!("Failed to deserialize response in APIResult::from_response()").into()),
-                }
-                
+            StatusCode::OK => match response.json::<Value>().await {
+                Ok(json) => match serde_json::from_value(json.clone()) {
+                    Ok(data) => Ok(APIResult::Ok(data)),
+                    Err(e) => Err(anyhow!(
+                        "Error deserializing json {} with error: {}",
+                        json,
+                        e
+                    )),
+                },
+                Err(_) => Err(anyhow!(
+                    "Failed to deserialize response in APIResult::from_response()"
+                )
+                .into()),
             },
             StatusCode::NOT_FOUND => Ok(APIResult::NotFound),
             StatusCode::SERVICE_UNAVAILABLE => Ok(APIResult::Maintenance),

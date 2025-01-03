@@ -289,12 +289,16 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     ("At", format!("<t:{}:F>", mail.id), true),
                 ])
         };
-        match channel_id{
+        match channel_id {
             Some(id) => {
                 let guild_id = self.guild_id().ok_or(CommonError::NotInAGuild)?;
                 let guild = self.http().get_guild(guild_id).await?;
                 let thread_data = guild.get_active_threads(self).await?;
-                match thread_data.threads.iter().find(|thread| thread.id == ChannelId::from_str(&id).unwrap()) {
+                match thread_data
+                    .threads
+                    .iter()
+                    .find(|thread| thread.id == ChannelId::from_str(&id).unwrap())
+                {
                     Some(thread) => {
                         return open_thread(self, embed, role, thread.clone(), mail.id).await;
                     }
@@ -309,8 +313,11 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                 return open_thread(self, embed, role, thread, mail.id).await;
             }
         };
-        
-        async fn create_thread(ctx: &BotContext<'_>, thread_name: String) -> Result<GuildChannel, BotError>{
+
+        async fn create_thread(
+            ctx: &BotContext<'_>,
+            thread_name: String,
+        ) -> Result<GuildChannel, BotError> {
             let log_channel = ctx.get_log_channel().await?;
             let thread = CreateThread::new(thread_name)
                 .kind(ChannelType::PublicThread)
@@ -387,11 +394,15 @@ async fn mail_page(
                 let embed = CreateEmbed::default()
                     .title("Compose a reply mail to the sender")
                     .description("Press the button below to compose a reply mail to the sender!");
-                let channel_id = if mail.match_id.is_empty() { None } else { Some(mail.match_id.clone()) };
+                let channel_id = if mail.match_id.is_empty() {
+                    None
+                } else {
+                    Some(mail.match_id.clone())
+                };
                 println!("Channel id: {:?}", channel_id);
                 match mail.mode {
                     MailType::Marshal => {
-                        return ctx.send_to_marshal(msg, embed, channel_id ).await;
+                        return ctx.send_to_marshal(msg, embed, channel_id).await;
                     }
                     _ => {
                         ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false)
@@ -524,7 +535,7 @@ Reported by: {recipient}.
         }
     };
     let log = ctx.get_log_channel().await?;
-    let reporter_name= ctx.author().name.clone();
+    let reporter_name = ctx.author().name.clone();
     let thread = CreateThread::new(reporter_name)
         .kind(ChannelType::PublicThread)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);

@@ -81,4 +81,3 @@ pub async fn splash(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
     msg.edit(*ctx, builder).await?;
     Ok(())
 }
-

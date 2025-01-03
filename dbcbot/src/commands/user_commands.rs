@@ -1,6 +1,6 @@
 use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::is_tournament_paused;
-use crate::database::models:: Tournament;
+use crate::database::models::Tournament;
 use crate::database::models::{
     BattleRecord, BattleResult, BattleType, Match, Player, TournamentStatus,
 };
@@ -639,7 +639,7 @@ async fn user_display_tournaments(
                 log::State::SUCCESS,
                 log::Model::TOURNAMENT,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
             ctx.components()
                 .prompt(
                     msg,
@@ -663,7 +663,7 @@ async fn user_display_tournaments(
                 log::State::FAILURE,
                 log::Model::TOURNAMENT,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
             ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -781,7 +781,7 @@ async fn user_display_registration(
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
         );
-         ctx.log(log, None).await?;
+        ctx.log(log, None).await?;
         return Ok(());
     }
 
@@ -871,7 +871,7 @@ async fn user_display_registration(
                         crate::log::State::SUCCESS,
                         crate::log::Model::PLAYER,
                     );
-                     ctx.log(log, None).await?;
+                    ctx.log(log, None).await?;
                 }
                 false => {
                     ctx.components().prompt(
@@ -901,7 +901,7 @@ async fn user_display_registration(
                 crate::log::State::FAILURE,
                 crate::log::Model::PLAYER,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
         }
         APIResult::Maintenance => {
             ctx.components().prompt(
@@ -918,7 +918,7 @@ async fn user_display_registration(
                 crate::log::State::FAILURE,
                 crate::log::Model::API,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
         }
     }
     Ok(())
@@ -942,7 +942,7 @@ async fn display_user_profile(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Re
                 log::State::FAILURE,
                 log::Model::PLAYER,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
             return Ok(());
         }
     };
@@ -972,18 +972,21 @@ pub async fn display_user_profile_helper(
         .data()
         .apis
         .images
-        .profile_image(&user,  tournament_name)
+        .profile_image(&user, tournament_name)
         .await?;
     let current_match = ctx
         .data()
         .database
         .get_current_match(tournament_id.parse::<i32>()?, &user.user(ctx).await?.id)
         .await?;
-    let match_id = current_match.as_ref().map_or_else(||"Currently not in a match".to_string(), |m| m.match_id.clone());
-    let state= match current_match.map(|m| m.winner).flatten(){
+    let match_id = current_match.as_ref().map_or_else(
+        || "Currently not in a match".to_string(),
+        |m| m.match_id.clone(),
+    );
+    let state = match current_match.map(|m| m.winner).flatten() {
         Some(w) if w == user.discord_id => "Advance to the next round".to_string(),
         Some(_) => "Cannot continue in the tournament".to_string(),
-        None => "Hasn't finished the current match".to_string()
+        None => "Hasn't finished the current match".to_string(),
     };
     let reply = {
         let embed = CreateEmbed::new()
@@ -992,10 +995,14 @@ pub async fn display_user_profile_helper(
             .description("Here is your additional information of the profile.")
             .color(Color::DARK_GOLD)
             .fields(vec![
-                ("Tournament", tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),true),
+                (
+                    "Tournament",
+                    tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
+                    true,
+                ),
                 ("Match", match_id, true),
-                ("Status", state,true)
-                ]);
+                ("Status", state, true),
+            ]);
         CreateReply::default()
             .reply(true)
             .ephemeral(true)
@@ -1023,7 +1030,7 @@ async fn deregister(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), B
                 log::State::SUCCESS,
                 log::Model::PLAYER,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
             ctx.components().prompt(
                 msg,
                 CreateEmbed::new()
@@ -1124,7 +1131,7 @@ Tournament name: {}"#,
                 log::State::SUCCESS,
                 log::Model::TOURNAMENT,
             );
-             ctx.log(log, None).await?;
+            ctx.log(log, None).await?;
         }
         false => {
             ctx.components().prompt(
@@ -1252,7 +1259,7 @@ async fn submit(
             crate::log::State::FAILURE,
             crate::log::Model::PLAYER,
         );
-         ctx.log(log, None).await?;
+        ctx.log(log, None).await?;
         Ok(())
     }
 
@@ -1287,18 +1294,22 @@ async fn submit(
         }
     };
 
-    async fn build_log(ctx: &BotContext<'_>, battles: &[BattleLogItem]) -> Result<(), BotError>{
+    async fn build_log(ctx: &BotContext<'_>, battles: &[BattleLogItem]) -> Result<(), BotError> {
         let log_channel = ctx.get_log_channel().await?;
         let builder = {
             let data = serde_json::to_string_pretty(&battles).unwrap();
             let embed = CreateEmbed::new()
                 .title("Insufficient Matches")
-                .description(format!("{} fails to submit. Check the attachment for the filtered log!", ctx.author().mention()))
+                .description(format!(
+                    "{} fails to submit. Check the attachment for the filtered log!",
+                    ctx.author().mention()
+                ))
                 .color(Color::RED);
-            let file = CreateAttachment::bytes(data, format!("filtered_log_{}.json",ctx.author().id.to_string()));
-            CreateMessage::new()
-                .embed(embed)
-                .add_file(file)
+            let file = CreateAttachment::bytes(
+                data,
+                format!("filtered_log_{}.json", ctx.author().id.to_string()),
+            );
+            CreateMessage::new().embed(embed).add_file(file)
         };
         log_channel.send_message(ctx, builder).await?;
         Ok(())
@@ -1350,8 +1361,8 @@ async fn submit(
         None => {
             println!("No winner found in all logs");
             build_log(ctx, &battles).await?;
-            return handle_not_enough_matches(ctx, msg).await
-        },
+            return handle_not_enough_matches(ctx, msg).await;
+        }
         Some((true, score)) => join!(
             ctx.data()
                 .database
@@ -1408,7 +1419,7 @@ async fn submit(
         log::State::SUCCESS,
         log::Model::PLAYER,
     );
-     ctx.log(log, None).await?;
+    ctx.log(log, None).await?;
     Ok(())
 }
 
@@ -1507,7 +1518,6 @@ pub async fn finish_tournament(
 
     Ok(())
 }
-
 
 #[poise::command(
     slash_command,
