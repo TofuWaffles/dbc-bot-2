@@ -743,16 +743,14 @@ async fn disqualify(
             bracket.match_id
         ))?;
     finish_match(ctx, tournament, &bracket, &opponent, score).await?;
-
-    ctx.send(
-        CreateReply::default()
-            .content(format!(
-                "Successfully disqualified <@{}> from match {}",
-                user.id, bracket.match_id
-            ))
-            .ephemeral(true),
-    )
-    .await?;
+    let embed = CreateEmbed::new()
+        .title("Disqualification successful")
+        .description(format!(
+            "Player {} has been disqualified from the tournament with the following reason: {}",
+            user.mention(),
+            reason.clone().unwrap_or("None".to_string())
+        ));
+    ctx.components().prompt(msg, embed, None).await?;
     let fields = vec![
         ("Tournament ID", tournament.tournament_id.to_string(), true),
         ("Tournament name", tournament.name.to_string(), true),
