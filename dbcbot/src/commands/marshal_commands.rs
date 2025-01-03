@@ -564,7 +564,15 @@ async fn disqualify_slash(
             return Ok(());
         }
     };
-    disqualify(&ctx, &tournament, &player, reason).await?;
+    let msg = &ctx
+        .send(
+            CreateReply::default()
+                .content("Loading...")
+                .ephemeral(true)
+                .reply(true),
+        )
+        .await?;
+    disqualify(&ctx, &msg, &tournament, &player, reason).await?;
     Ok(())
 }
 
@@ -654,7 +662,7 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
                     )
                     .await?;
                 let reason = res.reason;
-                disqualify(&ctx, &t, &player, reason).await?;
+                disqualify(&ctx, &msg, &t, &player, reason).await?;
                 break;
             }
             _ => {}
@@ -666,10 +674,26 @@ async fn disqualify_context(ctx: BotContext<'_>, player: User) -> Result<(), Bot
 
 async fn disqualify(
     ctx: &BotContext<'_>,
+    msg: &ReplyHandle<'_>,
     tournament: &Tournament,
     user: &User,
     reason: Option<String>,
 ) -> Result<(), BotError> {
+    let embed = CreateEmbed::new()
+        .title(format!("Disqualify player: {}?", user.name))
+        .description(format!(
+            "Are you sure you want to disqualify {} from the tournament with the following reason: {}",
+            user.mention(), reason.clone().unwrap_or("None".to_string())
+        ))
+        .color(Color::RED);
+    let decision = ctx.components().confirmation(&msg, embed).await?;
+    if !decision {
+        let embed = CreateEmbed::new()
+            .title("Disqualification cancelled")
+            .description("Operation is cancelled. No action was taken.")
+            .color(Color::DARK_GREEN);
+        return ctx.components().prompt(&msg, embed, None).await;
+    }
     let bracket = match ctx
         .data()
         .database
@@ -1631,7 +1655,7 @@ async fn player_page(
                 let id = res.player;
                 let reason = res.reason;
                 let player = UserId::from_str(&id)?;
-                disqualify(ctx, t, &player.to_user(ctx).await?, reason).await?;
+                disqualify(ctx, msg, t, &player.to_user(ctx).await?, reason).await?;
             }
             "next" => {
                 interaction
@@ -1918,7 +1942,7 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
         .await?;
     for t in tournaments {
         if t.status == TournamentStatus::Started || t.status == TournamentStatus::Paused {
-            disqualify(&ctx, &t, &user, None).await?;
+            disqualify(&ctx, &msg, &t, &user, None).await?;
         } else if t.status == TournamentStatus::Pending {
             ctx.data()
                 .database
@@ -2176,6 +2200,8 @@ async fn extract_conversation(
     return extract_convo_helper(&ctx, &msg, &first, &second).await;
 }
 
+const MSG_LIMIT: usize = 2000;
+
 async fn extract_convo_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
@@ -2198,25 +2224,52 @@ async fn extract_convo_helper(
         content.push_str(&format!("{}\n", sender));
         content.push_str(&format!("{}\n\n", mail.body));
     }
+    let reply = match content.len() {
+        0 => {
+            let embed = CreateEmbed::new()
+                .title("Conversation extraction")
+                .description("No conversation found between the 2 players.");
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(embed)
+                .reply(true)
+        }
+        1..=MSG_LIMIT => {
+            let embed = CreateEmbed::new()
+                .title("Conversation extraction")
+                .description(format!(
+                    "Conversation between {} and {}\n```{}```",
+                    first.mention(),
+                    second.mention(),
+                    content
+                ));
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(embed)
+                .reply(true)
+        }
+        _ => {
+            let embed = CreateEmbed::new()
+                .title("Conversation extraction")
+                .description(format!(
+                    "Conversation between {} and {}",
+                    first.mention(),
+                    second.mention()
+                ));
+            let attachment = CreateAttachment::bytes(
+                content.as_bytes(),
+                format!("{}-{}.txt", first.id, second.id),
+            );
 
-    let embed = CreateEmbed::new()
-        .title("Conversation extraction")
-        .description(format!(
-            "Conversation between {} and {}",
-            first.mention(),
-            second.mention()
-        ));
-    let attachment = CreateAttachment::bytes(
-        content.as_bytes(),
-        format!("{}-{}.txt", first.id, second.id),
-    );
-
-    let reply = CreateReply::default()
-        .ephemeral(true)
-        .attachment(attachment)
-        .components(vec![])
-        .embed(embed);
+            CreateReply::default()
+                .ephemeral(true)
+                .attachment(attachment)
+                .components(vec![])
+                .embed(embed)
+        }
+    };
     ctx.send(reply).await?;
     msg.delete(*ctx).await?;
+
     Ok(())
 }
