@@ -955,61 +955,67 @@ pub async fn display_user_profile_helper(
     msg: &ReplyHandle<'_>,
     user: Player,
 ) -> Result<(), BotError> {
-    let tournament = ctx
+    let tournaments = ctx
         .data()
         .database
         .get_active_tournaments_from_player(&user.user(ctx).await?.id)
-        .await?
-        .first()
-        .cloned();
-    let tournament_name = tournament
-        .as_ref()
-        .map_or_else(|| "None".to_string(), |t| t.name.to_string());
-    let tournament_id = tournament
-        .as_ref()
-        .map_or_else(|| "None".to_string(), |t| t.tournament_id.to_string());
+        .await?;
+
+    let tournament = tournaments.first();
+
+    let mut fields: Vec<(&str, String, bool)> = match tournament {
+        Some(tournament) => {
+            let current_match = ctx
+                .data()
+                .database
+                .get_current_match(tournament.tournament_id, &user.user(ctx).await?.id)
+                .await?;
+            let match_id = current_match.as_ref().map_or_else(
+                || "Currently not in a match".to_string(),
+                |m| m.match_id.clone(),
+            );
+            let state = match current_match.map(|m| m.winner).flatten() {
+                Some(w) if w == user.discord_id => "Advance to the next round".to_string(),
+                Some(_) => "Cannot continue in the tournament".to_string(),
+                None => "Hasn't finished the current match".to_string(),
+            };
+            vec![
+                ("Tournament", tournament.name.clone(), true),
+                ("Match", match_id, true),
+                ("Status", state, true),
+            ]
+        }
+        None => vec![
+            ("Tournament", "None".to_string(), true),
+            ("Match", "None".to_string(), true),
+            ("Status", "Not in a tournament".to_string(), true),
+        ],
+    };
+    fields.push(("Player Tag", user.player_tag.clone(), true));
     let image = ctx
         .data()
         .apis
         .images
-        .profile_image(&user, tournament_name)
+        .profile_image(
+            &user,
+            match tournament {
+                Some(t) => t.name.clone(),
+                None => "None".to_string(),
+            },
+        )
         .await?;
-    let current_match = ctx
-        .data()
-        .database
-        .get_current_match(tournament_id.parse::<i32>()?, &user.user(ctx).await?.id)
-        .await?;
-    let match_id = current_match.as_ref().map_or_else(
-        || "Currently not in a match".to_string(),
-        |m| m.match_id.clone(),
-    );
-    let state = match current_match.map(|m| m.winner).flatten() {
-        Some(w) if w == user.discord_id => "Advance to the next round".to_string(),
-        Some(_) => "Cannot continue in the tournament".to_string(),
-        None => "Hasn't finished the current match".to_string(),
-    };
-    let reply = {
-        let embed = CreateEmbed::new()
-            .title("Match image")
-            .author(ctx.get_author_img(&log::Model::PLAYER))
-            .description("Here is your additional information of the profile.")
-            .color(Color::DARK_GOLD)
-            .fields(vec![
-                (
-                    "Tournament",
-                    tournament.map_or_else(|| "None".to_string(), |t| t.name.clone()),
-                    true,
-                ),
-                ("Match", match_id, true),
-                ("Status", state, true),
-            ]);
-        CreateReply::default()
-            .reply(true)
-            .ephemeral(true)
-            .embed(embed)
-            .components(vec![])
-            .attachment(CreateAttachment::bytes(image, "profile_image.png"))
-    };
+    let embed = CreateEmbed::new()
+        .title("Match image")
+        .author(ctx.get_author_img(&log::Model::PLAYER))
+        .description("Here is some additional information for this user")
+        .color(Color::DARK_GOLD)
+        .fields(fields);
+    let reply = CreateReply::default()
+        .reply(true)
+        .ephemeral(true)
+        .embed(embed)
+        .components(vec![])
+        .attachment(CreateAttachment::bytes(image, "profile_image.png"));
     ctx.send(reply).await?;
     msg.delete(*ctx).await?;
     Ok(())
