@@ -109,7 +109,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
               }
               return (
                 <div className='relative w-full'>
-                  <p>{startTime || <>&nbsp;</>}</p>
+                  <p>{`${startTime} ${match.id}`}</p>
                   <div className="flex flex-col">
                     {topParticipant && topParticipant?.id !== "0" ? (
                       <div className="relative flex items-center">
