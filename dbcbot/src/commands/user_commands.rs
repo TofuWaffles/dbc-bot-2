@@ -1190,6 +1190,8 @@ async fn submit(
                         .battle_type
                         .to_lowercase()
                         .eq(&BattleType::friendly.to_string().to_lowercase())
+                    && log.battle.teams[0].len() == 1
+                    && log.battle.teams[1].len() == 1
                     && {
                         let mut log_tags = [
                             log.battle.teams[0][0].tag.to_string(),
