@@ -730,6 +730,21 @@ async fn disqualify(
         return Ok(());
     }
 
+    if bracket.match_players.len() < 2 {
+        ctx.send(
+            CreateReply::default()
+                .content(format!(
+                    "Unable to disqualify player {}. They do not have an opponent in their match ({}) yet.",
+                    user.mention(),
+                    bracket.match_id
+                ))
+                .ephemeral(true),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
     let score = "WON-DISQUALIFIED";
 
     let opponent = ctx
@@ -2146,22 +2161,16 @@ async fn view_match_context(
     }
     let p1 = display_mp(&ctx, &current_match.match_players.get(0)).await?;
     let p2 = display_mp(&ctx, &current_match.match_players.get(1)).await?;
-    let winner = match current_match.get_winning_player(){
-        Some(w) => {
-            w.to_user(&ctx).await?.mention().to_string()
-        },
-        None => "No winner yet".to_string()
+    let winner = match current_match.get_winning_player() {
+        Some(w) => w.to_user(&ctx).await?.mention().to_string(),
+        None => "No winner yet".to_string(),
     };
 
     let embed = CreateEmbed::default()
         .title(format!("Match {}", current_match.match_id))
         .fields(vec![
             ("Match ID", current_match.match_id, true),
-            (
-                "Winner",
-                winner,
-                true,
-            ),
+            ("Winner", winner, true),
             ("Score", current_match.score, true),
             ("Player 1", p1, false),
             ("Player 2", p2, false),
