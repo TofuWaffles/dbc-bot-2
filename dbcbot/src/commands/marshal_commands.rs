@@ -30,6 +30,7 @@ use poise::{
     CreateReply,
 };
 use prettytable::{row, Table};
+use strum::Display;
 use tracing::{instrument, warn};
 
 /// CommandsContainer for the Marshal commands
@@ -56,6 +57,7 @@ impl CommandsContainer for MarshalCommands {
             remove_user(),
             unban(),
             user_profile(),
+            user_profile_context(),
             view_match_context(),
             extract_conversation(),
         ]
@@ -2040,11 +2042,10 @@ pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Res
 
 #[poise::command(
     context_menu_command = "User Profile",
-    slash_command,
     guild_only,
     check = "is_marshal_or_higher"
 )]
-async fn user_profile(
+async fn user_profile_context(
     ctx: BotContext<'_>,
     user: poise::serenity_prelude::User,
 ) -> Result<(), BotError> {
@@ -2052,7 +2053,7 @@ async fn user_profile(
         .send(
             CreateReply::default()
                 .ephemeral(true)
-                .embed(CreateEmbed::new().title("Loading")),
+                .embed(CreateEmbed::new().title("Loading...")),
         )
         .await?;
     let player = match ctx.get_player_from_discord_id(user.id.to_string()).await {
@@ -2077,6 +2078,65 @@ async fn user_profile(
             )
             .await?;
             return Err(e);
+        }
+    };
+    display_user_profile_helper(&ctx, &msg, player).await?;
+    Ok(())
+}
+
+#[derive(poise::ChoiceParameter, Display)]
+enum UserProfileChoice {
+    #[name = "A Discord user (either a mention or Discord ID)"]
+    DiscordUser,
+    #[name = "A Discord username"]
+    DiscordName,
+    #[name = "An in-game player tag"]
+    PlayerTag,
+}
+/// Find a player profile with either a Discord ID, Discord name, or in-game player tag.
+#[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
+async fn user_profile(
+    ctx: BotContext<'_>,
+    input_type: UserProfileChoice,
+    input: String,
+) -> Result<(), BotError> {
+    let msg = ctx
+        .send(
+            CreateReply::default()
+                .ephemeral(true)
+                .embed(CreateEmbed::new().title("Loading...")),
+        )
+        .await?;
+    let player = match input_type {
+        UserProfileChoice::DiscordUser => ctx.get_player_from_discord_id(input.clone()).await?,
+        UserProfileChoice::DiscordName => {
+            let users = ctx
+                .guild_id()
+                .unwrap()
+                .search_members(ctx, &input, None)
+                .await?;
+
+            let mut player = None;
+            for user in users {
+                player = ctx
+                    .data()
+                    .database
+                    .get_player_by_discord_id(&user.user.id)
+                    .await?;
+                if player.is_some() {
+                    break;
+                }
+            }
+
+            player
+        }
+        UserProfileChoice::PlayerTag => ctx.get_player_from_tag(&input).await?,
+    };
+    let player = match player {
+        Some(p) => p,
+        None => {
+            msg.edit(ctx, CreateReply::default().content(format!("Sorry, we are unable to find the player based on your provided {} input: {}.\n\nPlease try again with a different input.", input_type, input)).ephemeral(true)).await?;
+            return Ok(());
         }
     };
     display_user_profile_helper(&ctx, &msg, player).await?;
