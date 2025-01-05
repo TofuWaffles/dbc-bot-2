@@ -15,18 +15,7 @@ const allMatchIds = new Set<string | number>();
 const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   const [data, setData] = useState<SSEData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchMatchId, setSearchMatchId] = useState<string>('');
-  const router = useRouter();
-
-  const handleSearch = () => {
-    if (searchMatchId) {
-      router.push(`#${searchMatchId}`, undefined, { shallow: true });
-    }
-  };
-
-  const validMatchId = () => {
-    return allMatchIds.has(searchMatchId);
-  }
+ 
 
   useEffect(() => {
     const eventSource = new EventSource(`${window.location.origin}${path}`);
@@ -69,18 +58,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
         <DisplayTournament tournament={tournament} />
       </div>
       <div className="w-full flex justify-center items-center py-1">
-        <p className='px-2'>Match ID:</p>
-        <input
-          type="text"
-          className={`py-1 px-2 border-b-2 ${validMatchId() ? "border-b-green-500" : "border-b-red-500"} focus:outline-none`}
-          value={searchMatchId}
-          maxLength={15}
-          onChange={(e) => setSearchMatchId(e.target.value)}
-        />
-        <button className={`px-1 ${validMatchId()?"text-black":"text-gray-500"}`}
-          onClick={handleSearch} 
-          disabled={!validMatchId()}>Go</button>
-
+        <FindMatch/>
       </div>
       <div className='w-full grow overflow-y-auto overflow-x-auto'>
         {matches.length > 0 ? <TournamentSection matches={matches} /> : tournament.status === 'pending' ? <Pending /> : <div className='w-full h-full text-center'>No matches available</div>}
@@ -236,5 +214,35 @@ const DisplayTournament: React.FC<{ tournament: Tournament }> = ({ tournament })
     </div>
   )
 };
+
+const FindMatch: React.FC = () => {
+  const [searchMatchId, setSearchMatchId] = useState<string>('');
+  const router = useRouter();
+
+  const handleSearch = () => {
+    if (searchMatchId) {
+      router.push(`#${searchMatchId}`, undefined, { shallow: true });
+    }
+  };
+
+  const validMatchId = () => {
+    return allMatchIds.has(searchMatchId);
+  }
+  return(
+    <>
+      <p className='px-2'>Match ID:</p>
+        <input
+          type="text"
+          className={`py-1 px-2 border-b-2 ${validMatchId() ? "border-b-green-500" : "border-b-red-500"} focus:outline-none`}
+          value={searchMatchId}
+          maxLength={15}
+          onChange={(e) => setSearchMatchId(e.target.value)}
+        />
+        <button className={`px-1 ${validMatchId()?"text-black":"text-gray-500"}`}
+          onClick={handleSearch} 
+          disabled={!validMatchId()}>Go</button>
+    </>
+  )
+}
 
 export default SSEClient;
