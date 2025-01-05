@@ -1581,6 +1581,16 @@ pub async fn finish_match(
         .update_end_time(&bracket.match_id)
         .await?;
 
+    // Final round. Announce the winner and finish the tournament
+    if bracket.round()? == tournament.rounds {
+        finish_tournament(ctx, bracket, tournament, winner, score).await?;
+    } else {
+        ctx.data()
+            .database
+            .advance_player(tournament.tournament_id, &winner.user_id()?)
+            .await?;
+    }
+
     let image = ctx
         .data()
         .apis
@@ -1615,16 +1625,6 @@ pub async fn finish_match(
                 .embed(embed)
                 .add_file(CreateAttachment::bytes(image, "result.png")),
         )
-        .await?;
-    // Final round. Announce the winner and finish the tournament
-    if bracket.round()? == tournament.rounds {
-        finish_tournament(ctx, bracket, tournament, winner, score).await?;
-        return Ok(result_msg);
-    }
-
-    ctx.data()
-        .database
-        .advance_player(tournament.tournament_id, &winner.user_id()?)
         .await?;
 
     Ok(result_msg)
