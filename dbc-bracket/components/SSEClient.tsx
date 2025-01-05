@@ -108,7 +108,7 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
                 startTime = new Date(parseInt(match.startTime) * 1000).toLocaleString();
               }
               return (
-                <div className='relative w-full'>
+                <div className='relative w-full' id={`${match.id}`}>
                   <p>{`${match.id}-${startTime}`}</p>
                   <div className="flex flex-col">
                     {topParticipant && topParticipant?.id !== "0" ? (
