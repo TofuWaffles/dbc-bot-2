@@ -6,7 +6,8 @@ use crate::{
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, CreateQuickModal, Mentionable
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse,
+    CreateInteractionResponseMessage, CreateQuickModal, Mentionable,
 };
 pub async fn event_handler(
     ctx: &serenity::Context,
@@ -56,12 +57,16 @@ async fn handle_mail(
             .title("Error")
             .description("Invalid response")
             .color(0xff0000);
-        let reply = CreateInteractionResponseMessage::new().embed(embed).ephemeral(true);
+        let reply = CreateInteractionResponseMessage::new()
+            .embed(embed)
+            .ephemeral(true);
         let builder = CreateInteractionResponse::Message(reply);
         mci.create_response(ctx, builder).await?;
         return Ok(());
     };
-    let  [ref subject, ref body,..] = response.inputs[..] else {panic!("This ain't happen")};
+    let [ref subject, ref body, ..] = response.inputs[..] else {
+        panic!("This ain't happen")
+    };
     let new_mail = Mail::new(
         marshal_role.to_string(),
         current_mail.sender,
@@ -83,6 +88,9 @@ async fn handle_mail(
     };
     data.database.store(new_mail).await?;
     let builder = CreateInteractionResponseMessage::new().embed(embed);
-    response.interaction.create_response(ctx, CreateInteractionResponse::Message(builder)).await?; 
+    response
+        .interaction
+        .create_response(ctx, CreateInteractionResponse::Message(builder))
+        .await?;
     Ok(())
 }

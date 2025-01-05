@@ -111,6 +111,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
             buttons
         ).await?;
     } else if player_active_tournaments.len() == 1 {
+        let cm = ctx
+            .data()
+            .database
+            .get_current_match(player_active_tournaments[0].tournament_id, &ctx.author().id)
+            .await?;
         let embed = CreateEmbed::new()
             .title("Main Menu")
             .description("You're already in a tournament. Good luck!")
@@ -138,10 +143,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 (
                     "Tournament Bracket",
                     format!(
-                        "Click [here]({}bracket/{}/{}) to view the bracket.",
+                        "Click [here]({}bracket/{}/{}{}) to view the bracket.",
                         BracketURL::get_url(),
                         guild_id.to_string(),
-                        player_active_tournaments[0].tournament_id
+                        player_active_tournaments[0].tournament_id,
+                        cm.map(|m| format!("#{}", m.match_id)).unwrap_or_default()
                     ),
                     false,
                 ),
@@ -1327,14 +1333,20 @@ async fn submit(
         Ok(())
     }
 
-    async fn already_submit(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, tournament: &Tournament) -> Result<bool, BotError>{
+    async fn already_submit(
+        ctx: &BotContext<'_>,
+        msg: &ReplyHandle<'_>,
+        tournament: &Tournament,
+    ) -> Result<bool, BotError> {
         if let Some(checked_game_match) = ctx
             .data()
             .database
             .get_current_match(tournament.tournament_id, &ctx.author().id)
-            .await?{
-                if checked_game_match.winner(ctx).await?.is_some(){
-                    ctx.components().prompt(
+            .await?
+        {
+            if checked_game_match.winner(ctx).await?.is_some() {
+                ctx.components()
+                    .prompt(
                         msg,
                         CreateEmbed::new()
                             .title("Match Already Submitted")
@@ -1342,9 +1354,9 @@ async fn submit(
                         None,
                     )
                     .await?;
-                    return Ok(true);
-                }
+                return Ok(true);
             }
+        }
 
         Ok(false)
     }
@@ -1420,7 +1432,7 @@ async fn submit(
             .ok_or(anyhow!("Player not found in the database"))?
         }
     };
-    if already_submit(ctx, msg, tournament).await?{
+    if already_submit(ctx, msg, tournament).await? {
         return Ok(());
     }
     save_record(ctx, &current_match, battles).await?;
@@ -1429,9 +1441,10 @@ async fn submit(
 
     let mut bracket_link = BracketURL::get_url();
     bracket_link.push_str(&format!(
-        "bracket/{}/{}",
+        "bracket/{}/{}#{}",
         ctx.guild_id().unwrap(),
-        tournament.tournament_id
+        tournament.tournament_id,
+        current_match.match_id
     ));
     ctx.components().prompt(
         msg,

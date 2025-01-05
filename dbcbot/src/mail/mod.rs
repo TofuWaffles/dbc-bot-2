@@ -409,7 +409,7 @@ async fn mail_page(
         .description(&mail.body)
         .color(Colour::DARK_GOLD)
         .fields(vec![
-            if outbox{
+            if outbox {
                 ("To", mail.recipient(ctx).await?.mention().to_string(), true)
             } else {
                 ("From", mail.sender(ctx).await?.mention().to_string(), true)
@@ -417,7 +417,7 @@ async fn mail_page(
             ("Sent at", format!("<t:{}:F>", mail.id), true),
         ])
         .thumbnail(mail.sender(ctx).await?.avatar_url());
-    if !outbox{
+    if !outbox {
         ctx.data().database.mark_read(mail.id).await?;
     }
     let buttons = CreateActionRow::Buttons(vec![
@@ -516,7 +516,11 @@ async fn detail(
         }
     }
     Ok(CreateEmbed::default()
-        .title(format!("{}'s {}", ctx.author().name, ["Inbox", "Outbox"][outbox as usize]))
+        .title(format!(
+            "{}'s {}",
+            ctx.author().name,
+            ["Inbox", "Outbox"][outbox as usize]
+        ))
         .description(format!(
             "There are {} mail(s) in this page!\nSelect a mail to read it\n{}",
             mails.len(),
@@ -568,7 +572,11 @@ async fn inbox_helper(
                 ctx.outbox(msg).await?;
             }
             id => {
-                println!("Opening mail id: {} as {}", id, ["inbox", "outbox"][outbox as usize]);
+                println!(
+                    "Opening mail id: {} as {}",
+                    id,
+                    ["inbox", "outbox"][outbox as usize]
+                );
                 let mail = chunked_mail[page_number]
                     .iter()
                     .find(|mail| mail.id.to_string() == id)

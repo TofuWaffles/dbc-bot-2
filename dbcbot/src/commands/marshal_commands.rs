@@ -9,9 +9,10 @@ use crate::database::models::{
 };
 use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::mail::MailDatabase;
-use crate::utils::error::CommonError::*;
+use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotComponent;
 use crate::utils::time::BattleDateTime;
+use crate::BracketURL;
 use crate::{
     log::{self, Log},
     utils::shorthand::BotContextExt,
@@ -348,7 +349,7 @@ async fn get_match(
                 (
                     "Winner",
                     match bracket.winner {
-                        Some(w) => format!("<@{}>", w),
+                        Some(ref w) => format!("<@{}>", w),
                         None => "None".to_string(),
                     },
                     true,
@@ -421,10 +422,10 @@ async fn get_match(
                 .await?;
             ctx.send(
                 CreateReply::default()
-                    .content("Here is your match information:")
                     .embed(
                         CreateEmbed::new()
                             .title(format!("Match {}", bracket.match_id))
+                            .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
                             .fields(fields),
                     )
                     .attachment(CreateAttachment::bytes(
@@ -2173,6 +2174,7 @@ async fn view_match_context(
                 .embed(CreateEmbed::new().title("Loading...")),
         )
         .await?;
+    let guild_id = ctx.guild_id().ok_or(CommonError::NotInAGuild)?;
     let tournament = match ctx
         .data()
         .database
@@ -2233,8 +2235,22 @@ async fn view_match_context(
             ),
         }
     }
+
+    fn display_readiness(mp: &Option<&MatchPlayer>) -> String {
+        match mp {
+            Some(p) => if p.ready {
+                "Ready for battle!"
+            } else {
+                "Not ready for battle yet!"
+            }
+            .to_string(),
+            None => "N/A".to_string(),
+        }
+    }
     let p1 = display_mp(&ctx, &current_match.match_players.get(0)).await?;
+    let p1r = display_readiness(&current_match.match_players.get(0));
     let p2 = display_mp(&ctx, &current_match.match_players.get(1)).await?;
+    let p2r = display_readiness(&current_match.match_players.get(1));
     let winner = match current_match.get_winning_player() {
         Some(w) => w.to_user(&ctx).await?.mention().to_string(),
         None => "No winner yet".to_string(),
@@ -2242,21 +2258,20 @@ async fn view_match_context(
 
     let embed = CreateEmbed::default()
         .title(format!("Match {}", current_match.match_id))
+        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), current_match.tournament().unwrap(), current_match.match_id))
         .fields(vec![
             ("Match ID", current_match.match_id, true),
             ("Winner", winner, true),
             ("Score", current_match.score, true),
             ("Player 1", p1, false),
+            ("Player 1 Ready", p1r, true),
             ("Player 2", p2, false),
+            ("Player 2 Ready", p2r, true),
         ]);
-
+    
     msg.edit(
         ctx,
         CreateReply::default()
-            .content(format!(
-                "Here are the details for {}'s match.",
-                user.mention()
-            ))
             .embed(embed)
             .ephemeral(true),
     )
