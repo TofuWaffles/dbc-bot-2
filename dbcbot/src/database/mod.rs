@@ -1,4 +1,5 @@
 use crate::info;
+use crate::BotContext;
 use crate::BotError;
 use anyhow::anyhow;
 use models::*;
@@ -1413,6 +1414,11 @@ WHERE t.guild_id = $1 AND (t.status = 'pending' OR t.status = 'started') AND tp.
 }
 
 pub trait MatchDatabase {
+    async fn update_match_result(
+        &self,
+        ctx: &BotContext<'_>,
+        game_match: Match,
+    ) -> Result<(), Self::Error>;
     async fn update_start_time(&self, match_id: &str) -> Result<(), Self::Error>;
     async fn update_end_time(&self, match_id: &str) -> Result<(), Self::Error>;
     async fn count_finished_matches(&self, tournament_id: i32, round: i32)
@@ -1786,6 +1792,50 @@ impl MatchDatabase for PgDatabase {
         )
         .execute(&self.pool)
         .await?;
+        Ok(())
+    }
+
+    async fn update_match_result(
+        &self,
+        ctx: &BotContext<'_>,
+        game_match: Match,
+    ) -> Result<(), Self::Error> {
+        let tid = game_match.tournament()?;
+        let Some(winner) = game_match.winner(&ctx).await? else {
+            return Err(anyhow!("No winner found"));
+        };
+        let Some(eliminated) = game_match.get_losing_player() else {
+            return Err(anyhow!("No eliminated found"));
+        };
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET winner = $1, score = $2, "end" = $3
+            WHERE match_id = $4
+            "#,
+            game_match.winner,
+            game_match.score,
+            game_match.end,
+            game_match.match_id
+        )
+        .execute(&self.pool)
+        .await?;
+        let next_match_sequence = (game_match.sequence()? + 1) >> 1;
+        let next_round = game_match.round()? + 1;
+        let next_match_id = format!("{}.{}.{}", tid, next_round, next_match_sequence);
+        self.advance_player(tid, &winner.id).await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM match_players
+            WHERE match_id = $1 
+            AND discord_id = $2
+            "#,
+            next_match_id,
+            eliminated.discord_id
+        )
+        .execute(&self.pool)
+        .await
+        .ok();
         Ok(())
     }
 }

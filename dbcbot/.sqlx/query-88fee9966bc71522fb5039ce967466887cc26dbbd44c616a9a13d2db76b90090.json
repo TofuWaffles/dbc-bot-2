@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM match_players\n            WHERE match_id = $1 \n            AND discord_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "88fee9966bc71522fb5039ce967466887cc26dbbd44c616a9a13d2db76b90090"
+}

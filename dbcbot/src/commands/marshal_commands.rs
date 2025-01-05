@@ -103,7 +103,10 @@ async fn get_player(ctx: BotContext<'_>, user: UserId) -> Result<(), BotError> {
 /// Get information about a tournament.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn get_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+async fn get_tournament(
+    ctx: BotContext<'_>,
+    #[description = "The ID of the tournament to get information for"] tournament_id: i32,
+) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
 
     let tournament = ctx
@@ -289,8 +292,8 @@ Set by {}."#,
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn get_match(
     ctx: BotContext<'_>,
-    match_id: Option<String>,
-    player: Option<User>,
+    #[description = "The match ID to get the match for"] match_id: Option<String>,
+    #[description = "The player to get the match for"] player: Option<User>,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let bracket;
@@ -547,9 +550,9 @@ async fn unpause_tournament(ctx: BotContext<'_>, tournament_id: i32) -> Result<(
 )]
 async fn disqualify_slash(
     ctx: BotContext<'_>,
-    tournament_id: i32,
-    player: User,
-    reason: Option<String>,
+    #[description = "The ID of the tournament to disqualify the player from"] tournament_id: i32,
+    #[description = "The player to disqualify"] player: User,
+    #[description = "[Optional] The reason for disqualification"] reason: Option<String>,
 ) -> Result<(), BotError> {
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
     let tournament = match ctx
@@ -792,8 +795,8 @@ async fn disqualify(
 #[instrument]
 async fn list_players_slash(
     ctx: BotContext<'_>,
-    tournament_id: i32,
-    round: Option<i32>,
+    #[description = "The ID of the tournament to list players for"] tournament_id: i32,
+    #[description = "The round to list players for"] round: Option<i32>,
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
@@ -898,12 +901,13 @@ async fn list_players(
     Ok(())
 }
 
+/// List all players in a tournament in csv format.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
 async fn list_matches(
     ctx: BotContext<'_>,
-    tournament_id: i32,
-    round: Option<i32>,
+    #[description = "The ID of the tournament to list matches for"] tournament_id: i32,
+    #[description = "The round to list matches for"] round: Option<i32>,
 ) -> Result<(), BotError> {
     let tournament = match ctx
         .data()
@@ -1002,7 +1006,10 @@ async fn list_matches(
 /// Progress the tournament into the next round
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 #[instrument]
-async fn next_round(ctx: BotContext<'_>, tournament_id: i32) -> Result<(), BotError> {
+async fn next_round(
+    ctx: BotContext<'_>,
+    #[description = "The ID of the tournament to progress to the next round"] tournament_id: i32,
+) -> Result<(), BotError> {
     let msg = ctx
         .send(
             CreateReply::default().embed(CreateEmbed::default().description("Running commands...")),
@@ -1127,6 +1134,7 @@ async fn next_round_helper(
     Ok(())
 }
 
+/// Get logs for a specific match.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn get_battle_logs(
     ctx: BotContext<'_>,
@@ -1218,7 +1226,7 @@ async fn update_map(ctx: BotContext<'_>) -> Result<(), BotError> {
     }
     Ok(())
 }
-
+/// All in one tournament management command for marshals and higher roles.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
 async fn marshal_menu(ctx: BotContext<'_>) -> Result<(), BotError> {
     ctx.defer_ephemeral().await?;
@@ -1845,7 +1853,10 @@ pub async fn add_map_slash(ctx: BotContext<'_>) -> Result<(), BotError> {
 ///
 /// This command will automatically disqualify the user from any active tournament they are currently in.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
-pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError> {
+pub async fn remove_user(
+    ctx: BotContext<'_>,
+    #[description = "The user to remove from the tournament"] user: User,
+) -> Result<(), BotError> {
     let player = match ctx
         .data()
         .database
@@ -1979,7 +1990,10 @@ pub async fn remove_user(ctx: BotContext<'_>, user: User) -> Result<(), BotError
 ///
 /// This command can be used with either a Discord ID or in-game player tag.
 #[poise::command(slash_command, guild_only, check = "is_marshal_or_higher")]
-pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Result<(), BotError> {
+pub async fn unban(
+    ctx: BotContext<'_>,
+    #[description = "The Discord ID or player tag to unban"] discord_id_or_player_tag: String,
+) -> Result<(), BotError> {
     let discord_id_or_player_tag = match discord_id_or_player_tag.strip_prefix('#') {
         Some(s) => s.to_string(),
         None => discord_id_or_player_tag,
@@ -2031,7 +2045,7 @@ pub async fn unban(ctx: BotContext<'_>, discord_id_or_player_tag: String) -> Res
 )]
 async fn user_profile(
     ctx: BotContext<'_>,
-    user: poise::serenity_prelude::User,
+    #[description = "User to display profile for"] user: poise::serenity_prelude::User,
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
@@ -2146,22 +2160,16 @@ async fn view_match_context(
     }
     let p1 = display_mp(&ctx, &current_match.match_players.get(0)).await?;
     let p2 = display_mp(&ctx, &current_match.match_players.get(1)).await?;
-    let winner = match current_match.get_winning_player(){
-        Some(w) => {
-            w.to_user(&ctx).await?.mention().to_string()
-        },
-        None => "No winner yet".to_string()
+    let winner = match current_match.get_winning_player() {
+        Some(w) => w.to_user(&ctx).await?.mention().to_string(),
+        None => "No winner yet".to_string(),
     };
 
     let embed = CreateEmbed::default()
         .title(format!("Match {}", current_match.match_id))
         .fields(vec![
             ("Match ID", current_match.match_id, true),
-            (
-                "Winner",
-                winner,
-                true,
-            ),
+            ("Winner", winner, true),
             ("Score", current_match.score, true),
             ("Player 1", p1, false),
             ("Player 2", p2, false),
@@ -2191,8 +2199,8 @@ async fn view_match_context(
 )]
 async fn extract_conversation(
     ctx: BotContext<'_>,
-    first: User,
-    second: User,
+    #[description = "First player's Discord ID"] first_user: User,
+    #[description = "Second player's Discord ID"] second_user: User,
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
@@ -2201,7 +2209,7 @@ async fn extract_conversation(
                 .embed(CreateEmbed::new().title("Extracting conversation...")),
         )
         .await?;
-    return extract_convo_helper(&ctx, &msg, &first, &second).await;
+    return extract_convo_helper(&ctx, &msg, &first_user, &second_user).await;
 }
 
 const MSG_LIMIT: usize = 2000;

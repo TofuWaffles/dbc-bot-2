@@ -79,8 +79,8 @@ async fn handle_mail(
         data.database.store(new_mail).await?;
         let response = CreateInteractionResponseFollowup::new().embed(embed);
         info!("Interaction reaches here!");
-        mci.create_followup(ctx, response).await?;
         mci.acknowledge(ctx).await?;
+        mci.create_followup(ctx, response).await?;
     }
     Ok(())
 }

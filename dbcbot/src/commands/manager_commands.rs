@@ -33,6 +33,7 @@ impl CommandsContainer for ManagerCommands {
             create_tournament_slash(),
             start_tournament_slash(),
             manager_menu(),
+            force_result(),
         ]
     }
 }
@@ -795,6 +796,135 @@ fn generate_matches_new_tournament(
     }
 
     Ok(matches)
+}
+
+/// Force the result of a match by manually setting the winner even if the match already happened.
+#[poise::command(
+    slash_command,
+    prefix_command,
+    guild_only,
+    check = "is_manager",
+    check = "is_config_set",
+    rename = "force_result"
+)]
+async fn force_result(
+    ctx: BotContext<'_>,
+    #[description = "Match ID. Format: <tournament_id>-<round>-<sequence>"] match_id: String,
+    #[description = "The winner of the match"] winner: serenity::User,
+    #[description = "The player who was eliminated"] eliminated: serenity::User,
+    #[description = "The score of the match. Default: `WON-LOST`"] score: Option<String>,
+) -> Result<(), BotError> {
+    async fn output(ctx: &BotContext<'_>, embed: CreateEmbed) -> Result<(), BotError> {
+        let reply = CreateReply::default()
+            .embed(embed)
+            .ephemeral(true)
+            .reply(true);
+        ctx.send(reply).await?;
+        Ok(())
+    }
+
+    if !Match::is_valid_id(match_id.as_str()) {
+        let embed = CreateEmbed::default()
+            .title("Invalid match ID")
+            .description("The match ID provided is invalid.")
+            .color(Colour::RED);
+        return output(&ctx, embed).await;
+    };
+    if winner.id == eliminated.id {
+        let embed = CreateEmbed::default()
+            .title("Invalid match result")
+            .description("The winner and the eliminated player cannot be the same.")
+            .color(Colour::RED);
+        return output(&ctx, embed).await;
+    }
+    let score = match score {
+        Some(scr) => {
+            if !Match::is_valid_score(scr.as_str()) {
+                let embed = CreateEmbed::default()
+                    .title("Invalid score")
+                    .description(
+                        "The score provided is invalid. Accepted format: `2-1`, `2-0`, `text-text`",
+                    )
+                    .color(Colour::RED);
+                return output(&ctx, embed).await;
+            }
+            scr
+        }
+        None => "WON-LOST".to_string(),
+    };
+    let Some(mut game_match) = ctx
+        .data()
+        .database
+        .get_match_by_id(match_id.as_str())
+        .await?
+    else {
+        let embed = CreateEmbed::default()
+            .title("Match not found")
+            .description("The match with the given ID was not found.")
+            .color(Colour::RED);
+        return output(&ctx, embed).await;
+    };
+    if game_match.get_player(&winner.id.to_string()).is_err() {
+        let embed = CreateEmbed::default()
+            .title("Invalid winner")
+            .description("The winner provided is not a part of the match.")
+            .color(Colour::RED);
+        return output(&ctx, embed).await;
+    }
+    if game_match.get_player(&eliminated.id.to_string()).is_err() {
+        let embed = CreateEmbed::default()
+            .title("Invalid eliminated player")
+            .description("The eliminated player provided is not a part of the match.")
+            .color(Colour::RED);
+        return output(&ctx, embed).await;
+    }
+    match game_match.winner(&ctx).await? {
+        Some(current_winner) => {
+            if current_winner == winner {
+                let embed = CreateEmbed::default()
+                    .title("Winner already set")
+                    .description("The winner for this match has already been set.")
+                    .color(Colour::RED);
+                return output(&ctx, embed).await;
+            }
+            game_match.winner = Some(winner.id.to_string());
+            game_match.score = score;
+            ctx.data()
+                .database
+                .update_match_result(&ctx, game_match)
+                .await?;
+        }
+        None => {
+            let msg = ctx
+                .send(
+                    CreateReply::default()
+                        .embed(CreateEmbed::new().description("Loading"))
+                        .ephemeral(true),
+                )
+                .await?;
+            let embed = CreateEmbed::default()
+                .title("The match has not started yet.")
+                .description("It is recommended to use /disqualify instead. Do you want to continue?\n -# Note: The difference between this command and /disqualify is at score display, if score is not provided, the score will be displayed as `WON-LOST`.")
+                .color(Colour::RED);
+
+            let decision = ctx.components().confirmation(&msg, embed).await?;
+            if !decision {
+                let embed = CreateEmbed::default()
+                    .title("Operation cancelled")
+                    .description("The operation has been cancelled.")
+                    .color(Colour::RED);
+                return output(&ctx, embed).await;
+            }
+            game_match.winner = Some(winner.id.to_string());
+            game_match.score = score;
+            ctx.data()
+                .database
+                .update_match_result(&ctx, game_match)
+                .await?;
+        }
+    }
+
+    Ok(())
 }
 
 /// Test for the match generation for new tournaments.

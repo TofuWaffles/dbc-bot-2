@@ -339,6 +339,22 @@ impl Match {
         .ok()
     }
 
+    /// Retrieves the losing player as a reference to its User type.
+    /// The caller is responsible to clone or take ownership of the underlying User type.
+    ///
+    /// Warning: Cloning may be expensive as the user type contains image data in the form of bytes.
+    pub fn get_losing_player(&self) -> Option<&MatchPlayer> {
+        let winner_id = match &self.winner {
+            Some(id) => id,
+            None => return None,
+        };
+        self.find_player(
+            |p| p.discord_id != *winner_id,
+            "Error: Unable to find losing player".to_string(),
+        )
+        .ok()
+    }
+
     pub fn get_player(&self, discord_id: &str) -> Result<&MatchPlayer, BotError> {
         self.find_player(
             |p| p.discord_id == discord_id,
@@ -407,6 +423,39 @@ impl Match {
     #[inline]
     pub fn is_not_bye(&self) -> bool {
         self.match_players.len() == 2
+    }
+
+    pub fn is_valid_id(id: &str) -> bool {
+        let parts: Vec<&str> = id.split('.').collect();
+        parts.len() == 3
+            && parts[0].parse::<i32>().is_ok()
+            && parts[1].parse::<i32>().is_ok()
+            && parts[2].parse::<i32>().is_ok()
+    }
+
+    pub fn is_valid_score(score: &str) -> bool {
+        let [left, right] = score.split('-').collect::<Vec<&str>>()[..] else {
+            return false;
+        };
+        let left_num = left.parse::<i32>();
+        let right_num = right.parse::<i32>();
+        match (left_num, right_num) {
+            (Ok(left), Ok(right)) => left >= 0 && right >= 0 && left > right,
+            (Err(_), Err(_)) => true,
+            _ => false,
+        }
+    }
+
+    pub fn parts(id: &str) -> Result<(i32, i32, i32), BotError> {
+        let parts: Vec<&str> = id.split('.').collect();
+        if parts.len() != 3 {
+            return Err(MatchNotExists(id.to_string()).into());
+        }
+        Ok((
+            parts[0].parse::<i32>()?,
+            parts[1].parse::<i32>()?,
+            parts[2].parse::<i32>()?,
+        ))
     }
 }
 
