@@ -1,15 +1,13 @@
 use crate::{
     database::ConfigDatabase,
     mail::{model::Mail, MailDatabase},
-    utils::{error::CommonError, shorthand::ComponentInteractionExt},
+    utils::error::CommonError,
     BotData, BotError,
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponseFollowup,
-    CreateQuickModal, Mentionable,
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, CreateQuickModal, Mentionable
 };
-use tracing::info;
 pub async fn event_handler(
     ctx: &serenity::Context,
     event: &serenity::FullEvent,
@@ -53,34 +51,38 @@ async fn handle_mail(
     let builder = CreateQuickModal::new("Reply")
         .short_field("Subject")
         .paragraph_field("Body");
-    if let Some(response) = mci.quick_modal(ctx, builder).await?.map(|r| r.inputs) {
-        let [ref subject, ref body, ..] = response[..] else {
-            return Err(anyhow!("Invalid response"));
-        };
-        let new_mail = Mail::new(
-            marshal_role.to_string(),
-            current_mail.sender,
-            subject.clone(),
-            body.clone(),
-            mci.channel_id.to_string(),
-            true,
-        );
+    let Some(response) = mci.quick_modal(ctx, builder).await? else {
+        let embed = CreateEmbed::default()
+            .title("Error")
+            .description("Invalid response")
+            .color(0xff0000);
+        let reply = CreateInteractionResponseMessage::new().embed(embed).ephemeral(true);
+        let builder = CreateInteractionResponse::Message(reply);
+        mci.create_response(ctx, builder).await?;
+        return Ok(());
+    };
+    let  [ref subject, ref body,..] = response.inputs[..] else {panic!("This ain't happen")};
+    let new_mail = Mail::new(
+        marshal_role.to_string(),
+        current_mail.sender,
+        subject.clone(),
+        body.clone(),
+        mci.channel_id.to_string(),
+        true,
+    );
 
-        let embed = {
-            CreateEmbed::default()
-                .title(new_mail.subject.clone())
-                .description(new_mail.body.clone())
-                .fields(vec![
-                    ("Responded by", mci.user.mention().to_string(), true),
-                    ("Responder's id,", mci.user.id.to_string(), true),
-                    ("At", format!("<t:{}:F>", new_mail.id), true),
-                ])
-        };
-        data.database.store(new_mail).await?;
-        let response = CreateInteractionResponseFollowup::new().embed(embed);
-        info!("Interaction reaches here!");
-        mci.acknowledge(ctx).await?;
-        mci.create_followup(ctx, response).await?;
-    }
+    let embed = {
+        CreateEmbed::default()
+            .title(new_mail.subject.clone())
+            .description(new_mail.body.clone())
+            .fields(vec![
+                ("Responded by", mci.user.mention().to_string(), true),
+                ("Responder's id,", mci.user.id.to_string(), true),
+                ("At", format!("<t:{}:F>", new_mail.id), true),
+            ])
+    };
+    data.database.store(new_mail).await?;
+    let builder = CreateInteractionResponseMessage::new().embed(embed);
+    response.interaction.create_response(ctx, CreateInteractionResponse::Message(builder)).await?; 
     Ok(())
 }

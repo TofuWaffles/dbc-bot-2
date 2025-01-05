@@ -138,7 +138,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 (
                     "Tournament Bracket",
                     format!(
-                        "Click [here]({}/{}/{}) to view the bracket.",
+                        "Click [here]({}bracket/{}/{}) to view the bracket.",
                         BracketURL::get_url(),
                         guild_id.to_string(),
                         player_active_tournaments[0].tournament_id
@@ -1327,6 +1327,28 @@ async fn submit(
         Ok(())
     }
 
+    async fn already_submit(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>, tournament: &Tournament) -> Result<bool, BotError>{
+        if let Some(checked_game_match) = ctx
+            .data()
+            .database
+            .get_current_match(tournament.tournament_id, &ctx.author().id)
+            .await?{
+                if checked_game_match.winner(ctx).await?.is_some(){
+                    ctx.components().prompt(
+                        msg,
+                        CreateEmbed::new()
+                            .title("Match Already Submitted")
+                            .description("This match has already been submitted!"),
+                        None,
+                    )
+                    .await?;
+                    return Ok(true);
+                }
+            }
+
+        Ok(false)
+    }
+
     let caller_tag = ctx
         .get_player_from_discord_id(caller.get().to_string())
         .await?
@@ -1398,7 +1420,9 @@ async fn submit(
             .ok_or(anyhow!("Player not found in the database"))?
         }
     };
-
+    if already_submit(ctx, msg, tournament).await?{
+        return Ok(());
+    }
     save_record(ctx, &current_match, battles).await?;
 
     let result_msg = finish_match(ctx, tournament, bracket, &target, &score).await?;

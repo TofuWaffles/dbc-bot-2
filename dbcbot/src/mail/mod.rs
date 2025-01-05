@@ -12,13 +12,14 @@ use model::{ActorId, Mail, MailType};
 use poise::serenity_prelude::{
     AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
     CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread,
-    GuildChannel, Mentionable,
+    GuildChannel, Mentionable, ReactionType,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
 use tracing::info;
 const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
 pub trait MailDatabase {
+    async fn get_all_sent_mails(&self, sender: UserId) -> Result<Vec<Mail>, Self::Error>;
     async fn get_mail_by_id(&self, mail_id: i64) -> Result<Mail, Self::Error>;
     type Error;
     async fn store(&self, mail: Mail) -> Result<(), Self::Error>;
@@ -46,6 +47,23 @@ impl MailDatabase for PgDatabase {
             ORDER BY id DESC
             "#,
             recipient.to_string()
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(mails)
+    }
+
+    async fn get_all_sent_mails(&self, sender: UserId) -> Result<Vec<Mail>, Self::Error> {
+        let mails = sqlx::query_as!(
+            Mail,
+            r#"
+            SELECT 
+                id, sender, recipient, subject, match_id, body, read, mode as "mode: MailType"
+            FROM mail 
+            WHERE sender = $1
+            ORDER BY id DESC
+            "#,
+            sender.to_string()
         )
         .fetch_all(&self.pool)
         .await?;
@@ -143,6 +161,7 @@ impl MailDatabase for PgDatabase {
 }
 
 pub trait MailBotCtx<'a> {
+    async fn outbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError>;
     type Error;
     async fn compose(
         &self,
@@ -241,7 +260,11 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
 
     async fn inbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
         self.components()
-            .prompt(msg, CreateEmbed::new().description("Getting inbox"), None)
+            .prompt(
+                msg,
+                CreateEmbed::new().description("Getting your inbox"),
+                None,
+            )
             .await?;
         const CHUNK: usize = 10;
         let mails = self.data().database.get_all_mails(self.author().id).await?;
@@ -253,7 +276,33 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             return Ok(());
         }
         let chunked_mail: Vec<&[Mail]> = mails.chunks(CHUNK).collect();
-        inbox_helper(self, msg, &chunked_mail).await?;
+        inbox_helper(self, msg, &chunked_mail, false).await?;
+        Ok(())
+    }
+
+    async fn outbox(&self, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
+        self.components()
+            .prompt(
+                msg,
+                CreateEmbed::new().description("Getting your outbox"),
+                None,
+            )
+            .await?;
+        const CHUNK: usize = 10;
+        let mails = self
+            .data()
+            .database
+            .get_all_sent_mails(self.author().id)
+            .await?;
+        if mails.is_empty() {
+            let embed = CreateEmbed::new()
+                .title("No mails in outbox!")
+                .description("You have not sent any mails! This outbox is empty!");
+            self.components().prompt(msg, embed, None).await?;
+            return Ok(());
+        }
+        let chunked_mail: Vec<&[Mail]> = mails.chunks(CHUNK).collect();
+        inbox_helper(self, msg, &chunked_mail, true).await?;
         Ok(())
     }
 
@@ -353,18 +402,24 @@ async fn mail_page(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     mail: &Mail,
+    outbox: bool,
 ) -> Result<(), BotError> {
-    info!("Mail: {:?}", mail);
     let embed = CreateEmbed::new()
         .title(&mail.subject)
-        .description(format!(
-            "{}\n{}\nSent at <t:{}:F>",
-            mail.sender(ctx).await?.mention(),
-            &mail.body,
-            mail.id
-        ))
+        .description(&mail.body)
+        .color(Colour::DARK_GOLD)
+        .fields(vec![
+            if outbox{
+                ("To", mail.recipient(ctx).await?.mention().to_string(), true)
+            } else {
+                ("From", mail.sender(ctx).await?.mention().to_string(), true)
+            },
+            ("Sent at", format!("<t:{}:F>", mail.id), true),
+        ])
         .thumbnail(mail.sender(ctx).await?.avatar_url());
-    ctx.data().database.mark_read(mail.id).await?;
+    if !outbox{
+        ctx.data().database.mark_read(mail.id).await?;
+    }
     let buttons = CreateActionRow::Buttons(vec![
         CreateButton::new("reply")
             .label("Reply")
@@ -376,9 +431,11 @@ async fn mail_page(
             .label("Report to Marshals")
             .style(ButtonStyle::Danger),
     ]);
-    let reply = CreateReply::default()
-        .embed(embed)
-        .components(vec![buttons]);
+    let reply = CreateReply::default().embed(embed).components(if !outbox {
+        vec![buttons]
+    } else {
+        vec![]
+    });
     msg.edit(*ctx, reply).await?;
     let mut ic = ctx.create_interaction_collector(msg).await?;
     while let Some(interactions) = &ic.next().await {
@@ -399,7 +456,6 @@ async fn mail_page(
                 } else {
                     Some(mail.match_id.clone())
                 };
-                println!("Channel id: {:?}", channel_id);
                 match mail.mode {
                     MailType::Marshal => {
                         return ctx.send_to_marshal(msg, embed, channel_id).await;
@@ -421,24 +477,46 @@ async fn mail_page(
     Ok(())
 }
 
-async fn detail(ctx: &BotContext<'_>, mails: &[Mail]) -> Result<CreateEmbed, BotError> {
+async fn detail(
+    ctx: &BotContext<'_>,
+    mails: &[Mail],
+    outbox: bool,
+) -> Result<CreateEmbed, BotError> {
     let mut inbox = Vec::with_capacity(mails.len());
-    for mail in mails {
-        let sender = match mail.sender(ctx).await {
-            Ok(sender) => sender.mention().to_string(),
-            Err(_) => format!("Unknown user with id {}", mail.sender),
-        };
-        inbox.push(format!(
-            r#"{read_status} | From {sender} 
-**{subject}**
--# Sent at <t:{time_sent}:F>"#,
-            read_status = if mail.read { "✉️" } else { "📩" },
-            time_sent = mail.id,
-            subject = mail.subject,
-        ))
+    if outbox {
+        for mail in mails {
+            let recipient = match mail.recipient(ctx).await {
+                Ok(recipient) => recipient.mention().to_string(),
+                Err(_) => format!("Unknown user with id {}", mail.recipient),
+            };
+            inbox.push(format!(
+                r#"{read_status} | To {recipient}
+    **{subject}**
+    -# Sent at <t:{time_sent}:F>"#,
+                read_status = if mail.read { "✉️" } else { "📩" },
+                time_sent = mail.id,
+                subject = mail.subject,
+                recipient = recipient,
+            ))
+        }
+    } else {
+        for mail in mails {
+            let sender = match mail.sender(ctx).await {
+                Ok(sender) => sender.mention().to_string(),
+                Err(_) => format!("Unknown user with id {}", mail.sender),
+            };
+            inbox.push(format!(
+                r#"{read_status} | From {sender} 
+    **{subject}**
+    -# Sent at <t:{time_sent}:F>"#,
+                read_status = if mail.read { "✉️" } else { "📩" },
+                time_sent = mail.id,
+                subject = mail.subject,
+            ))
+        }
     }
     Ok(CreateEmbed::default()
-        .title(format!("{}'s inbox", ctx.author().name))
+        .title(format!("{}'s {}", ctx.author().name, ["Inbox", "Outbox"][outbox as usize]))
         .description(format!(
             "There are {} mail(s) in this page!\nSelect a mail to read it\n{}",
             mails.len(),
@@ -452,6 +530,7 @@ async fn inbox_helper(
     ctx: &BotContext<'_>,
     msg: &ReplyHandle<'_>,
     chunked_mail: &[&[Mail]],
+    outbox: bool,
 ) -> Result<(), BotError> {
     let (prev, next) = (String::from("prev"), String::from("next"));
     let mut page_number: usize = 0;
@@ -463,13 +542,17 @@ async fn inbox_helper(
         CreateButton::new(next.clone())
             .label("➡️")
             .style(ButtonStyle::Primary),
+        // CreateButton::new("outbox")
+        //     .label("Outbox")
+        //     .emoji(ReactionType::from('📤'))
+        //     .style(ButtonStyle::Secondary),
     ]);
     loop {
         let selected = ctx
             .components()
             .select_options(
                 msg,
-                detail(ctx, chunked_mail[page_number]).await?,
+                detail(ctx, chunked_mail[page_number], outbox).await?,
                 vec![buttons.clone()],
                 chunked_mail[page_number],
             )
@@ -481,13 +564,17 @@ async fn inbox_helper(
             "next" => {
                 page_number = (page_number + 1).min(total - 1);
             }
+            "outbox" => {
+                ctx.outbox(msg).await?;
+            }
             id => {
+                println!("Opening mail id: {} as {}", id, ["inbox", "outbox"][outbox as usize]);
                 let mail = chunked_mail[page_number]
                     .iter()
                     .find(|mail| mail.id.to_string() == id)
                     .unwrap()
                     .to_owned();
-                mail_page(ctx, msg, &mail).await?;
+                mail_page(ctx, msg, &mail, outbox).await?;
             }
         }
     }
