@@ -1336,12 +1336,12 @@ async fn submit(
     async fn already_submit(
         ctx: &BotContext<'_>,
         msg: &ReplyHandle<'_>,
-        tournament: &Tournament,
+        match_id: &str,
     ) -> Result<bool, BotError> {
         if let Some(checked_game_match) = ctx
             .data()
             .database
-            .get_current_match(tournament.tournament_id, &ctx.author().id)
+            .get_match_by_id(&match_id)
             .await?
         {
             if checked_game_match.winner(ctx).await?.is_some() {
@@ -1403,9 +1403,11 @@ async fn submit(
     }
     let winner = analyze(tournament, &battles).await;
     let score = winner.clone().map(|(_, s)| s).unwrap_or("0-0".to_string());
+    if already_submit(ctx, msg, &current_match.match_id).await? {
+        return Ok(());
+    }
     let target = match winner {
         None => {
-            println!("No winner found in all logs");
             build_log(ctx, &battles).await?;
             return handle_not_enough_matches(ctx, msg).await;
         }
@@ -1432,9 +1434,6 @@ async fn submit(
             .ok_or(anyhow!("Player not found in the database"))?
         }
     };
-    if already_submit(ctx, msg, tournament).await? {
-        return Ok(());
-    }
     save_record(ctx, &current_match, battles).await?;
 
     let result_msg = finish_match(ctx, tournament, bracket, &target, &score).await?;
