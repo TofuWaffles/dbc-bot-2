@@ -8,19 +8,19 @@
   "dependencies": {
     "@g-loot/react-tournament-brackets": "^1.0.31-rc",
     "@uidotdev/usehooks": "^2.4.1",
-    "axios": "^1.7.7",
-    "dotenv": "^16.4.5",
+    "axios": "1.7.9",
+    "dotenv": "^16.4.7",
     "next": "^15.0.3",
     "pg": "^8.13.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "webpack": "^5.96.1"
+    "webpack": "5.97.1"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
-    "@types/node": "22.7.4",
+    "@types/node": "22.10.5",
     "@types/pg": "^8.11.10",
     "@types/react": "^18.3.11",
     "autoprefixer": "^10.4.20",
