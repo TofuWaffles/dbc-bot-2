@@ -1,18 +1,16 @@
 pub mod model;
 use std::str::FromStr;
 
-use crate::database::ConfigDatabase;
+use crate::database::{ConfigDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
 use async_recursion::async_recursion;
 use futures::StreamExt;
-use model::{ActorId, Mail, MailType};
+use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
-    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread,
-    GuildChannel, Mentionable, ReactionType,
+    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow, CreateAttachment, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, GuildChannel, Mentionable, ReactionType, User
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -179,6 +177,7 @@ pub trait MailBotCtx<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
+        attachment: Option<Attachment>,
         channel_id: Option<String>,
     ) -> Result<(), Self::Error>;
 }
@@ -234,6 +233,16 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             recipient.mention()
         ));
         self.components().prompt(msg, embed, None).await?;
+        if let Actor::User(u) = recipient {
+            let t = &self.data().database.get_active_tournaments_from_player(&u.id).await?[0];
+            let noti_channel = t.notification_channel(&self).await?;
+            let content = format!(
+                "You have received a new mail from {}! Choose mail button in the Menu to access.",
+                self.author().mention()
+            );
+            let reply = CreateMessage::default().content(content);
+            noti_channel.send_message(&self, reply).await?;
+        }
         Ok(id)
     }
 
@@ -317,6 +326,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
+        attachment: Option<Attachment>,
         channel_id: Option<String>,
     ) -> Result<(), Self::Error> {
         let guild_id = self.guild_id().ok_or(NotInAGuild)?;
@@ -349,17 +359,17 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     .find(|thread| thread.id == ChannelId::from_str(&id).unwrap())
                 {
                     Some(thread) => {
-                        return open_thread(self, embed, role, thread.clone(), mail.id).await;
+                        return open_thread(self, embed, role, attachment, thread.clone(), mail.id).await;
                     }
                     None => {
                         let thread = create_thread(self, thread_name).await?;
-                        return open_thread(self, embed, role, thread, mail.id).await;
+                        return open_thread(self, embed, role, attachment, thread, mail.id).await;
                     }
                 };
             }
             None => {
                 let thread = create_thread(self, thread_name).await?;
-                return open_thread(self, embed, role, thread, mail.id).await;
+                return open_thread(self, embed, role, attachment, thread, mail.id).await;
             }
         };
 
@@ -458,7 +468,7 @@ async fn mail_page(
                 };
                 match mail.mode {
                     MailType::Marshal => {
-                        return ctx.send_to_marshal(msg, embed, channel_id).await;
+                        return ctx.send_to_marshal(msg, embed, None, channel_id).await;
                     }
                     _ => {
                         ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false)
@@ -635,7 +645,7 @@ Reported by: {recipient}.
         .kind(ChannelType::PublicThread)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);
     let channel = log.create_thread(ctx.http(), thread).await?;
-    open_thread(ctx, embed, mail.recipient_id()?, channel, mail.id).await?;
+    open_thread(ctx, embed, mail.recipient_id()?, None, channel, mail.id).await?;
     ctx.components().prompt(msg,
         CreateEmbed::new()
             .title("This mail has been reported!")
@@ -650,6 +660,7 @@ async fn open_thread(
     ctx: &BotContext<'_>,
     embed: CreateEmbed,
     _id: impl Into<ActorId> + Send + 'async_recursion,
+    attachment: Option<Attachment>,
     thread: GuildChannel,
     mail_id: i64,
 ) -> Result<(), BotError> {
@@ -657,9 +668,21 @@ async fn open_thread(
     let buttons = vec![CreateActionRow::Buttons(vec![CreateButton::new(btn_id)
         .label("Respond")
         .style(ButtonStyle::Danger)])];
-    let reply = CreateMessage::new()
-        .embed(embed)
-        .components(buttons.clone());
+    let reply = match attachment{
+        Some(att) => {
+            let file = att.download().await?;
+            let filename = att.filename;
+            CreateMessage::new()
+                .embed(embed)
+                .components(buttons.clone())
+                .add_file(CreateAttachment::bytes(file, filename))
+        }
+        None => {
+            CreateMessage::new()
+                .embed(embed)
+                .components(buttons.clone())
+        }
+    };
     thread.send_message(ctx.http(), reply).await?;
     Ok(())
 }

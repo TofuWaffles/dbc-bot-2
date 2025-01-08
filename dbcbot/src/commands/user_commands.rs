@@ -301,19 +301,31 @@ async fn user_display_match(
         return Ok(());
     }
 
-    if let Some(ref winner) = current_match.winner {
-        ctx.components().prompt(msg,
-            CreateEmbed::new().title("Match Information.")
-            .description(
-                format!("Congratulations to <@{}> for winning the current match! Hope to see you in the next round!", winner),
-            )
-            .fields(vec![
-                ("Tournament", &tournament.name, true),
-                ("Match ID", &current_match.match_id, true),
-                ("Round", &current_match.round()?.to_string(), true),
-            ])
-            , None).await?;
-
+    if let Some(ref winner) = current_match.winner(ctx).await? {
+        let bracket_link = format!("{}bracket/{}/{}#{}",BracketURL::get_url(), tournament.guild_id, tournament.tournament_id, current_match.match_id);
+        if ctx.author().id == winner.id{
+            ctx.components().prompt(msg,
+                CreateEmbed::new().title("Match Information.")
+                .description(
+                    format!("Congratulations to {} for winning the current match! Hope to see you in the next round!\n View your position [here]({})", winner.mention(), bracket_link),
+                )
+                .fields(vec![
+                    ("Tournament", &tournament.name, true),
+                    ("Match ID", &current_match.match_id, true),
+                    ("Round", &current_match.round()?.to_string(), true),
+                ])
+                , None).await?;
+        } else{
+            ctx.components().prompt(msg,
+                CreateEmbed::new().title("Match Information.")
+                .description(format!("Unfortunately, you have lost the current match. Better luck next time!\n View your position [here]({})", bracket_link))
+                .fields(vec![
+                    ("Tournament", &tournament.name, true),
+                    ("Match ID", &current_match.match_id, true),
+                    ("Round", &current_match.round()?.to_string(), true),
+                ])
+                , None).await?;
+        }
         return Ok(());
     }
 
@@ -339,7 +351,17 @@ async fn user_display_match(
             CreateEmbed::new()
                 .title("Match Information.")
                 .description(
-                    "Here is all the information for your current match. May the best brawler win!",
+format!(r#"Here is all the information for your current match. May the best brawler win!
+Note:
+- 🏁 Format: **First to {} wins.**
+- ⚡ Make sure to hit the **Ready** button below to let your opponent know you're ready to battle.
+- ✉️ Use the **Mail** button below to message them! This is a good proof of your activity!
+- 📝 Remember to press **Submit** button below your match results immediately after the battle!
+- ⚙️ Make sure the room configuration is set as exactly as below!
+- 🪪 Make sure you and your opponent use the **correct account** that you register with us!. 
+-# You can view your opponent's profile by clicking the **View Opponent** button below.
+"#, tournament.wins_required),
+                    
                 )
                 .fields(vec![
                     ("Tournament", tournament.name.clone(), true),
@@ -379,6 +401,7 @@ async fn user_display_match(
                         false,
                     ),
                 ])
+                .footer(CreateEmbedFooter::new("Have a question? Contact a marshal by mentioning us in the chat or use /contact_marshal command."))
         };
         let buttons = if show_buttons {
             let mut buttons = vec![];
@@ -395,6 +418,11 @@ async fn user_display_match(
                         .style(ButtonStyle::Success),
                 );
             }
+            buttons.push(
+                CreateButton::new("opponent")
+                    .label("View Opponent")
+                    .style(ButtonStyle::Primary),
+            );
             buttons.push(
                 CreateButton::new("submit")
                     .label("Submit")
@@ -485,6 +513,10 @@ Both players are ready to battle. Please complete your matches and press the "Su
             "submit" => {
                 interaction.defer(ctx).await?;
                 return submit(ctx, msg, &tournament, &current_match).await;
+            }
+            "opponent" => {
+                interaction.defer(ctx).await?;
+                return display_user_profile_helper(ctx, msg, p2).await;
             }
             _ => {}
         }
@@ -1004,10 +1036,11 @@ pub async fn display_user_profile_helper(
         Some(_) => "Cannot continue in the tournament".to_string(),
         None => "Hasn't finished the current match".to_string(),
     };
+    let discord_profile = user.user(ctx).await?;
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
-            .author(ctx.get_author_img(&log::Model::PLAYER))
+            .author(CreateEmbedAuthor::new(discord_profile.name.clone()).icon_url(discord_profile.avatar_url().unwrap_or_default()))
             .description("Here is your additional information of the profile.")
             .color(Color::DARK_GOLD)
             .fields(vec![
@@ -1674,13 +1707,13 @@ pub async fn finish_match(
     check = "is_config_set",
     rename = "contact_marshal"
 )]
-pub async fn contact_marshal(ctx: BotContext<'_>) -> Result<(), BotError> {
+pub async fn contact_marshal(ctx: BotContext<'_>, attachment: Option<Attachment>) -> Result<(), BotError> {
     let comp = ctx.components();
     let msg = comp.get_msg().await?;
     let embed = CreateEmbed::new()
     .title("Contact marshals")
     .description("Please press at the button below to send a mail to marshal")
     .footer(CreateEmbedFooter::new("Only use this feature when you have an emergency. Abuse to this feature will affect your status in the event!"));
-    ctx.send_to_marshal(&msg, embed, None).await?;
+    ctx.send_to_marshal(&msg, embed, attachment, None).await?;
     Ok(())
 }
