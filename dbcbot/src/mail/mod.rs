@@ -243,8 +243,8 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                 .await?[0];
             let noti_channel = t.notification_channel(&self).await?;
             let content = format!(
-                "You have received a new mail from {}! Choose mail button in the Menu to access.",
-                self.author().mention()
+                "{}, you have a new mail! Choose mail button in the Menu to access.",
+                u.mention().to_string()
             );
             let reply = CreateMessage::default().content(content);
             noti_channel.send_message(&self, reply).await?;

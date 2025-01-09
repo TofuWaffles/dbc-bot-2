@@ -1294,12 +1294,13 @@ async fn submit(
     async fn handle_not_enough_matches(
         ctx: &BotContext<'_>,
         msg: &ReplyHandle<'_>,
+        wins_required: i32,
     ) -> Result<(), BotError> {
         ctx.components().prompt(
             msg,
             CreateEmbed::new()
                 .title("Insufficient Matches")
-                .description("You have not played enough matches to submit. You need to play at least 3 matches to submit."),
+                .description(format!("You have not played enough matches to submit. Either you or your opponent needs to WIN {} matches in order to submit", wins_required)),
             None,
         )
         .await?;
@@ -1434,7 +1435,7 @@ async fn submit(
     if battles.len() < tournament.wins_required as usize {
         println!("Not enough matches");
         build_log(ctx, &battles).await?;
-        return handle_not_enough_matches(ctx, msg).await;
+        return handle_not_enough_matches(ctx, msg, tournament.wins_required).await;
     }
     let winner = analyze(tournament, &battles).await;
     let score = winner.clone().map(|(_, s)| s).unwrap_or("0-0".to_string());
@@ -1444,7 +1445,7 @@ async fn submit(
     let target = match winner {
         None => {
             build_log(ctx, &battles).await?;
-            return handle_not_enough_matches(ctx, msg).await;
+            return handle_not_enough_matches(ctx, msg, tournament.wins_required).await;
         }
         Some((true, score)) => join!(
             ctx.data()
