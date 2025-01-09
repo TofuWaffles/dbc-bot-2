@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::api::official_brawl_stars::BattleLogItem;
 use crate::commands::checks::is_tournament_paused;
 use crate::database::models::Tournament;
@@ -1699,7 +1701,7 @@ pub async fn finish_match(
     Ok(result_msg)
 }
 
-/// Contact the marshals in case of an emergency.
+/// Contact the marshals in case of an emergency. Optional attachments: accept only images and/or videos
 #[poise::command(
     slash_command,
     prefix_command,
@@ -1707,13 +1709,86 @@ pub async fn finish_match(
     check = "is_config_set",
     rename = "contact_marshal"
 )]
-pub async fn contact_marshal(ctx: BotContext<'_>, attachment: Option<Attachment>) -> Result<(), BotError> {
+pub async fn contact_marshal(
+    ctx: BotContext<'_>, 
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-1"]
+    first_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-2"]
+    second_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-3"]
+    third_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-4"]
+    fourth_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-5"]
+    fifth_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-6"]
+    sixth_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-7"]
+    seventh_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-8"]
+    eighth_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-9"]
+    ninth_attachment: Option<Attachment>,
+    #[description = "Attachment of the issue"]
+    #[rename = "attachment-10"]
+    tenth_attachment: Option<Attachment>,
+) -> Result<(), BotError> {
+    let preprocessed_attachments = vec![
+        first_attachment, second_attachment, third_attachment, fourth_attachment, fifth_attachment,
+        sixth_attachment, seventh_attachment, eighth_attachment, ninth_attachment, tenth_attachment
+    ];
+    let attachments = match process_attachments(preprocessed_attachments).await{
+        Ok(att) => att,
+        Err(e) =>{
+            let embed = CreateEmbed::new()
+                    .title("Error processing attachments")
+                    .description(e.to_string())
+                    .color(Color::RED);
+            let reply = CreateReply::default()
+                .embed(embed)
+                .ephemeral(true);
+            ctx.send(reply).await?;
+            return Ok(());
+        }
+    };
     let comp = ctx.components();
     let msg = comp.get_msg().await?;
     let embed = CreateEmbed::new()
     .title("Contact marshals")
     .description("Please press at the button below to send a mail to marshal")
     .footer(CreateEmbedFooter::new("Only use this feature when you have an emergency. Abuse to this feature will affect your status in the event!"));
-    ctx.send_to_marshal(&msg, embed, attachment, None).await?;
+    ctx.send_to_marshal(&msg, embed, attachments, None).await?;
     Ok(())
+}
+
+async fn process_attachments(preprocessed: Vec<Option<Attachment>>) -> Result<Vec<Attachment>, BotError> {
+    let extensions: HashSet<&str> = HashSet::from([
+        // Image file extensions
+        "jpg", "jpeg", "png", "gif", "webp",
+        // Video file extensions
+        "mp4", "webm", "mov",
+    ]);
+    let mut postprocessed: Vec<Attachment> = Vec::with_capacity(preprocessed.len());
+    for attachment in preprocessed{
+        if let Some(att) = attachment{
+            let ext = att.filename.split('.').last().unwrap_or_default();
+            if ext.starts_with("heic"){
+                return Err(anyhow!("Dear iOS players, HEIC files are not supported. Please convert the file to a supported format (e.g. PNG, JPEG) and try again."));
+            } 
+            if !extensions.contains(ext){
+                return Err(anyhow!("Unsupported file format. Please upload an image or a video file."));
+            }
+            postprocessed.push(att);
+        }
+    }
+    Ok(postprocessed)
 }

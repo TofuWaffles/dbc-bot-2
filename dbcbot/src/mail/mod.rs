@@ -1,5 +1,6 @@
 pub mod model;
 use std::str::FromStr;
+use std::vec;
 
 use crate::database::{ConfigDatabase, TournamentDatabase};
 use crate::log::Log;
@@ -10,11 +11,12 @@ use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow, CreateAttachment, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, GuildChannel, Mentionable, ReactionType, User
+    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
+    CreateAttachment, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
+    CreateThread, GuildChannel, Mentionable, ReactionType, User,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
-use tracing::info;
 const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
 pub trait MailDatabase {
     async fn get_all_sent_mails(&self, sender: UserId) -> Result<Vec<Mail>, Self::Error>;
@@ -177,7 +179,7 @@ pub trait MailBotCtx<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
-        attachment: Option<Attachment>,
+        attachments: Vec<Attachment>,
         channel_id: Option<String>,
     ) -> Result<(), Self::Error>;
 }
@@ -234,7 +236,11 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         ));
         self.components().prompt(msg, embed, None).await?;
         if let Actor::User(u) = recipient {
-            let t = &self.data().database.get_active_tournaments_from_player(&u.id).await?[0];
+            let t = &self
+                .data()
+                .database
+                .get_active_tournaments_from_player(&u.id)
+                .await?[0];
             let noti_channel = t.notification_channel(&self).await?;
             let content = format!(
                 "You have received a new mail from {}! Choose mail button in the Menu to access.",
@@ -326,7 +332,7 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
         &self,
         msg: &ReplyHandle<'_>,
         embed: CreateEmbed,
-        attachment: Option<Attachment>,
+        attachments: Vec<Attachment>,
         channel_id: Option<String>,
     ) -> Result<(), Self::Error> {
         let guild_id = self.guild_id().ok_or(NotInAGuild)?;
@@ -359,17 +365,25 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
                     .find(|thread| thread.id == ChannelId::from_str(&id).unwrap())
                 {
                     Some(thread) => {
-                        return open_thread(self, embed, role, attachment, thread.clone(), mail.id).await;
+                        return open_thread(
+                            self,
+                            embed,
+                            role,
+                            attachments,
+                            thread.clone(),
+                            mail.id,
+                        )
+                        .await;
                     }
                     None => {
                         let thread = create_thread(self, thread_name).await?;
-                        return open_thread(self, embed, role, attachment, thread, mail.id).await;
+                        return open_thread(self, embed, role, attachments, thread, mail.id).await;
                     }
                 };
             }
             None => {
                 let thread = create_thread(self, thread_name).await?;
-                return open_thread(self, embed, role, attachment, thread, mail.id).await;
+                return open_thread(self, embed, role, attachments, thread, mail.id).await;
             }
         };
 
@@ -468,7 +482,7 @@ async fn mail_page(
                 };
                 match mail.mode {
                     MailType::Marshal => {
-                        return ctx.send_to_marshal(msg, embed, None, channel_id).await;
+                        return ctx.send_to_marshal(msg, embed, vec![], channel_id).await;
                     }
                     _ => {
                         ctx.compose(msg, embed, mail.sender_id()?, mail.subject.clone(), false)
@@ -645,7 +659,7 @@ Reported by: {recipient}.
         .kind(ChannelType::PublicThread)
         .auto_archive_duration(AUTO_ARCHIVE_DURATION);
     let channel = log.create_thread(ctx.http(), thread).await?;
-    open_thread(ctx, embed, mail.recipient_id()?, None, channel, mail.id).await?;
+    open_thread(ctx, embed, mail.recipient_id()?, vec![], channel, mail.id).await?;
     ctx.components().prompt(msg,
         CreateEmbed::new()
             .title("This mail has been reported!")
@@ -660,7 +674,7 @@ async fn open_thread(
     ctx: &BotContext<'_>,
     embed: CreateEmbed,
     _id: impl Into<ActorId> + Send + 'async_recursion,
-    attachment: Option<Attachment>,
+    attachments: Vec<Attachment>,
     thread: GuildChannel,
     mail_id: i64,
 ) -> Result<(), BotError> {
@@ -668,19 +682,42 @@ async fn open_thread(
     let buttons = vec![CreateActionRow::Buttons(vec![CreateButton::new(btn_id)
         .label("Respond")
         .style(ButtonStyle::Danger)])];
-    let reply = match attachment{
-        Some(att) => {
-            let file = att.download().await?;
-            let filename = att.filename;
+    let reply = match attachments.len() {
+        0 => CreateMessage::new()
+            .content("There is no attachment in this mail!")
+            .embed(embed)
+            .components(buttons.clone()),
+        1 => {
+            let attachment = attachments[0].clone();
             CreateMessage::new()
-                .embed(embed)
+                .content("There is an attachment in this mail!")
+                .embed(embed.image(attachment.url.clone()))
                 .components(buttons.clone())
-                .add_file(CreateAttachment::bytes(file, filename))
         }
-        None => {
-            CreateMessage::new()
-                .embed(embed)
-                .components(buttons.clone())
+        2.. => {
+            // Split the attachments to separate the first one from the rest
+            if let Some((first, remaining)) = attachments.split_first() {
+                let mut embeds: Vec<CreateEmbed> = remaining
+                    .iter()
+                    .map(|att| {
+                        CreateEmbed::default()
+                            .url("https://discord.gg/brawlstars")
+                            .image(att.url.clone())
+                    })
+                    .collect();
+                let new_embed = embed
+                        .image(first.url.clone())
+                        .url("https://discord.gg/brawlstars");
+                embeds.insert(0, new_embed);
+                CreateMessage::new()
+                    .content(format!("There are {} attachments in this mail!", attachments.len()))
+                    .components(buttons.clone())
+                    .embeds(embeds)
+            } else {
+                CreateMessage::new()
+                    .embed(embed)
+                    .components(buttons.clone())
+            }
         }
     };
     thread.send_message(ctx.http(), reply).await?;
