@@ -1488,6 +1488,18 @@ pub trait MatchDatabase {
         tournament_id: i32,
         discord_id: &UserId,
     ) -> Result<(), Self::Error>;
+
+    /// Removes a match player from the database.
+    ///
+    /// This is equivalent to removing a player from a match.
+    async fn remove_match_player(
+        &self,
+        match_id: &str,
+        discord_id: &UserId,
+    ) -> Result<(), Self::Error>;
+
+    /// Resets a given match by clearing the score, winner, and end time fields.
+    async fn reset_match(&self, match_id: &str) -> Result<(), Self::Error>;
 }
 
 impl MatchDatabase for PgDatabase {
@@ -1840,6 +1852,41 @@ impl MatchDatabase for PgDatabase {
         .execute(&self.pool)
         .await
         .ok();
+        Ok(())
+    }
+
+    async fn remove_match_player(
+        &self,
+        match_id: &str,
+        discord_id: &UserId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            DELETE FROM match_players
+            WHERE match_id = $1 
+            AND discord_id = $2
+            "#,
+            match_id,
+            &discord_id.to_string()
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    async fn reset_match(&self, match_id: &str) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE matches
+            SET score = '', winner = NULL, "end" = NULL
+            WHERE match_id = $1
+            "#,
+            match_id,
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 }

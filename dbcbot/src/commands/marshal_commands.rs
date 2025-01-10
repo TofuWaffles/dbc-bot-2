@@ -338,129 +338,133 @@ async fn get_match(
         },
     };
 
-    match bracket {
-        Some(mut bracket) => {
-            let player_2 = bracket.match_players.pop();
-            let player_1 = bracket.match_players.pop();
+    if bracket.is_none() {
+        ctx.send(
+            CreateReply::default()
+                .content("No match found for the given ID or player.")
+                .ephemeral(true),
+        )
+        .await?;
 
-            let mut fields = vec![
-                ("Tournament ID", bracket.tournament()?.to_string(), true),
-                ("Round", bracket.round()?.to_string(), true),
-                (
-                    "Winner",
-                    match bracket.winner {
-                        Some(ref w) => format!("<@{}>", w),
-                        None => "None".to_string(),
-                    },
-                    true,
-                ),
-            ];
-            let player_1 = match player_1 {
-                Some(p) => {
-                    fields.push(("Player 1", format!("<@{}>", p.discord_id), true));
-                    fields.push((
-                        "Player 1 Ready",
-                        if p.ready {
-                            "Ready for battle!".to_string()
-                        } else {
-                            "Not ready yet!".to_string()
-                        },
-                        false,
-                    ));
-                    ctx.data()
-                        .database
-                        .get_player_by_discord_id(&UserId::from_str(&p.discord_id)?)
-                        .await?
-                        .ok_or(anyhow!(
-                            "Unable to find player {} in database",
-                            p.discord_id
-                        ))?
-                }
-                None => {
-                    fields.push(("Player 1", "None".to_string(), true));
-                    let mut p = Player::default();
-                    p.player_name = "None".to_string();
-                    p.discord_name = "None".to_string();
-                    p
-                }
-            };
-            let player_2 = match player_2 {
-                Some(p) => {
-                    fields.push(("Player 2", format!("<@{}>", p.discord_id), true));
-                    fields.push((
-                        "Player 2 Ready",
-                        if p.ready {
-                            "Ready for battle!".to_string()
-                        } else {
-                            "Not ready yet!".to_string()
-                        },
-                        false,
-                    ));
-                    ctx.data()
-                        .database
-                        .get_player_by_discord_id(&UserId::from_str(&p.discord_id)?)
-                        .await?
-                        .ok_or(anyhow!(
-                            "Unable to find player {} in database",
-                            p.discord_id
-                        ))?
-                }
-                None => {
-                    fields.push(("Player 2", "None".to_string(), true));
-                    let mut p = Player::default();
-                    p.player_name = "None".to_string();
-                    p.discord_name = "None".to_string();
-                    p
-                }
-            };
+        return Ok(());
+    }
 
-            match ctx
-                .data()
-                .apis
-                .images
-                .match_image(&player_1, &player_2)
-                .await{
-                    Ok(img) => {
-                        ctx.send(
-                            CreateReply::default()
-                                .embed(
-                                    CreateEmbed::new()
-                                        .title(format!("Match {}", bracket.match_id))
-                                        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
-                                        .fields(fields),
-                                )
-                                .attachment(CreateAttachment::bytes(
-                                    img,
-                                    format!("match_{}.png", bracket.match_id.replace(".", "-")),
-                                ))
-                                .ephemeral(true),
-                        )
-                        .await?
-                    }
-                    Err(_) => {
-                        ctx.send(
-                            CreateReply::default()
-                                .embed(
-                                    CreateEmbed::new()
-                                        .title(format!("Match {}", bracket.match_id))
-                                        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
-                                        .fields(fields),
-                                )
-                                .ephemeral(true),
-                        )
-                        .await?
-                    }
-                }
+    let mut bracket = bracket.unwrap();
+
+    let player_1 = bracket.match_players.pop();
+    let player_2 = bracket.match_players.pop();
+    let mailable = player_2.is_some();
+
+    let mut fields = vec![
+        ("Tournament ID", bracket.tournament()?.to_string(), true),
+        ("Round", bracket.round()?.to_string(), true),
+        (
+            "Winner",
+            match bracket.winner {
+                Some(ref w) => format!("<@{}>", w),
+                None => "None".to_string(),
+            },
+            true,
+        ),
+    ];
+    let player_1 = match player_1 {
+        Some(p) => {
+            fields.push(("Player 1", format!("<@{}>", p.discord_id), true));
+            fields.push((
+                "Player 1 Ready",
+                if p.ready {
+                    "Ready for battle!".to_string()
+                } else {
+                    "Not ready yet!".to_string()
+                },
+                false,
+            ));
+            ctx.data()
+                .database
+                .get_player_by_discord_id(&UserId::from_str(&p.discord_id)?)
+                .await?
+                .ok_or(anyhow!(
+                    "Unable to find player {} in database",
+                    p.discord_id
+                ))?
         }
         None => {
-            ctx.send(
-                CreateReply::default()
-                    .content("No match found for the given ID or player.")
-                    .ephemeral(true),
-            )
-            .await?
+            fields.push(("Player 1", "None".to_string(), true));
+            let mut p = Player::default();
+            p.player_name = "None".to_string();
+            p.discord_name = "None".to_string();
+            p
         }
     };
+    let player_2 = match player_2 {
+        Some(p) => {
+            fields.push(("Player 2", format!("<@{}>", p.discord_id), true));
+            fields.push((
+                "Player 2 Ready",
+                if p.ready {
+                    "Ready for battle!".to_string()
+                } else {
+                    "Not ready yet!".to_string()
+                },
+                false,
+            ));
+            ctx.data()
+                .database
+                .get_player_by_discord_id(&UserId::from_str(&p.discord_id)?)
+                .await?
+                .ok_or(anyhow!(
+                    "Unable to find player {} in database",
+                    p.discord_id
+                ))?
+        }
+        None => {
+            fields.push(("Player 2", "None".to_string(), true));
+            let mut p = Player::default();
+            p.player_name = "None".to_string();
+            p.discord_name = "None".to_string();
+            p
+        }
+    };
+
+    let images = ctx
+        .data()
+        .apis
+        .images
+        .match_image(&player_1, &player_2)
+        .await?;
+    let msg = ctx.send(
+        CreateReply::default()
+            .embed(
+                CreateEmbed::new()
+                    .title(format!("Match {}", bracket.match_id))
+                    .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
+                    .fields(fields),
+            )
+            .attachment(CreateAttachment::bytes(
+                images,
+                format!("match_{}.png", bracket.match_id.replace(".", "-")),
+            ))
+            .components(vec![CreateActionRow::Buttons(if mailable {vec![CreateButton::new("view_mail").label("View Mail").style(ButtonStyle::Primary)] } else {vec![]})])
+            .ephemeral(true),
+    )
+    .await?;
+    ctx.defer_ephemeral().await?;
+
+    if !mailable {
+        return Ok(());
+    }
+    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    if let Some(interactions) = &ic.next().await {
+        if interactions.data.custom_id.as_str() == "view_mail" {
+            extract_convo_helper(
+                &ctx,
+                &msg,
+                &player_1.user(&ctx).await?,
+                &player_2.user(&ctx).await?,
+            )
+            .await?;
+        }
+    }
 
     Ok(())
 }

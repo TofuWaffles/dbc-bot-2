@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use super::CommandsContainer;
 use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
@@ -12,7 +14,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use models::{Match, Player, PlayerType, TournamentStatus};
-use poise::serenity_prelude::{Channel, Mentionable, Role};
+use poise::serenity_prelude::{Channel, Mentionable, Role, UserId};
 use poise::Modal;
 use poise::{
     serenity_prelude::{self as serenity, Colour, CreateActionRow, CreateButton, CreateEmbed},
@@ -33,7 +35,7 @@ impl CommandsContainer for ManagerCommands {
             create_tournament_slash(),
             start_tournament_slash(),
             manager_menu(),
-            force_result(),
+            reset_match(),
         ]
     }
 }
@@ -855,6 +857,95 @@ fn generate_matches_new_tournament(
     }
 
     Ok(matches)
+}
+
+/// Resets a match by clearing the score and winner.
+///
+/// If a winner has already been decided, this will also clear the match in the next round where
+/// the winner is in.
+#[poise::command(
+    slash_command,
+    guild_only,
+    check = "is_manager",
+    check = "is_config_set"
+)]
+async fn reset_match(ctx: BotContext<'_>, match_id: String) -> Result<(), BotError> {
+    let msg = ctx
+        .send(CreateReply::default().content("Loading...").ephemeral(true))
+        .await?;
+    if !Match::is_valid_id(match_id.as_str()) {
+        let embed = CreateEmbed::default()
+            .title("Invalid match ID")
+            .description("The match ID provided is invalid.")
+            .color(Colour::RED);
+        msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+            .await?;
+    };
+
+    let bracket = match ctx.data().database.get_match_by_id(&match_id).await? {
+        Some(b) => b,
+        None => {
+            let embed = CreateEmbed::default()
+                .title("No match found for the given match ID")
+                .description(format!("No match was found with the given ID {}", match_id))
+                .color(Colour::RED);
+            msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+                .await?;
+
+            return Ok(());
+        }
+    };
+
+    let guild_id = ctx.guild_id().unwrap();
+    let tournament = ctx
+        .data()
+        .database
+        .get_tournament(&guild_id, bracket.tournament()?)
+        .await?
+        .ok_or(anyhow!(
+            "Unable to find a tournament for the given match_id {}",
+            match_id
+        ))?;
+
+    if tournament.current_round != bracket.round()? {
+        let embed = CreateEmbed::default()
+            .title("Unable to reset a match that is not on the current round.")
+            .description(format!(
+                "Unable to reset match {} at round {} when the tournament is currently at round {}",
+                match_id,
+                bracket.round()?,
+                tournament.current_round
+            ))
+            .color(Colour::RED);
+        msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+            .await?;
+    }
+
+    if let Some(winner) = bracket.winner.clone() {
+        let next_match = ctx
+            .data()
+            .database
+            .get_match_by_player(tournament.tournament_id, &UserId::from_str(&winner)?)
+            .await?
+            .unwrap_or_default();
+        if next_match.round()? - bracket.round()? != 1 {
+            let embed = CreateEmbed::default()
+                .title("Unable to reset match as the winner is too far ahead in the tournament.")
+                .description(format!("The match you are trying to reset is at round {} while the winner is currently at round {}", bracket.round()?, next_match.round()?))
+                .color(Colour::RED);
+            msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+                .await?;
+            return Ok(());
+        }
+        ctx.data()
+            .database
+            .remove_match_player(&bracket.match_id, &UserId::from_str(&winner)?)
+            .await?;
+    }
+
+    ctx.data().database.reset_match(&bracket.match_id).await?;
+
+    Ok(())
 }
 
 /// Force the result of a match by manually setting the winner even if the match already happened.

@@ -294,7 +294,7 @@ impl TournamentPlayer {
 /// A match within the database, associated with a particular tournament.
 ///
 /// Also known as a bracket to avoid conflicting with the Rust keyword.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Match {
     pub match_id: String,
     pub match_players: Vec<MatchPlayer>,
