@@ -414,27 +414,43 @@ async fn get_match(
                 }
             };
 
-            let images = ctx
+            match ctx
                 .data()
                 .apis
                 .images
                 .match_image(&player_1, &player_2)
-                .await?;
-            ctx.send(
-                CreateReply::default()
-                    .embed(
-                        CreateEmbed::new()
-                            .title(format!("Match {}", bracket.match_id))
-                            .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
-                            .fields(fields),
-                    )
-                    .attachment(CreateAttachment::bytes(
-                        images,
-                        format!("match_{}.png", bracket.match_id.replace(".", "-")),
-                    ))
-                    .ephemeral(true),
-            )
-            .await?
+                .await{
+                    Ok(img) => {
+                        ctx.send(
+                            CreateReply::default()
+                                .embed(
+                                    CreateEmbed::new()
+                                        .title(format!("Match {}", bracket.match_id))
+                                        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
+                                        .fields(fields),
+                                )
+                                .attachment(CreateAttachment::bytes(
+                                    img,
+                                    format!("match_{}.png", bracket.match_id.replace(".", "-")),
+                                ))
+                                .ephemeral(true),
+                        )
+                        .await?
+                    }
+                    Err(_) => {
+                        ctx.send(
+                            CreateReply::default()
+                                .embed(
+                                    CreateEmbed::new()
+                                        .title(format!("Match {}", bracket.match_id))
+                                        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
+                                        .fields(fields),
+                                )
+                                .ephemeral(true),
+                        )
+                        .await?
+                    }
+                }
         }
         None => {
             ctx.send(
@@ -2258,7 +2274,13 @@ async fn view_match_context(
 
     let embed = CreateEmbed::default()
         .title(format!("Match {}", current_match.match_id))
-        .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), current_match.tournament().unwrap(), current_match.match_id))
+        .description(format!(
+            "View the position of the players in the bracket [here]({}/bracket/{}/{}#{})",
+            BracketURL::get_url(),
+            guild_id.to_string(),
+            current_match.tournament().unwrap(),
+            current_match.match_id
+        ))
         .fields(vec![
             ("Match ID", current_match.match_id, true),
             ("Winner", winner, true),
@@ -2268,14 +2290,9 @@ async fn view_match_context(
             ("Player 2", p2, false),
             ("Player 2 Ready", p2r, true),
         ]);
-    
-    msg.edit(
-        ctx,
-        CreateReply::default()
-            .embed(embed)
-            .ephemeral(true),
-    )
-    .await?;
+
+    msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+        .await?;
 
     Ok(())
 }

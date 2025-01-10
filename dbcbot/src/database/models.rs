@@ -42,8 +42,6 @@ pub struct GuildConfig {
     pub announcement_channel_id: String,
 }
 
-
-
 impl DiscordTrait for GuildConfig {}
 
 #[allow(dead_code)]

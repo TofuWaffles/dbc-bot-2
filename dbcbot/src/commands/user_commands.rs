@@ -153,6 +153,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     ),
                     false,
                 ),
+                (
+                    "🍕 100 Pizzas 🍕???",
+                    format!("Claim [here]({})!", "https://link.brawlstars.com/?action=voucher&code=d778006e-fc00-4a04-876e-b80d9359b3fc"),
+                    true
+                )
             ]);
         let mut buttons = vec![
             CreateButton::new("menu_match")
@@ -303,8 +308,14 @@ async fn user_display_match(
     }
 
     if let Some(ref winner) = current_match.winner(ctx).await? {
-        let bracket_link = format!("{}bracket/{}/{}#{}",BracketURL::get_url(), tournament.guild_id, tournament.tournament_id, current_match.match_id);
-        if ctx.author().id == winner.id{
+        let bracket_link = format!(
+            "{}bracket/{}/{}#{}",
+            BracketURL::get_url(),
+            tournament.guild_id,
+            tournament.tournament_id,
+            current_match.match_id
+        );
+        if ctx.author().id == winner.id {
             ctx.components().prompt(msg,
                 CreateEmbed::new().title("Match Information.")
                 .description(
@@ -316,7 +327,7 @@ async fn user_display_match(
                     ("Round", &current_match.round()?.to_string(), true),
                 ])
                 , None).await?;
-        } else{
+        } else {
             ctx.components().prompt(msg,
                 CreateEmbed::new().title("Match Information.")
                 .description(format!("Unfortunately, you have lost the current match. Better luck next time!\n View your position [here]({})", bracket_link))
@@ -361,9 +372,7 @@ Note:
 - ⚙️ Make sure the room configuration is set as exactly as below!
 - 🪪 Ensure you and your opponent use the correct account that you have registered with the bot. 
 -# You can view your opponent's profile by clicking the **View Opponent** button below.
-"#, tournament.wins_required),
-                    
-                )
+"#, tournament.wins_required))
                 .fields(vec![
                     ("Tournament", tournament.name.clone(), true),
                     ("Match ID", current_match.match_id.to_owned(), true),
@@ -1042,7 +1051,10 @@ pub async fn display_user_profile_helper(
     let reply = {
         let embed = CreateEmbed::new()
             .title("Match image")
-            .author(CreateEmbedAuthor::new(discord_profile.name.clone()).icon_url(discord_profile.avatar_url().unwrap_or_default()))
+            .author(
+                CreateEmbedAuthor::new(discord_profile.name.clone())
+                    .icon_url(discord_profile.avatar_url().unwrap_or_default()),
+            )
             .description("Here is your additional information of the profile.")
             .color(Color::DARK_GOLD)
             .fields(vec![
@@ -1375,12 +1387,7 @@ async fn submit(
         msg: &ReplyHandle<'_>,
         match_id: &str,
     ) -> Result<bool, BotError> {
-        if let Some(checked_game_match) = ctx
-            .data()
-            .database
-            .get_match_by_id(&match_id)
-            .await?
-        {
+        if let Some(checked_game_match) = ctx.data().database.get_match_by_id(&match_id).await? {
             if checked_game_match.winner(ctx).await?.is_some() {
                 ctx.components()
                     .prompt(
@@ -1712,7 +1719,7 @@ pub async fn finish_match(
     rename = "contact_marshal"
 )]
 pub async fn contact_marshal(
-    ctx: BotContext<'_>, 
+    ctx: BotContext<'_>,
     #[description = "Attachment of the issue"]
     #[rename = "attachment-1"]
     first_attachment: Option<Attachment>,
@@ -1745,19 +1752,25 @@ pub async fn contact_marshal(
     tenth_attachment: Option<Attachment>,
 ) -> Result<(), BotError> {
     let preprocessed_attachments = vec![
-        first_attachment, second_attachment, third_attachment, fourth_attachment, fifth_attachment,
-        sixth_attachment, seventh_attachment, eighth_attachment, ninth_attachment, tenth_attachment
+        first_attachment,
+        second_attachment,
+        third_attachment,
+        fourth_attachment,
+        fifth_attachment,
+        sixth_attachment,
+        seventh_attachment,
+        eighth_attachment,
+        ninth_attachment,
+        tenth_attachment,
     ];
-    let attachments = match process_attachments(preprocessed_attachments).await{
+    let attachments = match process_attachments(preprocessed_attachments).await {
         Ok(att) => att,
-        Err(e) =>{
+        Err(e) => {
             let embed = CreateEmbed::new()
-                    .title("Error processing attachments")
-                    .description(e.to_string())
-                    .color(Color::RED);
-            let reply = CreateReply::default()
-                .embed(embed)
-                .ephemeral(true);
+                .title("Error processing attachments")
+                .description(e.to_string())
+                .color(Color::RED);
+            let reply = CreateReply::default().embed(embed).ephemeral(true);
             ctx.send(reply).await?;
             return Ok(());
         }
@@ -1772,22 +1785,25 @@ pub async fn contact_marshal(
     Ok(())
 }
 
-async fn process_attachments(preprocessed: Vec<Option<Attachment>>) -> Result<Vec<Attachment>, BotError> {
+async fn process_attachments(
+    preprocessed: Vec<Option<Attachment>>,
+) -> Result<Vec<Attachment>, BotError> {
     let extensions: HashSet<&str> = HashSet::from([
         // Image file extensions
-        "jpg", "jpeg", "png", "gif", "webp",
-        // Video file extensions
+        "jpg", "jpeg", "png", "gif", "webp", // Video file extensions
         "mp4", "webm", "mov",
     ]);
     let mut postprocessed: Vec<Attachment> = Vec::with_capacity(preprocessed.len());
-    for attachment in preprocessed{
-        if let Some(att) = attachment{
+    for attachment in preprocessed {
+        if let Some(att) = attachment {
             let ext = att.filename.split('.').last().unwrap_or_default();
-            if ext.starts_with("heic"){
+            if ext.starts_with("heic") {
                 return Err(anyhow!("Dear iOS players, HEIC files are not supported. Please convert the file to a supported format (e.g. PNG, JPEG) and try again."));
-            } 
-            if !extensions.contains(ext){
-                return Err(anyhow!("Unsupported file format. Please upload an image or a video file."));
+            }
+            if !extensions.contains(ext) {
+                return Err(anyhow!(
+                    "Unsupported file format. Please upload an image or a video file."
+                ));
             }
             postprocessed.push(att);
         }

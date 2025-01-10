@@ -1,22 +1,22 @@
 pub mod model;
-use std::str::FromStr;
-use std::vec;
-use anyhow::anyhow;
 use crate::database::{ConfigDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotComponent;
 use crate::{database::PgDatabase, utils::shorthand::BotContextExt, BotContext, BotError};
+use anyhow::anyhow;
 use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
     Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
-    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
-    CreateThread, GuildChannel, Mentionable
+    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread,
+    GuildChannel, Mentionable,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
+use std::str::FromStr;
+use std::vec;
 const AUTO_ARCHIVE_DURATION: AutoArchiveDuration = AutoArchiveDuration::OneDay;
 pub trait MailDatabase {
     async fn get_all_sent_mails(&self, sender: UserId) -> Result<Vec<Mail>, Self::Error>;
@@ -392,7 +392,12 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             thread_name: String,
         ) -> Result<GuildChannel, BotError> {
             let guild_id = ctx.guild_id().ok_or(CommonError::NotInAGuild)?;
-            let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No mail channel set yet"))?;
+            let config = ctx
+                .data()
+                .database
+                .get_config(&guild_id)
+                .await?
+                .ok_or(anyhow!("No mail channel set yet"))?;
             let mail_channel = config.mail_channel(ctx).await?;
             let thread = CreateThread::new(thread_name)
                 .kind(ChannelType::PublicThread)
@@ -708,11 +713,14 @@ async fn open_thread(
                     })
                     .collect();
                 let new_embed = embed
-                        .image(first.url.clone())
-                        .url("https://discord.gg/brawlstars");
+                    .image(first.url.clone())
+                    .url("https://discord.gg/brawlstars");
                 embeds.insert(0, new_embed);
                 CreateMessage::new()
-                    .content(format!("There are {} attachments in this mail!", attachments.len()))
+                    .content(format!(
+                        "There are {} attachments in this mail!",
+                        attachments.len()
+                    ))
                     .components(buttons.clone())
                     .embeds(embeds)
             } else {

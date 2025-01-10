@@ -62,9 +62,8 @@ async fn set_config_slash(
     marshal_role: serenity::Role,
     #[description = "This channel is set for general announcement for the tournament!"]
     announcement_channel: serenity::Channel,
-    #[description = "This channel logs activities"] 
-    log_channel: serenity::Channel,
-    #[description = "This channel is set to receive mails from players!"] 
+    #[description = "This channel logs activities"] log_channel: serenity::Channel,
+    #[description = "This channel is set to receive mails from players!"]
     mail_channel: serenity::Channel,
 ) -> Result<(), BotError> {
     let msg = ctx
@@ -74,7 +73,15 @@ async fn set_config_slash(
                 .ephemeral(true),
         )
         .await?;
-    set_config(ctx, &msg, marshal_role, announcement_channel, mail_channel, log_channel).await
+    set_config(
+        ctx,
+        &msg,
+        marshal_role,
+        announcement_channel,
+        mail_channel,
+        log_channel,
+    )
+    .await
 }
 
 /// Creates a new tournament.
@@ -239,7 +246,9 @@ async fn set_config(
                     msg,
                     CreateEmbed::new()
                         .title("Invalid mail channel")
-                        .description("Please enter a valid server channel to set this mail channel.")
+                        .description(
+                            "Please enter a valid server channel to set this mail channel.",
+                        )
                         .color(Colour::RED),
                     None,
                 )
@@ -257,7 +266,6 @@ async fn set_config(
     };
 
     let marshal_role_id = marshal_role.id;
-    
 
     ctx.data()
         .database
@@ -550,7 +558,11 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
                 .description("The following configuration is currently set for this server.")
                 .fields(vec![
                     ("Marshal Role", marshal_role.mention().to_string(), true),
-                    ("Announcement Channel", announcement_channel.mention().to_string(), true),
+                    (
+                        "Announcement Channel",
+                        announcement_channel.mention().to_string(),
+                        true,
+                    ),
                     ("Mail Channel", mail_channel.mention().to_string(), true),
                     ("Log Channel", log_channel.mention().to_string(), true),
                 ])
@@ -590,7 +602,7 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
             .color(Colour::GOLD)
     };
     preset(ctx, msg).await?;
-    let (m, a,mail, l) = loop {
+    let (m, a, mail, l) = loop {
         let membed = CreateEmbed::default()
             .title("Select Marshal Role")
             .description(
@@ -623,11 +635,21 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
             .components()
             .confirmation(
                 msg,
-                embed(&marshal_role, &announcement_channel, &mail_channel, &log_channel),
+                embed(
+                    &marshal_role,
+                    &announcement_channel,
+                    &mail_channel,
+                    &log_channel,
+                ),
             )
             .await?
         {
-            break (marshal_role, announcement_channel, mail_channel, log_channel);
+            break (
+                marshal_role,
+                announcement_channel,
+                mail_channel,
+                log_channel,
+            );
         }
     };
 
