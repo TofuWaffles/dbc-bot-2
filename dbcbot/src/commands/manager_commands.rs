@@ -2,7 +2,6 @@ use super::CommandsContainer;
 use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
-use crate::mail;
 use crate::utils::discord::splash;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt};

@@ -1,7 +1,7 @@
 pub mod model;
 use std::str::FromStr;
 use std::vec;
-
+use anyhow::anyhow;
 use crate::database::{ConfigDatabase, TournamentDatabase};
 use crate::log::Log;
 use crate::utils::error::CommonError::{self, *};
@@ -12,8 +12,8 @@ use futures::StreamExt;
 use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
     Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
-    CreateAttachment, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
-    CreateThread, GuildChannel, Mentionable, ReactionType, User,
+    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage,
+    CreateThread, GuildChannel, Mentionable
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -391,11 +391,13 @@ impl<'a> MailBotCtx<'a> for BotContext<'a> {
             ctx: &BotContext<'_>,
             thread_name: String,
         ) -> Result<GuildChannel, BotError> {
-            let log_channel = ctx.get_log_channel().await?;
+            let guild_id = ctx.guild_id().ok_or(CommonError::NotInAGuild)?;
+            let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No mail channel set yet"))?;
+            let mail_channel = config.mail_channel(ctx).await?;
             let thread = CreateThread::new(thread_name)
                 .kind(ChannelType::PublicThread)
                 .auto_archive_duration(AUTO_ARCHIVE_DURATION);
-            Ok(log_channel.create_thread(ctx.http(), thread).await?)
+            Ok(mail_channel.create_thread(ctx.http(), thread).await?)
         }
     }
 }
