@@ -1726,40 +1726,8 @@ pub async fn contact_marshal(
     #[description = "Attachment of the issue"]
     #[rename = "attachment-3"]
     third_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-4"]
-    fourth_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-5"]
-    fifth_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-6"]
-    sixth_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-7"]
-    seventh_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-8"]
-    eighth_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-9"]
-    ninth_attachment: Option<Attachment>,
-    #[description = "Attachment of the issue"]
-    #[rename = "attachment-10"]
-    tenth_attachment: Option<Attachment>,
 ) -> Result<(), BotError> {
-    let preprocessed_attachments = vec![
-        first_attachment,
-        second_attachment,
-        third_attachment,
-        fourth_attachment,
-        fifth_attachment,
-        sixth_attachment,
-        seventh_attachment,
-        eighth_attachment,
-        ninth_attachment,
-        tenth_attachment,
-    ];
+    let preprocessed_attachments = vec![first_attachment, second_attachment, third_attachment];
     let attachments = match process_attachments(preprocessed_attachments).await {
         Ok(att) => att,
         Err(e) => {
