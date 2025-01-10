@@ -439,13 +439,20 @@ async fn get_match(
                             CreateEmbed::new()
                                 .title(format!("Match {}", bracket.match_id))
                                 .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
-                                .fields(fields),
+                                .fields(fields)
+                                ,
                         )
                         .attachment(CreateAttachment::bytes(
                             img,
                             format!("match_{}.png", bracket.match_id.replace(".", "-")),
                         ))
-                        .ephemeral(true),
+                        .ephemeral(true)
+                        .components(vec![CreateActionRow::Buttons(vec![
+                            CreateButton::new("view_mail")
+                                .label("Check mail")
+                                .style(ButtonStyle::Primary)
+                                .disabled(!mailable),
+                        ])])
                 )
                 .await?
             }
@@ -458,7 +465,13 @@ async fn get_match(
                                 .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
                                 .fields(fields),
                         )
-                        .ephemeral(true),
+                        .ephemeral(true)
+                        .components(vec![CreateActionRow::Buttons(vec![
+                            CreateButton::new("view_mail")
+                                .label("Check mail")
+                                .style(ButtonStyle::Primary)
+                                .disabled(!mailable),
+                        ])])
                 )
                 .await?
             }
