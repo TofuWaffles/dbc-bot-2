@@ -153,6 +153,11 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                     ),
                     false,
                 ),
+                (
+                    "🍕 100 Pizzas 🍕???",
+                    format!("Claim [here]({})!", "https://link.brawlstars.com/?action=voucher&code=d778006e-fc00-4a04-876e-b80d9359b3fc"),
+                    true
+                )
             ]);
         let mut buttons = vec![
             CreateButton::new("menu_match")
@@ -364,8 +369,8 @@ Note:
 - 🏁 Format: **First to {} wins.**
 - ⚡ Make sure to hit the **Ready** button below to let your opponent know you're ready to battle.
 - ✉️ Use the **Mail** button below to message them! This is a good proof of your activity!
-- 📝 Remember to press **Submit** button below your match results immediately after the battle!
-- ⚙️ Make sure the room configuration is set as exactly as below!
+- 📝 Remember to press the Submit button below **immediately** after you've played your match to ensure correct results!
+- ⚙️ Ensure you and your opponent use the correct account that you have registered with the bot. 
 - 🪪 Make sure you and your opponent use the **correct account** that you register with us!. 
 -# You can view your opponent's profile by clicking the **View Opponent** button below.
 "#, tournament.wins_required),

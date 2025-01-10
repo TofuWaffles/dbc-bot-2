@@ -426,36 +426,50 @@ async fn get_match(
         }
     };
 
-    let images = ctx
+    let msg = match ctx
         .data()
         .apis
         .images
         .match_image(&player_1, &player_2)
-        .await?;
-    let msg = ctx.send(
-        CreateReply::default()
-            .embed(
-                CreateEmbed::new()
-                    .title(format!("Match {}", bracket.match_id))
-                    .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
-                    .fields(fields),
-            )
-            .attachment(CreateAttachment::bytes(
-                images,
-                format!("match_{}.png", bracket.match_id.replace(".", "-")),
-            ))
-            .components(vec![CreateActionRow::Buttons(if mailable {vec![CreateButton::new("view_mail").label("View Mail").style(ButtonStyle::Primary)] } else {vec![]})])
-            .ephemeral(true),
-    )
-    .await?;
-    ctx.defer_ephemeral().await?;
-
+        .await{
+            Ok(img) => {
+                ctx.send(
+                    CreateReply::default()
+                        .embed(
+                            CreateEmbed::new()
+                                .title(format!("Match {}", bracket.match_id))
+                                .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
+                                .fields(fields),
+                        )
+                        .attachment(CreateAttachment::bytes(
+                            img,
+                            format!("match_{}.png", bracket.match_id.replace(".", "-")),
+                        ))
+                        .ephemeral(true),
+                )
+                .await?
+            }
+            Err(_) => {
+                ctx.send(
+                    CreateReply::default()
+                        .embed(
+                            CreateEmbed::new()
+                                .title(format!("Match {}", bracket.match_id))
+                                .description(format!("View the position of the players in the bracket [here]({}/bracket/{}/{}#{})", BracketURL::get_url(), guild_id.to_string(), bracket.tournament().unwrap(), bracket.match_id))
+                                .fields(fields),
+                        )
+                        .ephemeral(true),
+                )
+                .await?
+            }
+        };
     if !mailable {
         return Ok(());
     }
     let mut ic = ctx.create_interaction_collector(&msg).await?;
     if let Some(interactions) = &ic.next().await {
         if interactions.data.custom_id.as_str() == "view_mail" {
+            interactions.defer(ctx).await?;
             extract_convo_helper(
                 &ctx,
                 &msg,
