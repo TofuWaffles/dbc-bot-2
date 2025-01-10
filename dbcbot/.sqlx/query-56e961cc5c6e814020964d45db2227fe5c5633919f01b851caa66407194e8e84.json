@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO config (guild_id, marshal_role_id, log_channel_id, mail_channel_id, announcement_channel_id)\n            VALUES ($1, $2, $3, $4, $5)\n            ON CONFLICT (guild_id)\n            DO UPDATE SET\n                marshal_role_id = $2,\n                log_channel_id = $3,\n                mail_channel_id = $4,\n                announcement_channel_id = $5\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "56e961cc5c6e814020964d45db2227fe5c5633919f01b851caa66407194e8e84"
+}

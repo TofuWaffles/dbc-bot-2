@@ -1,3 +1,4 @@
+from asyncio.log import logger
 import io
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
@@ -154,13 +155,15 @@ class Asset:
                 response.raise_for_status()
                 bytes_ = response.content
                 image = Image.open(io.BytesIO(bytes_))
+                if image is None:
+                    return Asset.get_image("28000000.png"), None
                 return image, None
-        except httpx.HTTPStatusError as e:
-            return None, e
+        except (httpx.HTTPStatusError, OSError) as e:
+            logger.error(f"An error occurred while fetching the player icon: {e}")
+            return Asset.get_image("28000000.png"), None
         except Exception as e:
-            return None, e
-        finally:
-            await client.aclose()
+            logger.error(f"An error occurred while fetching the player icon: {e}")
+            return Asset.get_image("28000000.png"), None
 
     @staticmethod
     async def get_mode_icon(

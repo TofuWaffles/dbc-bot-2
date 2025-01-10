@@ -22,6 +22,11 @@
         "ordinal": 3,
         "name": "announcement_channel_id",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "mail_channel_id",
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
@@ -30,6 +35,7 @@
       ]
     },
     "nullable": [
+      false,
       false,
       false,
       false,

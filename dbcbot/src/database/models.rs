@@ -38,8 +38,11 @@ pub struct GuildConfig {
     pub guild_id: String,
     pub marshal_role_id: String,
     pub log_channel_id: String,
+    pub mail_channel_id: String,
     pub announcement_channel_id: String,
 }
+
+
 
 impl DiscordTrait for GuildConfig {}
 
@@ -51,6 +54,10 @@ impl GuildConfig {
 
     pub async fn log_channel(&self, ctx: &BotContext<'_>) -> Result<GuildChannel, BotError> {
         Self::to_channel(ctx, &self.log_channel_id).await
+    }
+
+    pub async fn mail_channel(&self, ctx: &BotContext<'_>) -> Result<GuildChannel, BotError> {
+        Self::to_channel(ctx, &self.mail_channel_id).await
     }
     pub async fn announcement_channel(
         &self,

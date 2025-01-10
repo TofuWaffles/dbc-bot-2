@@ -2,6 +2,7 @@ use super::CommandsContainer;
 use crate::database::models::{Mode, Tournament};
 use crate::database::{MatchDatabase, TournamentDatabase};
 use crate::log::Log;
+use crate::mail;
 use crate::utils::discord::splash;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::{BotComponent, BotContextExt};
@@ -62,7 +63,10 @@ async fn set_config_slash(
     marshal_role: serenity::Role,
     #[description = "This channel is set for general announcement for the tournament!"]
     announcement_channel: serenity::Channel,
-    #[description = "This channel logs activities"] log_channel: serenity::Channel,
+    #[description = "This channel logs activities"] 
+    log_channel: serenity::Channel,
+    #[description = "This channel is set to receive mails from players!"] 
+    mail_channel: serenity::Channel,
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
@@ -71,7 +75,7 @@ async fn set_config_slash(
                 .ephemeral(true),
         )
         .await?;
-    set_config(ctx, &msg, marshal_role, announcement_channel, log_channel).await
+    set_config(ctx, &msg, marshal_role, announcement_channel, mail_channel, log_channel).await
 }
 
 /// Creates a new tournament.
@@ -172,6 +176,7 @@ async fn set_config(
     msg: &ReplyHandle<'_>,
     marshal_role: serenity::Role,
     announcement_channel: serenity::Channel,
+    mail_channel: serenity::Channel,
     log_channel: serenity::Channel,
 ) -> Result<(), BotError> {
     let id = announcement_channel.id().to_string();
@@ -227,7 +232,33 @@ async fn set_config(
         }
     };
 
+    let mail_channel_id = match mail_channel.guild() {
+        Some(guild) => guild.id,
+        None => {
+            ctx.components()
+                .prompt(
+                    msg,
+                    CreateEmbed::new()
+                        .title("Invalid mail channel")
+                        .description("Please enter a valid server channel to set this mail channel.")
+                        .color(Colour::RED),
+                    None,
+                )
+                .await?;
+            let log = ctx.build_log(
+                "MANAGER CONFIGURATION SET FAILED!",
+                format!("Invalid mail channel selected: {}", id),
+                log::State::FAILURE,
+                log::Model::MARSHAL,
+            );
+            ctx.log(log, None).await?;
+            error!("Invalid mail channel entered by {}", ctx.author());
+            return Err(ChannelNotExists(id).into());
+        }
+    };
+
     let marshal_role_id = marshal_role.id;
+    
 
     ctx.data()
         .database
@@ -235,6 +266,7 @@ async fn set_config(
             ctx.guild_id().ok_or(NotInAGuild)?.as_ref(),
             marshal_role_id.as_ref(),
             log_channel_id.as_ref(),
+            mail_channel_id.as_ref(),
             announcement_channel_id.as_ref(),
         )
         .await?;
@@ -509,18 +541,20 @@ async fn step_by_step_config(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Res
     async fn preset(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Result<(), BotError> {
         let config = ctx.get_config().await?;
         if let Some(c) = config {
+            let marshal_role = c.marshal(ctx).await?;
+            let announcement_channel = c.announcement_channel(ctx).await?;
+            let log_channel = c.log_channel(ctx).await?;
+            let mail_channel = c.mail_channel(ctx).await?;
+
             let embed = CreateEmbed::default()
-                .title("Configuration Already Set For This Server")
-                .description(format!(
-                    r#"Configuration already set for this server.\n
-Marshal role: <@&{role}>,
-Announcement channel: <#{ann}>,
-Log channel: <#{log}>.                
-"#,
-                    role = c.marshal_role_id,
-                    ann = c.announcement_channel_id,
-                    log = c.log_channel_id
-                ))
+                .title("Server Configuration")
+                .description("The following configuration is currently set for this server.")
+                .fields(vec![
+                    ("Marshal Role", marshal_role.mention().to_string(), true),
+                    ("Announcement Channel", announcement_channel.mention().to_string(), true),
+                    ("Mail Channel", mail_channel.mention().to_string(), true),
+                    ("Log Channel", log_channel.mention().to_string(), true),
+                ])
                 .color(Colour::GOLD);
             let components = vec![CreateActionRow::Buttons(vec![CreateButton::new("edit")
                 .style(serenity::ButtonStyle::Primary)
@@ -544,23 +578,20 @@ Log channel: <#{log}>.
         }
         Ok(())
     }
-    let embed = |m: &Role, a: &Channel, l: &Channel| {
+    let embed = |m: &Role, a: &Channel, mail: &Channel, l: &Channel| {
         CreateEmbed::default()
             .title("Configuration Confirmation")
-            .description(format!(
-                r#"Please confirm the following configuration:
-Marshal role: <@&{role}>,
-Announcement channel: <#{ann}>,
-Log channel: <#{log}>.
-"#,
-                role = m.id.get(),
-                ann = a.id().get(),
-                log = l.id().get()
-            ))
+            .description("Please confirm the following configuration:")
+            .fields(vec![
+                ("Marshal Role", m.mention().to_string(), true),
+                ("Announcement Channel", a.mention().to_string(), true),
+                ("Mail Channel", mail.mention().to_string(), true),
+                ("Log Channel", l.mention().to_string(), true),
+            ])
             .color(Colour::GOLD)
     };
     preset(ctx, msg).await?;
-    let (m, a, l) = loop {
+    let (m, a,mail, l) = loop {
         let membed = CreateEmbed::default()
             .title("Select Marshal Role")
             .description(
@@ -582,19 +613,26 @@ Log channel: <#{log}>.
                 "Please select the channel where the bot will log all the actions it takes.",
             );
         let log_channel = ctx.components().select_channel(msg, lembed).await?;
+        splash(ctx, msg).await?;
+        let mail_embed = CreateEmbed::default()
+            .title("Select Mail Channel")
+            .description(
+                "Please select the channel where the bot will send mails to players about their progress and matches.",
+            );
+        let mail_channel = ctx.components().select_channel(msg, mail_embed).await?;
         if ctx
             .components()
             .confirmation(
                 msg,
-                embed(&marshal_role, &announcement_channel, &log_channel),
+                embed(&marshal_role, &announcement_channel, &mail_channel, &log_channel),
             )
             .await?
         {
-            break (marshal_role, announcement_channel, log_channel);
+            break (marshal_role, announcement_channel, mail_channel, log_channel);
         }
     };
 
-    set_config(*ctx, msg, m, a, l).await?;
+    set_config(*ctx, msg, m, a, mail, l).await?;
     Ok(())
 }
 

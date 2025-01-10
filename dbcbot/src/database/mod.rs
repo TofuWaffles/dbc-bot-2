@@ -67,6 +67,7 @@ pub trait ConfigDatabase {
         guild_id: &GuildId,
         marshal_role_id: &RoleId,
         log_channel_id: &ChannelId,
+        mail_channel_id: &ChannelId,
         announcement_channel_id: &ChannelId,
     ) -> Result<(), Self::Error>;
 
@@ -112,21 +113,24 @@ impl ConfigDatabase for PgDatabase {
         guild_id: &GuildId,
         marshal_role_id: &RoleId,
         log_channel_id: &ChannelId,
+        mail_channel_id: &ChannelId,
         announcement_channel_id: &ChannelId,
     ) -> Result<(), Self::Error> {
         sqlx::query!(
             r#"
-            INSERT INTO config (guild_id, marshal_role_id, log_channel_id, announcement_channel_id)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO config (guild_id, marshal_role_id, log_channel_id, mail_channel_id, announcement_channel_id)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (guild_id)
             DO UPDATE SET
                 marshal_role_id = $2,
                 log_channel_id = $3,
-                announcement_channel_id = $4
+                mail_channel_id = $4,
+                announcement_channel_id = $5
             "#,
             guild_id.to_string(),
             marshal_role_id.to_string(),
             log_channel_id.to_string(),
+            mail_channel_id.to_string(),
             announcement_channel_id.to_string()
         )
         .execute(&self.pool)
