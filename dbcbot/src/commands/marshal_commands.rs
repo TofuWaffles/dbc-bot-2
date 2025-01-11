@@ -2321,10 +2321,26 @@ async fn view_match_context(
             ("Player 2", p2, false),
             ("Player 2 Ready", p2r, true),
         ]);
-
-    msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true))
+    let mailable = current_match.match_players.len() == 2;
+    let btns = vec![CreateActionRow::Buttons(vec![CreateButton::new("mail")
+        .label("Extract Mail")
+        .emoji(ReactionType::Unicode("👀".to_string()))
+        .style(poise::serenity_prelude::ButtonStyle::Primary)
+        .disabled(!mailable)
+        ])];
+    msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true).components(btns))
         .await?;
-
+    let mut ic = ctx.create_interaction_collector(&msg).await?;
+    if let Some(interactions) = ic.next().await {
+        if interactions.data.custom_id.as_str() == "mail" {
+            extract_convo_helper(
+                &ctx, 
+                &msg, 
+                &current_match.match_players[0].to_user(&ctx).await?, 
+                &current_match.match_players[1].to_user(&ctx).await?
+            ).await?;
+        }
+    }
     Ok(())
 }
 

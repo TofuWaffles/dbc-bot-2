@@ -6,8 +6,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse,
-    CreateInteractionResponseMessage, CreateQuickModal, Mentionable,
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, CreateQuickModal, EditChannel, Mentionable
 };
 pub async fn event_handler(
     ctx: &serenity::Context,
@@ -19,17 +18,22 @@ pub async fn event_handler(
         serenity::FullEvent::InteractionCreate {
             interaction: serenity::Interaction::Component(component),
         } => {
-            if component.data.custom_id.starts_with("marshal_mail") {
-                let recipient_id = component
-                    .data
-                    .custom_id
-                    .split("_")
-                    .nth(2)
-                    .map(|s| s.parse::<i64>())
-                    .ok_or_else(|| anyhow!("Invalid marshal_mail id"))??;
-
-                handle_mail(ctx, data, component, recipient_id).await?;
-            }
+            match component.data.custom_id.as_str(){
+                marshal_mail if marshal_mail.starts_with("marshal_mail") => {
+                    let recipient_id = component
+                        .data
+                        .custom_id
+                        .split("_")
+                        .nth(2)
+                        .map(|s| s.parse::<i64>())
+                        .ok_or_else(|| anyhow!("Invalid marshal_mail id"))??;
+                    handle_mail(ctx, data, component, recipient_id).await?;
+                }
+                "resolved" => {
+                    handle_close_thread(ctx, component).await?;
+                }
+                _ => {}
+            };
         }
         _ => {}
     }
@@ -92,5 +96,17 @@ async fn handle_mail(
         .interaction
         .create_response(ctx, CreateInteractionResponse::Message(builder))
         .await?;
+    Ok(())
+}
+
+
+async fn handle_close_thread(
+    ctx: &serenity::Context,
+    mci: &ComponentInteraction
+) -> Result<(), BotError> {
+    let channel = mci.channel_id;
+    let name = channel.name(ctx).await?;
+    let edited_channel = EditChannel::new().name(format!("[RESOLVED]{}", name));
+    channel.edit(ctx, edited_channel).await?;
     Ok(())
 }

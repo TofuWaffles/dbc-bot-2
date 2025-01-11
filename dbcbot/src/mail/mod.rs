@@ -686,9 +686,14 @@ async fn open_thread(
     mail_id: i64,
 ) -> Result<(), BotError> {
     let btn_id = format!("marshal_mail_{}", mail_id);
-    let buttons = vec![CreateActionRow::Buttons(vec![CreateButton::new(btn_id)
-        .label("Respond")
-        .style(ButtonStyle::Danger)])];
+    let buttons = vec![CreateActionRow::Buttons(vec![
+        CreateButton::new(btn_id)
+            .label("Respond")
+            .style(ButtonStyle::Danger),
+        CreateButton::new("resolved")
+            .label("Resolved")
+            .style(ButtonStyle::Success),
+            ])];
     let reply = match attachments.len() {
         0 => CreateMessage::new()
             .content("There is no attachment in this mail!")
