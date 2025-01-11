@@ -28,12 +28,12 @@ pub async fn event_handler(
                         .map(|s| s.parse::<i64>())
                         .ok_or_else(|| anyhow!("Invalid marshal_mail id"))??;
                     handle_mail(ctx, data, component, recipient_id).await?;
-                }
+                },
                 "resolved" => {
                     handle_close_thread(ctx, component).await?;
-                }
+                },
                 _ => {}
-            };
+            }
         }
         _ => {}
     }
@@ -108,5 +108,6 @@ async fn handle_close_thread(
     let name = channel.name(ctx).await?;
     let edited_channel = EditChannel::new().name(format!("[RESOLVED]{}", name));
     channel.edit(ctx, edited_channel).await?;
+    mci.defer(ctx).await?;
     Ok(())
 }

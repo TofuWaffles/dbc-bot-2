@@ -9,9 +9,7 @@ use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
-    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread,
-    GuildChannel, Mentionable,
+    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, EditChannel, GuildChannel, Mentionable
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -603,11 +601,6 @@ async fn inbox_helper(
                 ctx.outbox(msg).await?;
             }
             id => {
-                println!(
-                    "Opening mail id: {} as {}",
-                    id,
-                    ["inbox", "outbox"][outbox as usize]
-                );
                 let mail = chunked_mail[page_number]
                     .iter()
                     .find(|mail| mail.id.to_string() == id)
@@ -685,6 +678,7 @@ async fn open_thread(
     thread: GuildChannel,
     mail_id: i64,
 ) -> Result<(), BotError> {
+    resolve_check(ctx, &mut thread.clone()).await?;
     let btn_id = format!("marshal_mail_{}", mail_id);
     let buttons = vec![CreateActionRow::Buttons(vec![
         CreateButton::new(btn_id)
@@ -736,5 +730,13 @@ async fn open_thread(
         }
     };
     thread.send_message(ctx.http(), reply).await?;
+    Ok(())
+}
+
+async fn resolve_check(ctx: &BotContext<'_>, thread: &mut GuildChannel) -> Result<(), BotError>{
+    if thread.name().starts_with("[RESOLVED]"){
+        let edited_thread = EditChannel::new().name(thread.name().replace("[RESOLVED]", ""));
+        thread.edit(ctx.http(), edited_thread).await?;
+    }
     Ok(())
 }
