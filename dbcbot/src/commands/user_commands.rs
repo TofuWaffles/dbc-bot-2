@@ -1690,12 +1690,12 @@ pub async fn finish_match(
             score,
         )
         .await?;
-
+    let round = bracket.round()?;
     let embed = CreateEmbed::new()
         .title("Match submission!")
         .description(format!(
             "Congratulations! <@{}> passes Round {}",
-            winner.discord_id, tournament.current_round
+            winner.discord_id, round
         ))
         .thumbnail(winner.icon());
     let channel = tournament.announcement_channel(ctx).await?;
