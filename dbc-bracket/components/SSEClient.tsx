@@ -11,8 +11,14 @@ interface SSEData {
   tournament: Tournament;
   matches: MatchType[];
 }
+
+interface Metadata{
+  name: string;
+  id: string;
+  currentRound: number;
+}
 const allMatchIds = new Set<string | number>();
-const SSEClient: React.FC<{ path: string }> = ({ path }) => {
+const SSEClient: React.FC<{ path: string, metadata: Metadata}> = ({ path, metadata }) => {
   const [data, setData] = useState<SSEData | null>(null);
   const [error, setError] = useState<string | null>(null);
  
@@ -41,7 +47,16 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
   }
 
   if (!data) {
-    return <Loading />;
+    return (
+      <>
+        <Head>
+          <meta property="og:title" content="Discord Brawl Cup" />
+          <meta property="og:description" content={`View live result of ${metadata.name} tournament at round ${metadata.currentRound}`} />
+          <title>Discord Brawl Cup</title>
+        </Head>
+        <Loading />
+      </>
+    )
   }
 
   const { tournament, matches } = data;
@@ -52,7 +67,8 @@ const SSEClient: React.FC<{ path: string }> = ({ path }) => {
     <div className='w-full h-full flex flex-col'>
       <Head>
         <meta property="og:title" content="Discord Brawl Cup" />
-        <meta property="og:description" content={`View live result of ${tournament.name} here\nRound: ${tournament.current_round}`} />
+        <meta property="og:description" content={`View live result of ${metadata.name} tournament at round ${metadata.currentRound}`} />
+        <title>Discord Brawl Cup</title>
       </Head>
       <div className='w-full flex-none'>
         <DisplayTournament tournament={tournament} />
