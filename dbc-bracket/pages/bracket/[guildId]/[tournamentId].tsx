@@ -22,9 +22,8 @@ const BracketHome: React.FC<Metadata> = (metadata) => {
 };
 
 export const getServerSideProps: GetServerSideProps = async ({ query }) => {
-    const tournamentId = encode(query).split('=')[2]; // extract guildId from query
-
-  
+    const tournamentId = encode(query).split('=')[2]; // extract tournamentId from query
+    console.log("Tournament id:",tournamentId);
     const [tournament, error] = await TournamentService.getTournamentById(tournamentId);
     if (error) {
       return { props: { error: 'Failed to load match data' } };
