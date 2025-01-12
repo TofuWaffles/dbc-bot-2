@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseMessage, CreateQuickModal, EditChannel, Mentionable
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseFollowup, CreateInteractionResponseMessage, CreateQuickModal, EditChannel, Mentionable
 };
 pub async fn event_handler(
     ctx: &serenity::Context,
@@ -106,6 +106,13 @@ async fn handle_close_thread(
 ) -> Result<(), BotError> {
     let channel = mci.channel_id;
     let name = channel.name(ctx).await?;
+    if name.starts_with("[RESOLVED]") {
+        let followup = CreateInteractionResponseFollowup::new()
+            .content("This thread is already resolved")
+            .ephemeral(true);
+        mci.create_followup(ctx, followup).await?;
+        return Ok(());
+    } 
     let edited_channel = EditChannel::new().name(format!("[RESOLVED]{}", name));
     channel.edit(ctx, edited_channel).await?;
     mci.defer(ctx).await?;
