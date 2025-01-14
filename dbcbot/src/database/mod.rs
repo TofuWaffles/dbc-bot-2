@@ -53,6 +53,7 @@ impl PgDatabase {
 }
 
 pub trait ConfigDatabase {
+    async fn update_mail_channel(&self, guild_id: &GuildId, mail_channel_id: &ChannelId) -> Result<(), Self::Error>;
     type Error;
     /// Sets the manager role for a guild.
     async fn set_manager_role(
@@ -187,6 +188,26 @@ impl ConfigDatabase for PgDatabase {
             None => return Err(anyhow!("No marshal role found")),
         };
         Ok(marshal.parse().ok())
+    }
+
+    async fn update_mail_channel(
+        &self,
+        guild_id: &GuildId,
+        mail_channel_id: &ChannelId,
+    ) -> Result<(), Self::Error> {
+        sqlx::query!(
+            r#"
+            UPDATE config
+            SET mail_channel_id = $1
+            WHERE guild_id = $2
+            "#,
+            mail_channel_id.to_string(),
+            guild_id.to_string()
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 }
 pub trait UserDatabase {

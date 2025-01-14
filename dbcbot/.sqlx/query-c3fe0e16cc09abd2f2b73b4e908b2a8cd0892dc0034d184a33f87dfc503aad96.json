@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE config\n            SET mail_channel_id = $1\n            WHERE guild_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c3fe0e16cc09abd2f2b73b4e908b2a8cd0892dc0034d184a33f87dfc503aad96"
+}

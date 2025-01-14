@@ -1,4 +1,4 @@
-use super::{BattleDatabase, Database, MatchDatabase, TournamentDatabase};
+use super::{BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase};
 use crate::api::official_brawl_stars::TeamPlayer;
 use crate::utils::discord::DiscordTrait;
 use crate::utils::error::CommonError::*;
@@ -63,6 +63,19 @@ impl GuildConfig {
     ) -> Result<GuildChannel, BotError> {
         Self::to_channel(ctx, &self.announcement_channel_id).await
     }
+
+    pub async fn update_mail_channel(
+        &self,
+        ctx: &BotContext<'_>,
+        channel: &Channel,
+    ) -> Result<(), BotError> {
+        let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+        ctx.data()
+            .database
+            .update_mail_channel(&guild_id, &channel.id())
+            .await?;
+        Ok(())
+    }
 }
 
 /// The status of a tournament. Used to know if a tournament should be paused, retired, etc.
@@ -120,6 +133,7 @@ impl Tournament {
             .await
             .map_err(|_| ChannelNotExists(self.notification_channel_id.clone()))?)
     }
+
     pub async fn player_role(&self, ctx: &BotContext<'_>) -> Result<Option<Role>, BotError> {
         if let Some(role) = &self.tournament_role_id {
             return Ok(Some(

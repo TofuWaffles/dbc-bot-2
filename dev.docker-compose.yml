@@ -22,7 +22,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./dbcbot/migrations:/docker-entrypoint-initdb.d
-    restart: always
+    restart: "no"
     networks:
       - postgresql
     healthcheck:
@@ -46,7 +46,7 @@ services:
     volumes:
       - /etc/ssl/certs/:/etc/ssl/certs:ro
       - .:/workspace:cached
-    restart: always
+    restart: "no"
     depends_on:
       - postgres
       - images
@@ -69,7 +69,7 @@ services:
     restart: always
     networks:
       - images
-    command: sleep infinity
+    command: "no"
     logging:
       driver: "json-file"
       options:
@@ -92,7 +92,7 @@ services:
       - postgresql
       - bracket
     restart: always
-    command: sleep infinity
+    command: "no"
     logging:
       driver: "json-file"
       options:

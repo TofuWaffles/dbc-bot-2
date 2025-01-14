@@ -7,7 +7,7 @@ use crate::commands::user_commands::display_user_profile_helper;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
-use crate::database::{BattleDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
 use crate::mail::MailDatabase;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotComponent;
@@ -21,6 +21,7 @@ use crate::{
 use anyhow::anyhow;
 use chrono::DateTime;
 use futures::StreamExt;
+use poise::serenity_prelude::model::guild;
 use poise::serenity_prelude::{
     ButtonStyle, Color, CreateActionRow, CreateAttachment, CreateButton, CreateEmbedFooter,
     Mentionable, ReactionType, UserId,
@@ -1077,7 +1078,7 @@ async fn next_round(
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
-            CreateReply::default().embed(CreateEmbed::default().description("Running commands...")),
+            CreateReply::default().embed(CreateEmbed::default().description("Running commands...")).ephemeral(true),
         )
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
@@ -1170,16 +1171,14 @@ async fn next_round_helper(
             .set_map(tournament.tournament_id, &(map.into()))
             .await?;
     }
+    let embed = CreateEmbed::new()
+        .title("Tournament advanced!")
+        .description(format!(
+            "The tournament has advanced to round {}",
+            new_round
+        ));
+    ctx.components().prompt(msg, embed, None).await?;
 
-    ctx.send(
-        CreateReply::default()
-            .content(format!(
-                "Successfully advanced the tournament with ID {} to the round {}.",
-                tournament.tournament_id, new_round
-            ))
-            .ephemeral(true),
-    )
-    .await?;
     let description = format!(r#"The tournament has advanced to round {}"#, new_round,);
     let fields = vec![
         ("Tournament ID", tournament.tournament_id.to_string(), true),
@@ -1459,6 +1458,9 @@ async fn tournament_property_page(
                     .database
                     .set_tournament_status(t.tournament_id, status)
                     .await?;
+                t.update(ctx).await?;
+                let log = ctx.build_log("Tournament status updated", format!("The status of the tournament has updated to {} in {} `{}`", t.status, t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                ctx.log(log, None).await?;
             }
             "win" => {
                 #[derive(poise::Modal)]
@@ -1476,6 +1478,9 @@ async fn tournament_property_page(
                     .database
                     .set_wins_required(&t.tournament_id, &wins)
                     .await?;
+                t.update(ctx).await?;
+                let log = ctx.build_log("Wins required updated", format!("The number of wins required to win a match has been updated to {} in tournament {} `{}`", wins, t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                ctx.log(log, None).await?;
             }
             "mode" => {
                 interactions
@@ -1487,6 +1492,9 @@ async fn tournament_property_page(
                 let mode = ctx.components().mode_selection(msg).await?;
                 ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
+                t.update(ctx).await?;
+                let log = ctx.build_log("Mode updated", format!("The mode has been updated to {} in {} `{}`", t.mode.to_string(), t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                ctx.log(log, None).await?;
             }
             "map" => {
                 interactions
@@ -1500,6 +1508,9 @@ async fn tournament_property_page(
                     .database
                     .set_map(t.tournament_id, &map.into())
                     .await?;
+                t.update(ctx).await?;
+                let log = ctx.build_log("Map updated", format!("The map has been updated to {} in {} `{}`", t.map.name, t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                ctx.log(log, None).await?;
             }
             "advanced" => {
                 interactions.defer(ctx.http()).await?;
@@ -1507,7 +1518,7 @@ async fn tournament_property_page(
             }
             _ => {}
         }
-        t.update(ctx).await?;
+  
         ctx.components().prompt(msg, embed(&t), buttons(&t)).await?;
     }
     Ok(())
@@ -1532,12 +1543,19 @@ async fn advance_page(
             .label("Participant Role")
             .emoji(ReactionType::Unicode("🗺️".to_string()))
             .style(poise::serenity_prelude::ButtonStyle::Primary),
+        CreateButton::new("mail")
+            .label("Mail")
+            .emoji(ReactionType::Unicode("📧".to_string()))
+            .style(poise::serenity_prelude::ButtonStyle::Primary),
     ];
 
     async fn embed(ctx: &BotContext<'_>, t: &Tournament) -> Result<CreateEmbed, BotError> {
         let embed = {
             let ac = t.announcement_channel(ctx).await?;
             let nc = t.notification_channel(ctx).await?;
+            let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+            let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No configuration for this server not found"))?;
+            let mc = config.mail_channel(ctx).await?;
             let pr = t.player_role(ctx).await?;
             CreateEmbed::new()
                 .title("Tournament configuration")
@@ -1553,6 +1571,7 @@ Current configuration:
                 .fields(vec![
                     ("Announcement Channel", ac.mention().to_string(), true),
                     ("Notification Channel", nc.mention().to_string(), true),
+                    ("Mail channel", mc.mention().to_string(), true),
                     if let Some(role) = pr {
                         ("Participant Role", role.mention().to_string(), true)
                     } else {
@@ -1607,6 +1626,21 @@ Current configuration:
                     .description("Select the role that will be assigned to the participants");
                 let role = ctx.components().select_role(msg, embed).await?;
                 t.set_player_role(ctx, &role).await?;
+            },
+            "mail" => {
+                interaction
+                    .create_response(
+                        ctx,
+                        poise::serenity_prelude::CreateInteractionResponse::Acknowledge,
+                    )
+                    .await?;
+                let embed = CreateEmbed::new()
+                    .title("Mail Channel")
+                    .description("Select the channel where the mail will be sent");
+                let channel = ctx.components().select_channel(msg, embed).await?;
+                let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
+                let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No configuration for this server not found"))?;
+                config.update_mail_channel(ctx, &channel).await?;
             }
             _ => continue,
         }
