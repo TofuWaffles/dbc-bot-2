@@ -1546,7 +1546,7 @@ pub async fn finish_tournament(
 
     let mut semi_finalists_str = "".to_string();
     if let 2.. = tournament.rounds {
-        semi_finalists_str.push_str("\n\nSemi-finalists:\n");
+        semi_finalists_str.push_str("\n\nFinalists:\n");
         ctx.data()
             .database
             .get_matches_by_tournament(tournament_id, tournament.rounds - 1)
@@ -1561,7 +1561,7 @@ pub async fn finish_tournament(
 
     let mut quarter_finalists_str = "".to_string();
     if let 3.. = tournament.rounds {
-        quarter_finalists_str.push_str("\n\nQuarter-finalists:\n");
+        quarter_finalists_str.push_str("\n\nSemi-finalists:\n");
         ctx.data()
             .database
             .get_matches_by_tournament(tournament_id, tournament.rounds - 2)
@@ -1780,3 +1780,4 @@ async fn process_attachments(
     }
     Ok(postprocessed)
 }
+
