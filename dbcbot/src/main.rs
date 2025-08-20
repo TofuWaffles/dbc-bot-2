@@ -71,7 +71,7 @@ pub struct BracketURL;
 
 impl BracketURL {
     pub fn get_url() -> String {
-        "https://discordbrawlcup.ddns.net/".to_string()
+        std::env::var("DOMAIN");
     }
 }
 
