@@ -1780,4 +1780,3 @@ async fn process_attachments(
     }
     Ok(postprocessed)
 }
-

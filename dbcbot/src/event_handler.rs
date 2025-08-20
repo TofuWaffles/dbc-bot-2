@@ -6,7 +6,9 @@ use crate::{
 };
 use anyhow::anyhow;
 use poise::serenity_prelude::{
-    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse, CreateInteractionResponseFollowup, CreateInteractionResponseMessage, CreateQuickModal, EditChannel, Mentionable
+    self as serenity, ComponentInteraction, CreateEmbed, CreateInteractionResponse,
+    CreateInteractionResponseFollowup, CreateInteractionResponseMessage, CreateQuickModal,
+    EditChannel, Mentionable,
 };
 pub async fn event_handler(
     ctx: &serenity::Context,
@@ -17,24 +19,22 @@ pub async fn event_handler(
     match event {
         serenity::FullEvent::InteractionCreate {
             interaction: serenity::Interaction::Component(component),
-        } => {
-            match component.data.custom_id.as_str(){
-                marshal_mail if marshal_mail.starts_with("marshal_mail") => {
-                    let recipient_id = component
-                        .data
-                        .custom_id
-                        .split("_")
-                        .nth(2)
-                        .map(|s| s.parse::<i64>())
-                        .ok_or_else(|| anyhow!("Invalid marshal_mail id"))??;
-                    handle_mail(ctx, data, component, recipient_id).await?;
-                },
-                "resolved" => {
-                    handle_close_thread(ctx, component).await?;
-                },
-                _ => {}
+        } => match component.data.custom_id.as_str() {
+            marshal_mail if marshal_mail.starts_with("marshal_mail") => {
+                let recipient_id = component
+                    .data
+                    .custom_id
+                    .split("_")
+                    .nth(2)
+                    .map(|s| s.parse::<i64>())
+                    .ok_or_else(|| anyhow!("Invalid marshal_mail id"))??;
+                handle_mail(ctx, data, component, recipient_id).await?;
             }
-        }
+            "resolved" => {
+                handle_close_thread(ctx, component).await?;
+            }
+            _ => {}
+        },
         _ => {}
     }
     Ok(())
@@ -99,10 +99,9 @@ async fn handle_mail(
     Ok(())
 }
 
-
 async fn handle_close_thread(
     ctx: &serenity::Context,
-    mci: &ComponentInteraction
+    mci: &ComponentInteraction,
 ) -> Result<(), BotError> {
     let channel = mci.channel_id;
     let name = channel.name(ctx).await?;
@@ -112,7 +111,7 @@ async fn handle_close_thread(
             .ephemeral(true);
         mci.create_followup(ctx, followup).await?;
         return Ok(());
-    } 
+    }
     let edited_channel = EditChannel::new().name(format!("[RESOLVED]{}", name));
     channel.edit(ctx, edited_channel).await?;
     mci.defer(ctx).await?;

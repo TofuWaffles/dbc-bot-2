@@ -7,7 +7,9 @@ use crate::commands::user_commands::display_user_profile_helper;
 use crate::database::models::{
     BrawlMap, MatchPlayer, Player, PlayerType, Tournament, TournamentStatus,
 };
-use crate::database::{BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase};
+use crate::database::{
+    BattleDatabase, ConfigDatabase, Database, MatchDatabase, TournamentDatabase, UserDatabase,
+};
 use crate::mail::MailDatabase;
 use crate::utils::error::CommonError::{self, *};
 use crate::utils::shorthand::BotComponent;
@@ -1078,7 +1080,9 @@ async fn next_round(
 ) -> Result<(), BotError> {
     let msg = ctx
         .send(
-            CreateReply::default().embed(CreateEmbed::default().description("Running commands...")).ephemeral(true),
+            CreateReply::default()
+                .embed(CreateEmbed::default().description("Running commands..."))
+                .ephemeral(true),
         )
         .await?;
     let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
@@ -1459,7 +1463,15 @@ async fn tournament_property_page(
                     .set_tournament_status(t.tournament_id, status)
                     .await?;
                 t.update(ctx).await?;
-                let log = ctx.build_log("Tournament status updated", format!("The status of the tournament has updated to {} in {} `{}`", t.status, t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                let log = ctx.build_log(
+                    "Tournament status updated",
+                    format!(
+                        "The status of the tournament has updated to {} in {} `{}`",
+                        t.status, t.name, t.tournament_id
+                    ),
+                    log::State::SUCCESS,
+                    log::Model::TOURNAMENT,
+                );
                 ctx.log(log, None).await?;
             }
             "win" => {
@@ -1493,7 +1505,17 @@ async fn tournament_property_page(
                 ctx.default_map(t.tournament_id).await?;
                 ctx.data().database.set_mode(t.tournament_id, mode).await?;
                 t.update(ctx).await?;
-                let log = ctx.build_log("Mode updated", format!("The mode has been updated to {} in {} `{}`", t.mode.to_string(), t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                let log = ctx.build_log(
+                    "Mode updated",
+                    format!(
+                        "The mode has been updated to {} in {} `{}`",
+                        t.mode.to_string(),
+                        t.name,
+                        t.tournament_id
+                    ),
+                    log::State::SUCCESS,
+                    log::Model::TOURNAMENT,
+                );
                 ctx.log(log, None).await?;
             }
             "map" => {
@@ -1509,7 +1531,15 @@ async fn tournament_property_page(
                     .set_map(t.tournament_id, &map.into())
                     .await?;
                 t.update(ctx).await?;
-                let log = ctx.build_log("Map updated", format!("The map has been updated to {} in {} `{}`", t.map.name, t.name, t.tournament_id), log::State::SUCCESS, log::Model::TOURNAMENT);
+                let log = ctx.build_log(
+                    "Map updated",
+                    format!(
+                        "The map has been updated to {} in {} `{}`",
+                        t.map.name, t.name, t.tournament_id
+                    ),
+                    log::State::SUCCESS,
+                    log::Model::TOURNAMENT,
+                );
                 ctx.log(log, None).await?;
             }
             "advanced" => {
@@ -1518,7 +1548,7 @@ async fn tournament_property_page(
             }
             _ => {}
         }
-  
+
         ctx.components().prompt(msg, embed(&t), buttons(&t)).await?;
     }
     Ok(())
@@ -1554,7 +1584,12 @@ async fn advance_page(
             let ac = t.announcement_channel(ctx).await?;
             let nc = t.notification_channel(ctx).await?;
             let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-            let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No configuration for this server not found"))?;
+            let config = ctx
+                .data()
+                .database
+                .get_config(&guild_id)
+                .await?
+                .ok_or(anyhow!("No configuration for this server not found"))?;
             let mc = config.mail_channel(ctx).await?;
             let pr = t.player_role(ctx).await?;
             CreateEmbed::new()
@@ -1626,7 +1661,7 @@ Current configuration:
                     .description("Select the role that will be assigned to the participants");
                 let role = ctx.components().select_role(msg, embed).await?;
                 t.set_player_role(ctx, &role).await?;
-            },
+            }
             "mail" => {
                 interaction
                     .create_response(
@@ -1639,7 +1674,12 @@ Current configuration:
                     .description("Select the channel where the mail will be sent");
                 let channel = ctx.components().select_channel(msg, embed).await?;
                 let guild_id = ctx.guild_id().ok_or(NotInAGuild)?;
-                let config = ctx.data().database.get_config(&guild_id).await?.ok_or(anyhow!("No configuration for this server not found"))?;
+                let config = ctx
+                    .data()
+                    .database
+                    .get_config(&guild_id)
+                    .await?
+                    .ok_or(anyhow!("No configuration for this server not found"))?;
                 config.update_mail_channel(ctx, &channel).await?;
             }
             _ => continue,
@@ -2360,19 +2400,25 @@ async fn view_match_context(
         .label("Extract Mail")
         .emoji(ReactionType::Unicode("👀".to_string()))
         .style(poise::serenity_prelude::ButtonStyle::Primary)
-        .disabled(!mailable)
-        ])];
-    msg.edit(ctx, CreateReply::default().embed(embed).ephemeral(true).components(btns))
-        .await?;
+        .disabled(!mailable)])];
+    msg.edit(
+        ctx,
+        CreateReply::default()
+            .embed(embed)
+            .ephemeral(true)
+            .components(btns),
+    )
+    .await?;
     let mut ic = ctx.create_interaction_collector(&msg).await?;
     if let Some(interactions) = ic.next().await {
         if interactions.data.custom_id.as_str() == "mail" {
             extract_convo_helper(
-                &ctx, 
-                &msg, 
-                &current_match.match_players[0].to_user(&ctx).await?, 
-                &current_match.match_players[1].to_user(&ctx).await?
-            ).await?;
+                &ctx,
+                &msg,
+                &current_match.match_players[0].to_user(&ctx).await?,
+                &current_match.match_players[1].to_user(&ctx).await?,
+            )
+            .await?;
         }
     }
     Ok(())

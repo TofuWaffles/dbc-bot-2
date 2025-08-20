@@ -53,7 +53,11 @@ impl PgDatabase {
 }
 
 pub trait ConfigDatabase {
-    async fn update_mail_channel(&self, guild_id: &GuildId, mail_channel_id: &ChannelId) -> Result<(), Self::Error>;
+    async fn update_mail_channel(
+        &self,
+        guild_id: &GuildId,
+        mail_channel_id: &ChannelId,
+    ) -> Result<(), Self::Error>;
     type Error;
     /// Sets the manager role for a guild.
     async fn set_manager_role(

@@ -9,7 +9,9 @@ use async_recursion::async_recursion;
 use futures::StreamExt;
 use model::{Actor, ActorId, Mail, MailType};
 use poise::serenity_prelude::{
-    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow, CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, EditChannel, GuildChannel, Mentionable
+    Attachment, AutoArchiveDuration, ButtonStyle, ChannelId, ChannelType, Colour, CreateActionRow,
+    CreateButton, CreateEmbed, CreateInteractionResponse, CreateMessage, CreateThread, EditChannel,
+    GuildChannel, Mentionable,
 };
 use poise::{serenity_prelude::UserId, Modal};
 use poise::{CreateReply, ReplyHandle};
@@ -687,7 +689,7 @@ async fn open_thread(
         CreateButton::new("resolved")
             .label("Resolved")
             .style(ButtonStyle::Success),
-            ])];
+    ])];
     let reply = match attachments.len() {
         0 => CreateMessage::new()
             .content("There is no attachment in this mail!")
@@ -733,8 +735,8 @@ async fn open_thread(
     Ok(())
 }
 
-async fn resolve_check(ctx: &BotContext<'_>, thread: &mut GuildChannel) -> Result<(), BotError>{
-    if thread.name().starts_with("[RESOLVED]"){
+async fn resolve_check(ctx: &BotContext<'_>, thread: &mut GuildChannel) -> Result<(), BotError> {
+    if thread.name().starts_with("[RESOLVED]") {
         let edited_thread = EditChannel::new().name(thread.name().replace("[RESOLVED]", ""));
         thread.edit(ctx.http(), edited_thread).await?;
     }
