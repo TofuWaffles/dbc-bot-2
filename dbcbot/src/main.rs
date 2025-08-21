@@ -71,7 +71,12 @@ pub struct BracketURL;
 
 impl BracketURL {
     pub fn get_url() -> String {
-        std::env::var("DOMAIN");
+        let domain = "http://".to_string();
+        match std::env::var("DOMAIN") {
+            Ok(d) => domain.push_str(d),
+            Err(_) => return "No website URL found",
+        };
+        domain
     }
 }
 
