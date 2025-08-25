@@ -152,11 +152,6 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                         cm.map(|m| format!("#{}", m.match_id)).unwrap_or_default()
                     ),
                     false,
-                ),
-                (
-                    "🍕 100 Pizzas 🍕???",
-                    format!("Claim [here]({})!", "https://link.brawlstars.com/?action=voucher&code=d778006e-fc00-4a04-876e-b80d9359b3fc"),
-                    true
                 )
             ]);
         let mut buttons = vec![
