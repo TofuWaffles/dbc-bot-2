@@ -145,7 +145,7 @@ async fn user_display_menu(ctx: &BotContext<'_>, msg: &ReplyHandle<'_>) -> Resul
                 (
                     "Tournament Bracket",
                     format!(
-                        "Click [here]({}bracket/{}/{}{}) to view the bracket.",
+                        "Click [here]({}/bracket/{}/{}{}) to view the bracket.",
                         BracketURL::get_url(),
                         guild_id.to_string(),
                         player_active_tournaments[0].tournament_id,
