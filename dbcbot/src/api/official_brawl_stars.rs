@@ -226,7 +226,7 @@ impl BattleLogItem {
 pub struct Battle {
     #[serde(default)]
     pub mode: Mode,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     pub battle_type: String,
     #[serde(default)]
     pub rank: i32,
@@ -334,3 +334,4 @@ pub struct Gadget {
     id: i32,
     name: String,
 }
+
