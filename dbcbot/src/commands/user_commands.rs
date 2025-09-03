@@ -354,7 +354,7 @@ async fn user_display_match(
         .ok_or(anyhow!("Player 2 is not found in the database"))?;
 
     let reply = {
-        let image = ctx.data().apis.images.match_image(&p1, &p2).await?;
+        // let image = ctx.data().apis.images.match_image(&p1, &p2).await?;
         let embed = {
             CreateEmbed::new()
                 .title("Match Information.")
@@ -447,7 +447,7 @@ Note:
             vec![]
         };
         CreateReply::default()
-            .attachment(CreateAttachment::bytes(image, "Match.png"))
+            // .attachment(CreateAttachment::bytes(image, "Match.png"))
             .embed(embed)
             .components(buttons)
     };
